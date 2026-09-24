@@ -115,18 +115,25 @@ def find_installed(name):
     return None
 
 
+def system_open(url):
+    """Открыть ссылку в браузере Windows по умолчанию. На других системах — False."""
+    if os.name != 'nt':
+        return False
+    try:
+        os.startfile(url)
+        return True
+    except OSError:
+        return False
+
+
 def open_in_browser(url, agent=None):
     """Открыть адрес в браузере по умолчанию.
 
     Сначала пробуем системный браузер по умолчанию (Windows Shell), затем
     управляемый браузер агента — чтобы ссылка гарантированно открылась.
     """
-    if os.name == 'nt':
-        try:
-            os.startfile(url)
-            return True
-        except OSError:
-            pass
+    if system_open(url):
+        return True
     if agent is not None and getattr(agent, 'browser', None) is not None:
         try:
             agent.browser.call('open', url)

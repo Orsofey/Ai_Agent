@@ -28,7 +28,8 @@ class ServiceCommands(unittest.TestCase):
 
     def test_service_fallback_downloads(self):
         a = Mock()
-        with patch('src.web_services.find_installed', return_value=None):
+        with patch('src.web_services.find_installed', return_value=None), \
+             patch('src.web_services.system_open', return_value=False):
             handle(a, 'Запусти приложение Яндекс Музыка', {})
         a.browser.call.assert_called_once_with('open', 'https://music.yandex.ru/download')
 

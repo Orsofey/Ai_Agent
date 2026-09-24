@@ -29,10 +29,9 @@ def normalize_service(text):
 
 def system_browser(url):
     """Открыть ссылку в обычном браузере пользователя (браузер Windows по умолчанию)."""
+    if web_services.system_open(url):
+        return True
     try:
-        if os.name == 'nt':
-            os.startfile(url)
-            return True
         return bool(webbrowser.open(url))
     except Exception:
         return False

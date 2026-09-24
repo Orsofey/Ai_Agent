@@ -7,6 +7,11 @@ from src.assistant_commands import handle
 
 class WebServiceTests(unittest.TestCase):
     def setUp(self):
+        # На Windows сервисы открываются в системном браузере; в тестах проверяем путь
+        # через браузер агента и не открываем настоящие окна.
+        patcher = patch.object(web_services, 'system_open', return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.browser = Mock()
         self.browser.call.return_value = '[browser]'
         self.agent = Mock()
@@ -47,6 +52,13 @@ class WebServiceTests(unittest.TestCase):
         with patch.object(web_services, 'find_installed', return_value='C:/fake/Yandex Music.exe'):
             handle(self.agent, 'Открой Яндекс Музыку', {})
         self.browser.call.assert_called_once_with('open', 'https://music.yandex.ru')
+
+    def test_windows_opens_default_browser_first(self):
+        with patch.object(web_services, 'system_open', return_value=True) as system:
+            answer = handle(self.agent, 'Открой спотифай', {})
+        system.assert_called_once_with('https://open.spotify.com')
+        self.assertIn('браузере', answer)
+        self.browser.call.assert_not_called()
 
     # --- Вспомогательные функции ---
     def test_open_service_unknown_returns_none(self):
