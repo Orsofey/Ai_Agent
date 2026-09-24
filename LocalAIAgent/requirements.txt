@@ -1,0 +1,33 @@
+# Каркас и окно
+Flask>=3.1,<4
+waitress>=3.0,<4
+psutil>=6.1,<8
+filelock>=3.16,<4
+pywebview>=5.4,<7
+pystray>=0.19,<1
+Pillow>=10.4
+
+# Распознавание речи: Parakeet v3 / GigaAM v3 через ONNX Runtime, Silero VAD, микрофон
+numpy>=1.26
+onnx-asr[cpu,hub]>=0.12,<1
+av>=14,<19
+sounddevice>=0.5,<1
+# Резервный движок Whisper (используется только если выбран в настройках)
+faster-whisper>=1.2,<2
+
+# Озвучка
+piper-tts>=1.2.0
+pyttsx3>=2.98; sys_platform == 'win32'
+
+# Ответы на вопросы
+anthropic>=1.8,<2
+requests>=2.32,<3
+ddgs>=9,<10
+
+# Управление приложениями и браузером
+pyperclip>=1.9
+playwright>=1.51,<2
+yt-dlp>=2025.3.31
+
+# Сборка
+PyInstaller>=6.12,<7

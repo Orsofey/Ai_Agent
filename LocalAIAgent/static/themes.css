@@ -1,0 +1,195 @@
+/* Seven themes: five signature themes + classic dark/light.
+   Each theme = variables + its own living background (.scene). */
+
+/* Общая база: каждая тема (и карточка-превью) начинает с одинаковых значений. */
+[data-theme] {
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --radius: 18px; --radius-sm: 12px; --blur: 18px; --display-spacing: 0; --orb-radius: 50%;
+  --card-clip: none; --title-fill: none;
+}
+
+/* ===== 1. АВРОРА — северное сияние над ночным небом ===== */
+[data-theme="aurora"] {
+  --bg: #040817; --bar: rgba(6, 12, 32, .55); --surface: rgba(14, 22, 48, .52); --surface-strong: #111a38;
+  --border: rgba(150, 200, 255, .15); --text: #eaf2ff; --muted: #97a8cc; --chip: rgba(255, 255, 255, .06);
+  --input: rgba(4, 10, 28, .55); --accent: #5ef2c2; --accent-2: #7aa2ff; --on-accent: #03141a;
+  --accent-fill: linear-gradient(135deg, #5ef2c2, #6f8bff); --ring: rgba(94, 242, 194, .22);
+  --glow: rgba(94, 242, 194, .38); --ok: #5ef2c2; --warn: #ffd166; --bad: #ff6b8b;
+  --user-bubble: linear-gradient(135deg, #1b7a6f, #3a4fc0); --user-text: #fff; --agent-bubble: rgba(255, 255, 255, .055);
+  --orb: radial-gradient(circle at 34% 28%, #eafff8 0%, #5ef2c2 26%, #3b6ee0 62%, #7a35c9 100%);
+  --shadow: 0 18px 50px rgba(0, 0, 0, .35);
+  --title-fill: linear-gradient(90deg, #5ef2c2, #8fb0ff, #d59bff); --display-spacing: .2px;
+  --scene: radial-gradient(ellipse at 50% 120%, #0d2a4a 0%, #050b1f 55%, #02040c 100%);
+}
+[data-theme="aurora"] .brand-name span { color: transparent; }
+:is(html[data-theme="aurora"] body > .scene, .theme-card[data-theme="aurora"] > .scene)::before {
+  inset: -20% -10% 25% -10%;
+  background:
+    radial-gradient(ellipse 45% 30% at 30% 45%, rgba(72, 255, 190, .55), transparent 70%),
+    radial-gradient(ellipse 40% 26% at 62% 38%, rgba(90, 140, 255, .45), transparent 70%),
+    radial-gradient(ellipse 35% 24% at 80% 55%, rgba(200, 90, 255, .38), transparent 70%);
+  filter: blur(38px); mix-blend-mode: screen; animation: aurora 22s ease-in-out infinite alternate;
+}
+:is(html[data-theme="aurora"] body > .scene, .theme-card[data-theme="aurora"] > .scene)::after {
+  inset: 0; opacity: .7;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 72% 12%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 38% 8%, #cfe, transparent), radial-gradient(1px 1px at 88% 30%, #fff, transparent),
+    radial-gradient(1px 1px at 56% 24%, #fff, transparent), radial-gradient(1.5px 1.5px at 22% 36%, #dff, transparent),
+    radial-gradient(1px 1px at 92% 8%, #fff, transparent), radial-gradient(1px 1px at 5% 60%, #fff, transparent);
+  animation: twinkle 6s ease-in-out infinite alternate;
+}
+
+/* ===== 2. КИБЕРПАНК — неон, синтвейв-солнце и бегущая сетка ===== */
+[data-theme="cyberpunk"] {
+  --font-display: 'Cascadia Code', 'Consolas', 'JetBrains Mono', monospace;
+  --radius: 3px; --radius-sm: 2px; --blur: 6px; --display-spacing: 1.5px; --orb-radius: 8px;
+  --bg: #07020f; --bar: rgba(12, 3, 24, .82); --surface: rgba(16, 4, 30, .80); --surface-strong: #1a0630;
+  --border: rgba(255, 43, 214, .38); --text: #f7f0ff; --muted: #b194d0; --chip: rgba(255, 43, 214, .08);
+  --input: rgba(6, 0, 14, .85); --accent: #00f0ff; --accent-2: #ff2bd6; --on-accent: #07020f;
+  --accent-fill: linear-gradient(90deg, #ff2bd6, #00f0ff); --ring: rgba(0, 240, 255, .25);
+  --glow: rgba(255, 43, 214, .55); --ok: #00ffa3; --warn: #f8ff00; --bad: #ff3860;
+  --user-bubble: linear-gradient(90deg, #b3179a, #5b23c9); --user-text: #fff; --agent-bubble: rgba(0, 240, 255, .07);
+  --orb: conic-gradient(from 0deg, #ff2bd6, #00f0ff, #f8ff00, #ff2bd6);
+  --shadow: 0 0 0 1px rgba(0, 240, 255, .12), 0 0 28px rgba(255, 43, 214, .18);
+  --card-clip: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  --scene: linear-gradient(180deg, #0a0118 0%, #1b0433 52%, #07020f 52.2%, #07020f 100%);
+}
+[data-theme="cyberpunk"] .brand-name { text-transform: uppercase; color: #fff; text-shadow: 0 0 6px #ff2bd6, 0 0 18px #ff2bd6, 2px 0 #00f0ff; animation: glitch 5s steps(1) infinite; }
+[data-theme="cyberpunk"] .voice-title, [data-theme="cyberpunk"] .page > h1 { text-transform: uppercase; text-shadow: 0 0 12px var(--glow); }
+:is(html[data-theme="cyberpunk"] body > .scene, .theme-card[data-theme="cyberpunk"] > .scene)::before {
+  left: 50%; top: 18%; width: 46vmin; height: 46vmin; transform: translateX(-50%); border-radius: 50%;
+  background: repeating-linear-gradient(180deg, transparent 0 58%, #0a0118 58% 62%), linear-gradient(180deg, #f8ff00, #ff7a18 45%, #ff2bd6 80%);
+  -webkit-mask: linear-gradient(#000 0 62%, transparent 62%); mask: linear-gradient(#000 0 62%, transparent 62%);
+  box-shadow: 0 0 80px rgba(255, 43, 214, .55); opacity: .75;
+}
+:is(html[data-theme="cyberpunk"] body > .scene, .theme-card[data-theme="cyberpunk"] > .scene)::after {
+  left: -50%; right: -50%; bottom: -10%; height: 58%;
+  background-image: linear-gradient(rgba(0, 240, 255, .55) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 43, 214, .5) 1px, transparent 1px);
+  background-size: 60px 60px; transform: perspective(420px) rotateX(62deg); transform-origin: top;
+  animation: grid-run 1.6s linear infinite;
+  -webkit-mask: linear-gradient(transparent, #000 35%); mask: linear-gradient(transparent, #000 35%);
+}
+[data-theme="cyberpunk"] .app::after, [data-theme="cyberpunk"] .settings-app::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 30;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .18) 0 1px, transparent 1px 3px);
+}
+[data-theme="cyberpunk"] .btn.primary { text-transform: uppercase; letter-spacing: 1px; }
+[data-theme="cyberpunk"] .orb { animation: spin 6s linear infinite; }
+
+/* ===== 3. САКУРА — весенний сад, падающие лепестки ===== */
+[data-theme="sakura"] {
+  --font-display: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
+  --radius: 26px; --radius-sm: 16px;
+  --bg: #fff6f8; --bar: rgba(255, 250, 251, .7); --surface: rgba(255, 255, 255, .72); --surface-strong: #fff;
+  --border: rgba(214, 120, 150, .22); --text: #3f2330; --muted: #8f6b7a; --chip: rgba(229, 72, 125, .07);
+  --input: rgba(255, 255, 255, .85); --accent: #e0457b; --accent-2: #7cc6a4; --on-accent: #fff;
+  --accent-fill: linear-gradient(135deg, #f06a98, #d63a72); --ring: rgba(224, 69, 123, .18);
+  --glow: rgba(240, 106, 152, .38); --ok: #3aa77a; --warn: #d8902a; --bad: #d63a4a;
+  --user-bubble: linear-gradient(135deg, #f37ba3, #db4b80); --user-text: #fff; --agent-bubble: rgba(255, 255, 255, .9);
+  --orb: radial-gradient(circle at 35% 30%, #fff 0%, #ffd3e2 30%, #f37ba3 65%, #c93a6f 100%);
+  --shadow: 0 16px 40px rgba(201, 58, 111, .12);
+  --scene: radial-gradient(ellipse at 85% 0%, #ffd9e5 0%, transparent 50%), radial-gradient(ellipse at 0% 100%, #e3f5ea 0%, transparent 45%), linear-gradient(160deg, #fff4f7, #fffaf2);
+}
+[data-theme="sakura"] .brand-name { color: #b3305f; font-style: italic; }
+:is(html[data-theme="sakura"] body > .scene, .theme-card[data-theme="sakura"] > .scene)::before {
+  right: -60px; top: -40px; width: 460px; height: 320px; opacity: .55;
+  background:
+    radial-gradient(circle at 20% 60%, #f7a8c2 0 9px, transparent 10px), radial-gradient(circle at 36% 48%, #fbc4d6 0 12px, transparent 13px),
+    radial-gradient(circle at 52% 62%, #f48fb1 0 8px, transparent 9px), radial-gradient(circle at 64% 40%, #fbc4d6 0 14px, transparent 15px),
+    radial-gradient(circle at 78% 56%, #f7a8c2 0 10px, transparent 11px), radial-gradient(circle at 44% 30%, #f48fb1 0 7px, transparent 8px),
+    linear-gradient(162deg, transparent 47%, #8a5a4a 47.5% 49%, transparent 49.5%);
+  filter: blur(.3px);
+}
+[data-theme="sakura"] .particle.petal {
+  top: -30px; width: 14px; height: 11px; border-radius: 12px 1px 12px 1px;
+  background: linear-gradient(135deg, #ffd1df, #f48fb1); opacity: .85;
+  animation: petal-fall linear infinite, petal-sway ease-in-out infinite alternate;
+}
+
+/* ===== 4. БЕЗДНА — светящийся океан, пузыри и каустика ===== */
+[data-theme="ocean"] {
+  --bg: #011018; --bar: rgba(1, 22, 32, .6); --surface: rgba(3, 38, 52, .5); --surface-strong: #04303f;
+  --border: rgba(90, 230, 255, .17); --text: #dcf9ff; --muted: #82b8c5; --chip: rgba(56, 243, 255, .07);
+  --input: rgba(0, 16, 24, .6); --accent: #38f3ff; --accent-2: #2ee6a6; --on-accent: #012028;
+  --accent-fill: linear-gradient(135deg, #38f3ff, #2ee6a6); --ring: rgba(56, 243, 255, .2);
+  --glow: rgba(56, 243, 255, .42); --ok: #2ee6a6; --warn: #ffd37a; --bad: #ff6f91;
+  --user-bubble: linear-gradient(135deg, #0a7d8c, #1b4fa8); --user-text: #fff; --agent-bubble: rgba(56, 243, 255, .06);
+  --orb: radial-gradient(circle at 50% 40%, #e6ffff 0%, #6ff7ff 22%, #0fb4c9 48%, #1b3f9e 78%, #3a1e7a 100%);
+  --shadow: 0 18px 50px rgba(0, 0, 0, .4);
+  --title-fill: linear-gradient(90deg, #7ff9ff, #2ee6a6);
+  --scene: radial-gradient(ellipse at 50% -10%, #0b6a80 0%, #03384a 30%, #011820 62%, #00070b 100%);
+}
+[data-theme="ocean"] .brand-name span { color: transparent; }
+:is(html[data-theme="ocean"] body > .scene, .theme-card[data-theme="ocean"] > .scene)::before {
+  inset: -10% -20% 40% -20%; opacity: .35;
+  background: repeating-linear-gradient(100deg, transparent 0 40px, rgba(140, 255, 255, .22) 46px, transparent 60px);
+  -webkit-mask: linear-gradient(#000, transparent); mask: linear-gradient(#000, transparent);
+  filter: blur(6px); animation: rays 14s ease-in-out infinite alternate;
+}
+:is(html[data-theme="ocean"] body > .scene, .theme-card[data-theme="ocean"] > .scene)::after {
+  inset: 0; opacity: .5;
+  background: radial-gradient(circle at 20% 80%, rgba(46, 230, 166, .12), transparent 30%), radial-gradient(circle at 80% 70%, rgba(123, 97, 255, .12), transparent 30%);
+  animation: drift 18s ease-in-out infinite alternate;
+}
+[data-theme="ocean"] .particle.bubble {
+  bottom: -30px; border-radius: 50%; border: 1px solid rgba(160, 255, 255, .55);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, .7), rgba(120, 255, 255, .08) 45%, transparent 70%);
+  box-shadow: 0 0 12px rgba(56, 243, 255, .35);
+  animation: bubble-rise linear infinite, bubble-wobble ease-in-out infinite alternate;
+}
+
+/* ===== 5. ЛЮКС — ар-деко, чёрное золото ===== */
+[data-theme="luxe"] {
+  --font-display: 'Didot', 'Bodoni MT', 'Playfair Display', 'Georgia', serif;
+  --radius: 4px; --radius-sm: 3px; --display-spacing: 1.2px; --blur: 10px;
+  --bg: #0b0906; --bar: rgba(14, 11, 7, .88); --surface: rgba(22, 18, 12, .86); --surface-strong: #1a150d;
+  --border: rgba(212, 175, 95, .34); --text: #f6ecd6; --muted: #b9a67e; --chip: rgba(212, 175, 95, .08);
+  --input: rgba(8, 6, 3, .8); --accent: #e0bd6e; --accent-2: #f5dc9b; --on-accent: #1a1206;
+  --accent-fill: linear-gradient(135deg, #f7e2a6, #c9982f 55%, #f1d27d); --ring: rgba(224, 189, 110, .22);
+  --glow: rgba(224, 189, 110, .35); --ok: #9fd18b; --warn: #f0c060; --bad: #e0705c;
+  --user-bubble: linear-gradient(135deg, #b8872a, #7a5518); --user-text: #fff8e8; --agent-bubble: rgba(212, 175, 95, .06);
+  --orb: radial-gradient(circle at 35% 28%, #fff6d6 0%, #f1d27d 25%, #c9982f 55%, #6b4a12 100%);
+  --shadow: 0 0 0 1px rgba(212, 175, 95, .1), 0 20px 50px rgba(0, 0, 0, .5);
+  --title-fill: linear-gradient(90deg, #f7e2a6, #c9982f, #f7e2a6);
+  --scene: radial-gradient(ellipse at 50% 0%, #1f180c 0%, #0b0906 60%);
+}
+[data-theme="luxe"] .brand-name { text-transform: uppercase; }
+[data-theme="luxe"] .brand-name span { color: transparent; background-size: 200% 100%; animation: sheen 6s linear infinite; }
+[data-theme="luxe"] .card { outline: 1px solid rgba(212, 175, 95, .16); outline-offset: -6px; }
+:is(html[data-theme="luxe"] body > .scene, .theme-card[data-theme="luxe"] > .scene)::before {
+  inset: 0; opacity: .16;
+  background:
+    radial-gradient(circle at 50% 100%, transparent 0 14px, #d4af5f 15px 16px, transparent 17px 26px, #d4af5f 27px 28px, transparent 29px 38px, #d4af5f 39px 40px, transparent 41px) 0 0 / 80px 40px;
+}
+:is(html[data-theme="luxe"] body > .scene, .theme-card[data-theme="luxe"] > .scene)::after {
+  inset: -50%; background: linear-gradient(115deg, transparent 45%, rgba(247, 226, 166, .10) 50%, transparent 55%);
+  animation: sweep 9s ease-in-out infinite;
+}
+[data-theme="luxe"] .orb { box-shadow: 0 0 0 6px #0b0906, 0 0 0 7px rgba(212, 175, 95, .6), 0 0 calc(30px + var(--level) * 80px) var(--glow); }
+
+/* ===== Классика ===== */
+[data-theme="dark"] {
+  --bg: #0f141c; --bar: rgba(18, 24, 34, .9); --surface: #161d28; --surface-strong: #1b2330;
+  --border: #283344; --text: #e9eef6; --muted: #98a4b6; --chip: #1d2634; --input: #111823;
+  --accent: #5aa8ff; --accent-2: #7ee0c3; --on-accent: #06121f; --accent-fill: #5aa8ff; --ring: rgba(90, 168, 255, .22);
+  --glow: rgba(90, 168, 255, .3); --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+  --user-bubble: #2563eb; --user-text: #fff; --agent-bubble: #1b2330;
+  --orb: radial-gradient(circle at 35% 30%, #dbeafe, #5aa8ff 45%, #1e3a8a); --shadow: 0 10px 30px rgba(0, 0, 0, .25);
+  --blur: 0px; --scene: #0f141c;
+}
+[data-theme="light"] {
+  --bg: #f3f5f9; --bar: rgba(255, 255, 255, .9); --surface: #fff; --surface-strong: #fff;
+  --border: #dde3ec; --text: #16202f; --muted: #5d6b80; --chip: #eef2f8; --input: #f8fafc;
+  --accent: #2563eb; --accent-2: #0d9488; --on-accent: #fff; --accent-fill: #2563eb; --ring: rgba(37, 99, 235, .18);
+  --glow: rgba(37, 99, 235, .25); --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
+  --user-bubble: #2563eb; --user-text: #fff; --agent-bubble: #f1f4f9;
+  --orb: radial-gradient(circle at 35% 30%, #fff, #93c5fd 40%, #2563eb); --shadow: 0 8px 24px rgba(22, 32, 47, .08);
+  --blur: 0px; --scene: #f3f5f9;
+}
+
+/* Масштаб декораций внутри карточек-превью. */
+.theme-card[data-theme="cyberpunk"] > .scene::before { width: 96px; height: 96px; top: 14px; box-shadow: 0 0 40px rgba(255, 43, 214, .55); }
+.theme-card[data-theme="cyberpunk"] > .scene::after { background-size: 24px 24px; height: 50%; }
+.theme-card[data-theme="sakura"] > .scene::before { width: 220px; height: 150px; right: -50px; top: -40px; opacity: .45; }
+.theme-card[data-theme="aurora"] > .scene::before { filter: blur(18px); }

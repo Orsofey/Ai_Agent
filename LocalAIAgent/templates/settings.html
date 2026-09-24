@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ru" data-theme="aurora">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Настройки — Local AI Agent</title>
+<script>
+  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'aurora';
+        document.documentElement.dataset.animations = localStorage.getItem('agent_animations') || 'on'; } catch (e) {}
+</script>
+<link rel="icon" href="/static/icon-192.png">
+<link rel="stylesheet" href="/static/style.css?v={{ version }}">
+<link rel="stylesheet" href="/static/themes.css?v={{ version }}">
+<link rel="stylesheet" href="/static/motion.css?v={{ version }}">
+</head>
+<body>
+<div class="scene" aria-hidden="true"></div>
+<div class="settings-app">
+  <nav class="side" aria-label="Разделы настроек">
+    <div class="brand"><img src="/static/icon-192.png" alt=""><div><div class="brand-name"><span>Настройки</span></div><small>Local AI Agent {{ version }}</small></div></div>
+    <button class="nav-item active" data-page="general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Общие</button>
+    <button class="nav-item" data-page="voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Голос и микрофон</button>
+    <button class="nav-item" data-page="recognition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>Распознавание</button>
+    <button class="nav-item" data-page="speech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Озвучка</button>
+    <button class="nav-item" data-page="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg>ИИ и ответы</button>
+    <button class="nav-item" data-page="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Управление ПК</button>
+    <button class="nav-item" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление</button>
+    <button class="nav-item" data-page="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Телефон</button>
+    <button class="nav-item" data-page="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Профиль и данные</button>
+  </nav>
+
+  <main class="content">
+    <!-- ОБЩИЕ -->
+    <section class="page active" id="page-general">
+      <h1>Общие</h1><p class="lead">Как зовут ассистента и как он запускается.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Имя ассистента</b><small>Обращайтесь по имени: «Андрей, открой калькулятор».</small></div>
+          <div class="control"><input data-setting="wake_word" maxlength="40" placeholder="Андрей"></div></div>
+        <div class="row"><div class="label"><b>Другие варианты имени</b><small>Через запятую: как вас может «услышать» распознавание (например: Андрюша, Andrew).</small></div>
+          <div class="control"><input data-setting="wake_aliases" maxlength="200" placeholder="Андрюша, Andrew"></div></div>
+        <div class="row"><div class="label"><b>Язык речи</b><small>«Русский + английский» распознаёт оба языка автоматически.</small></div>
+          <div class="control"><select data-setting="voice_language"><option value="auto">Русский + английский</option><option value="ru">Только русский (максимальная точность)</option><option value="en">Только английский</option></select></div></div>
+        <div class="row"><div class="label"><b>Ваш город</b><small>Для погоды и местного поиска.</small></div>
+          <div class="control"><input data-setting="city" maxlength="60" placeholder="Москва"></div></div>
+        <div class="row"><div class="label"><b>Запускать вместе с Windows</b><small>Ассистент стартует свёрнутым в трей и сразу слушает.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="autostart"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Сворачивать в трей при закрытии</b><small>Крестик прячет окно, а голосовое управление продолжает работать.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="minimize_to_tray"><span></span></label></div></div>
+      </div>
+    </section>
+
+    <!-- ГОЛОС -->
+    <section class="page" id="page-voice">
+      <h1>Голос и микрофон</h1><p class="lead">Постоянное прослушивание работает в фоне — даже когда вы в Word, Telegram или игре.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Слушать команды</b><small>Реагировать на имя «<span class="name-ref">Андрей</span>» в любом приложении.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="voice_enabled"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Микрофон</b><small>Для фонового прослушивания.</small></div>
+          <div class="control"><select data-setting="native_microphone" id="mic-select"><option value="">Системный по умолчанию</option></select><button class="btn icon-btn" id="refresh-mics" title="Обновить список">↻</button></div></div>
+        <div class="row"><div class="label"><b>Чувствительность</b><small>Выше — слышит тихую речь; ниже — меньше реагирует на шум.</small></div>
+          <div class="control"><div class="range"><input type="range" min="10" max="90" step="5" data-setting="vad_sensitivity"><output data-for="vad_sensitivity"></output></div></div></div>
+        <div class="row"><div class="label"><b>Пауза конца фразы</b><small>Сколько тишины ждать перед выполнением. Меньше — быстрее ответ.</small></div>
+          <div class="control"><div class="range"><input type="range" min="250" max="2000" step="50" data-setting="silence_ms" data-unit="мс"><output data-for="silence_ms"></output></div></div></div>
+        <div class="row"><div class="label"><b>Продолжение разговора</b><small>После ответа можно задать следующий вопрос без имени. 0 — выключено.</small></div>
+          <div class="control"><div class="range"><input type="range" min="0" max="15" step="1" data-setting="follow_up_seconds" data-unit="с"><output data-for="follow_up_seconds"></output></div></div></div>
+        <div class="row"><div class="label"><b>Горячая клавиша</b><small>Работает в любом приложении: нажмите и сразу говорите команду без имени.</small></div>
+          <div class="control"><input class="hotkey-input" id="hotkey" readonly data-setting="hotkey" title="Нажмите, затем сочетание клавиш"></div></div>
+      </div>
+    </section>
+
+    <!-- РАСПОЗНАВАНИЕ -->
+    <section class="page" id="page-recognition">
+      <h1>Распознавание речи</h1><p class="lead">Локальные нейросети: речь не покидает компьютер. Модели: NVIDIA Parakeet v3 (русский и английский) и Sber GigaAM v3 (лучшая точность для русского).</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Движок</b><small id="engine-now">—</small></div>
+          <div class="control"><select data-setting="stt_engine"><option value="auto">Автоматически (рекомендуется)</option><option value="parakeet">Parakeet v3 — RU + EN</option><option value="gigaam">GigaAM v3 — русский</option><option value="whisper">Whisper — резерв (видеокарта)</option></select></div></div>
+        <div class="row stack"><div class="label"><b>Модели</b><small>Скачиваются один раз. Затем интернет для распознавания не нужен.</small></div>
+          <div class="control"><div class="models" id="models"></div></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="download-all">Скачать рекомендуемые модели</button><button class="btn" id="reload-model">Перезагрузить движок</button></div></div>
+      </div>
+    </section>
+
+    <!-- ОЗВУЧКА -->
+    <section class="page" id="page-speech">
+      <h1>Озвучка ответов</h1><p class="lead">Нейросетевые голоса Piper работают офлайн. Ответ начинает звучать с первой фразы.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Озвучивать ответы</b></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="tts_enabled"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Русский голос</b></div>
+          <div class="control"><select data-setting="tts_voice" id="voice-ru"><option value="irina">Ирина</option><option value="denis">Денис</option></select></div></div>
+        <div class="row"><div class="label"><b>Английский голос</b><small>Для ответов на английском.</small></div>
+          <div class="control"><select data-setting="tts_voice_en" id="voice-en"><option value="amy">Amy</option><option value="lessac">Lessac</option></select></div></div>
+        <div class="row"><div class="label"><b>Скорость речи</b></div>
+          <div class="control"><div class="range"><input type="range" min="60" max="200" step="5" data-setting="tts_rate" data-unit="%"><output data-for="tts_rate"></output></div></div></div>
+        <div class="row stack"><div class="control"><button class="btn" id="test-voice">Проверить голос</button></div></div>
+      </div>
+    </section>
+
+    <!-- ИИ -->
+    <section class="page" id="page-ai">
+      <h1>ИИ и ответы на вопросы</h1><p class="lead">Курсы ЦБ, погода, криптовалюты и калькулятор отвечаются мгновенно из первоисточников. Остальные вопросы — нейросеть с поиском в интернете.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Поставщик ИИ</b></div>
+          <div class="control"><select data-setting="llm_provider" id="provider"><option value="claude">Claude (Anthropic) — рекомендуется</option><option value="openai">OpenAI-совместимый сервер (Ollama, LM Studio…)</option><option value="off">Выключен</option></select></div></div>
+        <div data-provider="claude">
+          <div class="row"><div class="label"><b>Ключ Anthropic API</b><small id="anthropic-state">Ключ хранится только на этом ПК. Получить: console.anthropic.com</small></div>
+            <div class="control"><input type="password" id="anthropic-key" placeholder="sk-ant-…" autocomplete="off"><button class="btn" data-secret="anthropic_api_key" data-input="anthropic-key">Сохранить</button></div></div>
+          <div class="row"><div class="label"><b>Модель</b><small>Opus 5 — самые точные ответы. Haiku 4.5 — самые быстрые.</small></div>
+            <div class="control"><select data-setting="llm_model"><option value="claude-opus-5">Claude Opus 5</option><option value="claude-sonnet-5">Claude Sonnet 5</option><option value="claude-haiku-4-5">Claude Haiku 4.5 (быстрее всего)</option><option value="claude-fable-5-1">Claude Fable 5.1 (максимум)</option></select></div></div>
+          <div class="row"><div class="label"><b>Глубина размышлений</b><small>«Быстро» — для голосового ассистента. «Глубоко» — для сложных вопросов.</small></div>
+            <div class="control"><select data-setting="llm_effort"><option value="low">Быстро</option><option value="medium">Сбалансированно</option><option value="high">Глубоко</option></select></div></div>
+        </div>
+        <div data-provider="openai" hidden>
+          <div class="row"><div class="label"><b>Адрес сервера</b><small>Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://127.0.0.1:1234/v1</small></div>
+            <div class="control"><input data-setting="openai_base_url" placeholder="http://127.0.0.1:11434/v1"></div></div>
+          <div class="row"><div class="label"><b>Модель</b></div>
+            <div class="control"><input data-setting="openai_model" placeholder="qwen2.5:7b-instruct"></div></div>
+          <div class="row"><div class="label"><b>Ключ API</b><small id="openai-state">Не нужен для локальных серверов.</small></div>
+            <div class="control"><input type="password" id="openai-key" placeholder="необязательно" autocomplete="off"><button class="btn" data-secret="openai_api_key" data-input="openai-key">Сохранить</button></div></div>
+        </div>
+        <div class="row"><div class="label"><b>Поиск в интернете</b><small>Для новостей, цен и всего, что меняется.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="llm_web_search"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Длина ответов</b></div>
+          <div class="control"><select data-setting="answer_style"><option value="short">Коротко, для голоса</option><option value="detailed">Подробнее</option></select></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="test-ai">Проверить подключение</button><span class="hint" id="ai-test-result"></span></div></div>
+      </div>
+    </section>
+
+    <!-- УПРАВЛЕНИЕ ПК -->
+    <section class="page" id="page-control">
+      <h1>Управление ПК</h1><p class="lead">Команды выполняются в том окне, где вы сейчас работаете: Word, Telegram, браузер, Блокнот, Discord и любые другие.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Способ ввода текста</b><small>«Авто» печатает короткий текст, длинный вставляет через буфер обмена.</small></div>
+          <div class="control"><select data-setting="type_method"><option value="auto">Авто</option><option value="keys">Печатать по буквам</option><option value="paste">Вставлять через буфер</option></select></div></div>
+        <div class="row"><div class="label"><b>Сразу отправлять сообщения</b><small>Для «Напиши Милане в Телеграме …». Иначе агент напишет и попросит сказать «отправь».</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="messenger_autosend"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Видео по умолчанию</b></div>
+          <div class="control"><select data-setting="video_source"><option value="youtube">YouTube</option><option value="rutube">Rutube</option></select></div></div>
+        <div class="row stack"><div class="label"><b>Примеры команд</b></div>
+          <ul class="examples">
+            <li><b>«<span class="name-ref">Андрей</span>, напиши текст привет, Милана»</b> — в активном окне</li>
+            <li><b>«Напиши и отправь я уже еду»</b> — текст + Enter</li>
+            <li><b>«Напиши Милане в Телеграме привет»</b> — найдёт чат сам</li>
+            <li><b>«Отправь»</b>, <b>«Новая строка»</b>, <b>«Сотри слово»</b></li>
+            <li><b>«Выдели всё»</b>, <b>«Скопируй»</b>, <b>«Вставь»</b>, <b>«Отмени»</b></li>
+            <li><b>«Сохрани»</b>, <b>«Жирный»</b>, <b>«Курсив»</b> — в Word</li>
+            <li><b>«Сочини поздравление для Миланы»</b> — ИИ напишет и напечатает</li>
+            <li><b>«Переведи выделенное на английский»</b></li>
+            <li><b>«Исправь ошибки»</b> — в выделенном тексте</li>
+            <li><b>«Прочитай выделенное»</b></li>
+            <li><b>«Начни диктовку»</b> … <b>«Стоп диктовка»</b></li>
+            <li><b>«Нажми Ctrl+Shift+T»</b>, <b>«Нажми вниз 3 раза»</b></li>
+            <li><b>«Сверни окно»</b>, <b>«Разверни окно»</b>, <b>«Закрой окно»</b></li>
+            <li><b>«Громче»</b>, <b>«Тише»</b>, <b>«Следующий трек»</b></li>
+            <li><b>«Сделай скриншот»</b>, <b>«Покажи рабочий стол»</b></li>
+            <li><b>«Открой Telegram»</b>, <b>«Закрой Chrome»</b></li>
+          </ul></div>
+      </div>
+    </section>
+
+    <!-- ОФОРМЛЕНИЕ -->
+    <section class="page" id="page-appearance">
+      <h1>Оформление</h1><p class="lead">Пять авторских тем с живым фоном и две классические. Тема применяется сразу во всех окнах.</p>
+      <div class="themes" id="themes"></div>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Анимации</b><small>Живой фон, частицы и переходы.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="animations"><span></span></label></div></div>
+      </div>
+    </section>
+
+    <!-- ТЕЛЕФОН -->
+    <section class="page" id="page-phone">
+      <h1>Управление с телефона</h1><p class="lead">ПК и телефон должны быть в одной доверенной сети. Установите Android-клиент (BUILD_ANDROID.bat) или откройте адрес в браузере телефона.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Адрес ПК</b></div><div class="control"><code id="pc-address">—</code></div></div>
+        <div class="row"><div class="label"><b>Код подключения</b><small>Даёт управление ПК — никому не сообщайте.</small></div>
+          <div class="control"><input type="password" id="connection-token" readonly><button class="btn" id="show-token">Показать</button></div></div>
+        <p class="hint">HTTP в локальной сети не шифруется. Для доступа извне используйте защищённый VPN.</p>
+      </div>
+    </section>
+
+    <!-- ПРОФИЛЬ -->
+    <section class="page" id="page-profile">
+      <h1>Профиль и данные</h1><p class="lead" id="profile">Гостевой профиль этого устройства</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Вход в профиль</b><small>Профиль хранит отдельные настройки и историю.</small></div>
+          <div class="control" style="flex-direction:column;align-items:stretch"><input id="username" placeholder="Имя"><input id="password" type="password" placeholder="Пароль (от 8 символов)" autocomplete="current-password"></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="login">Войти</button><button class="btn" id="register">Регистрация</button><button class="btn" id="logout">Выйти в гостевой профиль</button><span class="hint" id="account-status"></span></div></div>
+        <div class="row stack"><div class="control"><button class="btn" id="export">Экспорт истории и настроек</button><button class="btn danger" id="clear-history">Очистить историю</button></div></div>
+        <p class="hint" id="storage"></p>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="save-state"><span class="pill" id="save-state"><span class="dot"></span><span>Изменения сохраняются автоматически</span></span></div>
+
+<script src="/static/motion.js?v={{ version }}"></script>
+<script src="/static/core.js?v={{ version }}"></script>
+<script src="/static/settings.js?v={{ version }}"></script>
+</body>
+</html>

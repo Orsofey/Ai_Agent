@@ -1,0 +1,13 @@
+{
+  "name": "local-ai-agent-build-tools",
+  "version": "5.0.0",
+  "private": true,
+  "description": "Optional npm aliases for the native Python desktop build. This is not an Electron project.",
+  "scripts": {
+    "setup": "cmd /d /c SETUP_WINDOWS.bat",
+    "build:windows": "cmd /d /c BUILD_WINDOWS.bat",
+    "build:android": "cmd /d /c BUILD_ANDROID.bat",
+    "electron:build": "cmd /d /c BUILD_WINDOWS.bat",
+    "electronic:build": "cmd /d /c BUILD_WINDOWS.bat"
+  }
+}

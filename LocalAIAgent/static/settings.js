@@ -1,0 +1,285 @@
+/* Settings window: autosave, theme gallery, models, AI keys, hotkey capture. */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const fields = [...document.querySelectorAll('[data-setting]')];
+  let pending = {}, timer = null;
+
+  // ---------- навигация ----------
+  function show(page) {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+    Agent.store.set('agent_settings_page', page);
+    if (page === 'recognition') refreshModels();
+    if (page === 'voice') loadMicrophones();
+  }
+  document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => show(b.dataset.page));
+
+  // ---------- поля ----------
+  function valueOf(el) {
+    if (el.type === 'checkbox') return el.checked;
+    if (el.type === 'range' || el.type === 'number') return Number(el.value);
+    return el.value.trim();
+  }
+  function paintOutput(el) {
+    const out = document.querySelector(`output[data-for="${el.dataset.setting}"]`);
+    if (out) out.textContent = el.value + ' ' + (el.dataset.unit || '');
+  }
+  function fill(settings) {
+    fields.forEach(el => {
+      const key = el.dataset.setting;
+      if (!(key in settings) || el === document.activeElement) return;
+      if (el.type === 'checkbox') el.checked = !!settings[key];
+      else {
+        if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === String(settings[key])))
+          el.add(new Option(settings[key] || 'Системный по умолчанию', settings[key]));
+        el.value = settings[key];
+      }
+      paintOutput(el);
+    });
+    document.querySelectorAll('.name-ref').forEach(n => n.textContent = settings.wake_word || 'Андрей');
+    document.querySelectorAll('[data-provider]').forEach(b => b.hidden = b.dataset.provider !== settings.llm_provider);
+    $('hotkey').value = prettyHotkey(settings.hotkey);
+    document.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('selected', c.dataset.value === settings.theme));
+    paintSecrets();
+  }
+
+  function state(text, kind) {
+    const pill = $('save-state');
+    pill.className = 'pill ' + (kind || '');
+    pill.lastElementChild.textContent = text;
+  }
+
+  function queue(partial, immediate) {
+    Object.assign(pending, partial);
+    state('Сохранение…', 'warn');
+    clearTimeout(timer);
+    timer = setTimeout(flush, immediate ? 0 : 350);
+  }
+  async function flush() {
+    const body = pending; pending = {};
+    try {
+      const settings = await Agent.saveSettings(body);
+      fill(settings);
+      state('Сохранено', 'ok');
+    } catch (e) {
+      state(e.message, 'bad');
+      Agent.toast(e.message, 4000);
+      fill(Agent.settings);
+    }
+  }
+
+  fields.forEach(el => {
+    if (el.id === 'hotkey') return;
+    const key = el.dataset.setting;
+    const handler = () => { paintOutput(el); queue({ [key]: valueOf(el) }, el.type === 'checkbox'); };
+    if (el.type === 'range') { el.addEventListener('input', () => paintOutput(el)); el.addEventListener('change', handler); }
+    else if (el.tagName === 'INPUT' && el.type !== 'checkbox') { el.addEventListener('change', handler); el.addEventListener('keydown', e => e.key === 'Enter' && el.blur()); }
+    else el.addEventListener('change', handler);
+  });
+  $('provider').addEventListener('change', e => document.querySelectorAll('[data-provider]').forEach(b => b.hidden = b.dataset.provider !== e.target.value));
+
+  // ---------- горячая клавиша ----------
+  function prettyHotkey(spec) {
+    return String(spec || 'ctrl+alt+space').split('+').map(k => ({ ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', win: 'Win', space: 'Пробел' }[k] || k.toUpperCase())).join(' + ');
+  }
+  const KEYMAP = { ' ': 'space', Spacebar: 'space', Enter: 'enter', Escape: 'esc', Tab: 'tab', Insert: 'insert', Delete: 'delete', Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown' };
+  let capturing = false;
+  $('hotkey').onclick = () => { capturing = true; $('hotkey').classList.add('capturing'); $('hotkey').value = 'Нажмите сочетание…'; };
+  $('hotkey').onblur = () => { capturing = false; $('hotkey').classList.remove('capturing'); $('hotkey').value = prettyHotkey(Agent.settings.hotkey); };
+  $('hotkey').onkeydown = e => {
+    if (!capturing) return;
+    e.preventDefault();
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+    const mods = [e.ctrlKey && 'ctrl', e.altKey && 'alt', e.shiftKey && 'shift', e.metaKey && 'win'].filter(Boolean);
+    let key = KEYMAP[e.key] || (/^F\d{1,2}$/.test(e.key) ? e.key.toLowerCase() : (e.code.startsWith('Key') ? e.code.slice(3).toLowerCase() : e.code.startsWith('Digit') ? e.code.slice(5) : ''));
+    if (!key || !mods.length) { Agent.toast('Нужен модификатор (Ctrl, Alt, Shift или Win) и клавиша.'); return; }
+    const spec = [...mods, key].join('+');
+    capturing = false;
+    $('hotkey').classList.remove('capturing');
+    $('hotkey').value = prettyHotkey(spec);
+    queue({ hotkey: spec }, true);
+    $('hotkey').blur();
+  };
+
+  // ---------- темы ----------
+  function buildThemes() {
+    const box = $('themes');
+    Agent.THEMES.forEach(theme => {
+      const card = document.createElement('button');
+      card.className = 'theme-card';
+      card.dataset.value = theme.id;
+      card.dataset.theme = theme.id;
+      card.setAttribute('aria-label', 'Тема ' + theme.name);
+      card.innerHTML = '<div class="scene" data-compact="1"></div><span class="check">✓</span>' +
+        '<div class="theme-preview"><div class="mini-orb"></div><div class="mini-chat"><i></i><i class="u"></i><i class="s"></i></div></div>' +
+        '<div class="theme-info"><b></b><small></small></div>';
+      card.querySelector('b').textContent = theme.name;
+      card.querySelector('small').textContent = theme.note;
+      card.onclick = () => { document.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('selected', c === card)); queue({ theme: theme.id }, true); };
+      box.appendChild(card);
+      if (window.AgentMotion) AgentMotion.decorate(card.querySelector('.scene'), theme.id);
+    });
+  }
+
+  // ---------- ключи ИИ ----------
+  function paintSecrets() {
+    const s = Agent.secrets || {};
+    $('anthropic-state').textContent = s.anthropic_api_key ? '✓ Ключ сохранён на этом ПК. Введите новый, чтобы заменить.' : 'Ключ хранится только на этом ПК. Получить: console.anthropic.com';
+    $('openai-state').textContent = s.openai_api_key ? '✓ Ключ сохранён.' : 'Не нужен для локальных серверов.';
+  }
+  document.querySelectorAll('[data-secret]').forEach(button => button.onclick = async () => {
+    const input = $(button.dataset.input);
+    try {
+      const data = await Agent.post('secrets', { name: button.dataset.secret, value: input.value.trim() });
+      Agent.secrets = data.secrets;
+      input.value = '';
+      paintSecrets();
+      Agent.toast('Ключ сохранён');
+    } catch (e) { Agent.toast(e.message); }
+  });
+  $('test-ai').onclick = async () => {
+    const out = $('ai-test-result');
+    out.textContent = 'Проверяю…';
+    $('test-ai').disabled = true;
+    try { const r = await Agent.post('ai/test'); out.textContent = `✓ ${r.response} (${r.elapsed} с)`; }
+    catch (e) { out.textContent = '✗ ' + e.message; }
+    finally { $('test-ai').disabled = false; }
+  };
+
+  // ---------- микрофоны и голоса ----------
+  async function loadMicrophones() {
+    try {
+      const data = await Agent.api('audio/devices');
+      const select = $('mic-select');
+      const current = Agent.settings.native_microphone || '';
+      select.replaceChildren(new Option('Системный по умолчанию', ''));
+      data.devices.forEach(d => select.add(new Option(d.label + (d.default ? ' (по умолчанию)' : ''), d.id)));
+      if (current && ![...select.options].some(o => o.value === current)) select.add(new Option(current + ' (не найден)', current));
+      select.value = current;
+    } catch (e) { /* нет звуковой подсистемы */ }
+  }
+  $('refresh-mics').onclick = loadMicrophones;
+
+  async function loadVoices() {
+    try {
+      const data = await Agent.api('ai/voices');
+      const mark = (select, lang) => [...select.options].forEach(o => {
+        const v = data.voices.find(x => x.id === o.value);
+        if (v && !v.installed) o.textContent = o.textContent.replace(/ \(не установлен\)$/, '') + ' (не установлен)';
+      });
+      mark($('voice-ru'), 'ru'); mark($('voice-en'), 'en');
+    } catch (e) { /* */ }
+  }
+  $('test-voice').onclick = async () => {
+    try {
+      const r = await Agent.post('tts/speak', { text: `Привет! Я ${Agent.settings.wake_word || 'Андрей'}. Так звучит мой голос.` });
+      if (!r.native) Agent.toast('Озвучка на этом устройстве недоступна.');
+    } catch (e) { Agent.toast(e.message); }
+  };
+
+  // ---------- модели ----------
+  const labels = { vad: 'Детектор речи Silero VAD', parakeet: '', gigaam: '', whisper: '', piper: 'Голоса Piper (Ирина, Денис, Amy)' };
+  async function refreshModels() {
+    try {
+      const [models, speech] = await Promise.all([Agent.api('models/status'), Agent.api('speech/status')]);
+      $('engine-now').textContent = speech.ready ? `Сейчас работает: ${speech.engine}${speech.gpu ? ' · видеокарта' : ' · процессор'}${speech.last_elapsed ? ' · последняя фраза за ' + Math.round(speech.last_elapsed * 1000) + ' мс' : ''}`
+        : speech.loading ? `Загружается: ${speech.engine}…` : (speech.error || 'Модель не загружена');
+      const list = $('models');
+      list.replaceChildren();
+      const rows = [['vad', models.vad], ...Object.entries(models.stt)];
+      rows.push(['piper', { title: labels.piper, installed: Object.values(models.piper).some(v => v.installed) }]);
+      rows.forEach(([key, info]) => {
+        const row = document.createElement('div');
+        row.className = 'model';
+        row.innerHTML = '<div><b></b><small></small></div><div class="control"></div>';
+        row.querySelector('b').textContent = labels[key] || info.title;
+        row.querySelector('small').textContent = info.size_mb ? `≈ ${info.size_mb} МБ` : '';
+        const control = row.querySelector('.control');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (info.installed ? 'ok' : '');
+        badge.id = 'badge-' + key;
+        badge.textContent = info.installed ? 'Установлена' : 'Не установлена';
+        control.appendChild(badge);
+        if (!info.installed) {
+          const button = document.createElement('button');
+          button.className = 'btn';
+          button.textContent = 'Скачать';
+          button.onclick = () => download([key]);
+          control.appendChild(button);
+        }
+        list.appendChild(row);
+      });
+      $('download-all').disabled = models.downloading;
+    } catch (e) { $('engine-now').textContent = e.message; }
+  }
+  async function download(items) {
+    try {
+      const r = await Agent.post('models/download', { items });
+      if (!r.started) Agent.toast('Загрузка уже идёт.');
+      $('download-all').disabled = true;
+    } catch (e) { Agent.toast(e.message); }
+  }
+  $('download-all').onclick = () => download(['vad', 'parakeet', 'gigaam', 'piper']);
+  $('reload-model').onclick = async () => { await Agent.post('speech/load').catch(e => Agent.toast(e.message)); setTimeout(refreshModels, 800); };
+
+  // ---------- телефон и профиль ----------
+  async function loadConnection() {
+    try {
+      const c = await Agent.api('connection');
+      $('pc-address').textContent = `http://${c.ip}:${c.port}`;
+      $('connection-token').value = c.token;
+      $('storage').textContent = 'Данные хранятся на ПК: ' + c.storage;
+      $('profile').textContent = c.user ? 'Профиль: ' + c.user : 'Гостевой профиль этого устройства';
+    } catch (e) { /* */ }
+  }
+  $('show-token').onclick = () => { const t = $('connection-token'); t.type = t.type === 'password' ? 'text' : 'password'; $('show-token').textContent = t.type === 'password' ? 'Показать' : 'Скрыть'; };
+  for (const action of ['register', 'login', 'logout']) $(action).onclick = async () => {
+    try {
+      await Agent.post(action, { name: $('username').value, password: $('password').value });
+      $('password').value = '';
+      $('account-status').textContent = action === 'register' ? 'Аккаунт создан. Теперь войдите.' : 'Готово';
+      if (action !== 'register') { await Agent.loadSettings(); fill(Agent.settings); loadConnection(); }
+    } catch (e) { $('account-status').textContent = e.message; }
+  };
+  $('export').onclick = async () => {
+    try {
+      const data = await Agent.api('export');
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+      const a = document.createElement('a'); a.href = url; a.download = 'LocalAIAgent-data.json'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) { Agent.toast(e.message); }
+  };
+  $('clear-history').onclick = async () => { if (confirm('Удалить историю диалога?')) { await Agent.post('history/clear'); Agent.toast('История очищена'); } };
+
+  // ---------- живые события ----------
+  function onEvent(e) {
+    if (e.type === 'download') {
+      const badge = $('badge-' + e.item);
+      if (badge) {
+        badge.className = 'badge ' + (e.stage === 'done' ? 'ok' : e.stage === 'error' ? 'bad' : 'busy');
+        badge.textContent = e.stage === 'start' ? 'Скачивается…' : e.stage === 'done' ? 'Установлена' : e.stage === 'error' ? 'Ошибка' : badge.textContent;
+        if (e.stage === 'error') badge.title = e.detail || '';
+      }
+      if (e.item === 'all' && e.stage === 'finished') { Agent.toast('Загрузка моделей завершена'); refreshModels(); }
+    } else if (e.type === 'settings') {
+      Agent.settings = e.settings; fill(e.settings);
+    }
+  }
+
+  Agent.onSettings(settings => { Agent.settings = settings; fill(settings); });
+  document.addEventListener('agent-unpaired', () => state('Нет кода подключения — откройте настройки из главного окна', 'bad'));
+
+  (async () => {
+    buildThemes();
+    try {
+      await Agent.loadSettings();
+      fill(Agent.settings);
+      loadVoices();
+      loadConnection();
+      Agent.connectEvents(onEvent);
+      const wanted = new URLSearchParams(location.search).get('section') || Agent.store.get('agent_settings_page') || 'general';
+      show(document.getElementById('page-' + wanted) ? wanted : 'general');
+    } catch (e) { state(e.message, 'bad'); }
+  })();
+})();
