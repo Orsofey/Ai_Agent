@@ -20,7 +20,7 @@ if not defined ISCC (
 )
 "%ISCC%" installer.iss
 if errorlevel 1 goto error
-echo Ready: installer\LocalAIAgent_Setup.exe
+echo Ready: installer\LocalAIAgent_Setup.exe + LocalAIAgent_Setup-*.bin (distribute them together)
 exit /b 0
 :error
 echo Build failed. Review output above.

@@ -23,7 +23,15 @@ def main():
     print('Папка моделей: ' + str(root / 'models'))
     print('Интернет нужен один раз. Parakeet ≈ 670 МБ, GigaAM ≈ 230 МБ, голоса ≈ 60 МБ, нейросеть Qwen3 ≈ 2,5 ГБ.')
 
+    shown = {}
+
     def report(item, stage, detail=None):
+        if stage == 'progress':
+            step = detail['percent'] // 10
+            if shown.get(item) != step:
+                shown[item] = step
+                print(f"  {item}: {detail['percent']}% ({detail['done_mb']} из {detail['total_mb']} МБ)", flush=True)
+            return
         text = {'start': 'скачиваю…', 'done': f'готово ({detail} с)', 'error': f'ОШИБКА: {detail}'}[stage]
         print(f'  {item}: {text}', flush=True)
 

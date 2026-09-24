@@ -12,7 +12,9 @@ test_settings_page (test_api.APIv5Tests.test_settings_page) ... ok
 test_themes_validated (test_api.APIv5Tests.test_themes_validated) ... ok
 test_tts_audio_path_traversal (test_api.APIv5Tests.test_tts_audio_path_traversal) ... ok
 test_voice_without_native (test_api.APIv5Tests.test_voice_without_native) ... ok
-test_default_browser (test_assistant_commands.ServiceCommands.test_default_browser) ... ok
+test_close_browser (test_assistant_commands.ServiceCommands.test_close_browser) ... ok
+test_open_browser_falls_back_to_agent_browser (test_assistant_commands.ServiceCommands.test_open_browser_falls_back_to_agent_browser) ... ok
+test_open_browser_uses_system_default (test_assistant_commands.ServiceCommands.test_open_browser_uses_system_default) ... ok
 test_service_fallback_downloads (test_assistant_commands.ServiceCommands.test_service_fallback_downloads) ... ok
 test_unrelated_returns_none (test_assistant_commands.ServiceCommands.test_unrelated_returns_none) ... ok
 test_yandex_music_search (test_assistant_commands.ServiceCommands.test_yandex_music_search) ... ok
@@ -115,6 +117,18 @@ test_search_stem (test_desktop.ParseTests.test_search_stem) ... ok
 test_type_and_send (test_desktop.ParseTests.test_type_and_send) ... ok
 test_user_example_type_text (test_desktop.ParseTests.test_user_example_type_text) ... ok
 test_windows_and_selection (test_desktop.ParseTests.test_windows_and_selection) ... ok
+test_close_when_already_closed (test_fixes.BrowserRecoveryTests.test_close_when_already_closed) ... ok
+test_reopen_after_user_closed_window (test_fixes.BrowserRecoveryTests.test_reopen_after_user_closed_window) ... ok
+test_misheard_close_reaches_browser (test_fixes.CommandTests.test_misheard_close_reaches_browser) ... ok
+test_no_technical_error_for_commands (test_fixes.CommandTests.test_no_technical_error_for_commands) ... ok
+test_polite_and_misheard (test_fixes.CommandTests.test_polite_and_misheard) ... ok
+test_question_detection (test_fixes.CommandTests.test_question_detection) ... ok
+test_interrupted_download_keeps_part (test_fixes.DownloadTests.test_interrupted_download_keeps_part) ... ok
+test_llama_url_falls_back_when_api_limited (test_fixes.DownloadTests.test_llama_url_falls_back_when_api_limited) ... ok
+test_llm_uses_backup_repo (test_fixes.DownloadTests.test_llm_uses_backup_repo) ... ok
+test_missing_items_on_first_run (test_fixes.DownloadTests.test_missing_items_on_first_run) ... ok
+test_nothing_missing_when_ai_off_and_models_present (test_fixes.DownloadTests.test_nothing_missing_when_ai_off_and_models_present) ... ok
+test_resume_and_progress (test_fixes.DownloadTests.test_resume_and_progress) ... ok
 test_brain_answers_through_local_server (test_local_llm.LocalServerTests.test_brain_answers_through_local_server) ... ok
 test_files_found (test_local_llm.LocalServerTests.test_files_found) ... ok
 test_missing_model_falls_back_to_installed_one (test_local_llm.LocalServerTests.test_missing_model_falls_back_to_installed_one) ... ok
@@ -164,6 +178,6 @@ test_spotify_opens_in_browser (test_web_services.WebServiceTests.test_spotify_op
 test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_opens_in_browser) ... ok
 
 ----------------------------------------------------------------------
-Ran 164 tests in 2.670s
+Ran 178 tests in 2.964s
 
 OK

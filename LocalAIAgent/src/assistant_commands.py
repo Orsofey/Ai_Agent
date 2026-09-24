@@ -27,6 +27,28 @@ def normalize_service(text):
     return SERVICE_ALIASES.get(value, value)
 
 
+def system_browser(url):
+    """Открыть ссылку в обычном браузере пользователя (браузер Windows по умолчанию)."""
+    try:
+        if os.name == 'nt':
+            os.startfile(url)
+            return True
+        return bool(webbrowser.open(url))
+    except Exception:
+        return False
+
+
+def default_browser_process():
+    """Имя программы браузера по умолчанию для закрытия окон: chrome, msedge, browser (Яндекс)…"""
+    from .browser_control import detect_default_browser
+    try:
+        channel = detect_default_browser()
+    except Exception:
+        channel = None
+    return {'yandex': 'browser', 'chrome': 'chrome', 'msedge': 'msedge', 'opera': 'opera',
+            'brave': 'brave', 'vivaldi': 'vivaldi'}.get(channel, 'msedge')
+
+
 def default_browser(url, agent=None):
     """Открыть ссылку в браузере агента, при ошибке — в системном браузере."""
     if agent is not None and getattr(agent, 'browser', None) is not None:
@@ -47,7 +69,17 @@ def handle(agent, command, settings):
     lower = text.casefold()
 
     if lower in BROWSER_PHRASES:
+        if system_browser('https://ya.ru'):
+            return 'Открываю браузер.'
         return default_browser('https://ya.ru', agent)
+
+    if lower in ('закрой браузер', 'закрыть браузер', 'выключи браузер'):
+        browser = getattr(agent, 'browser', None)
+        if browser is not None and getattr(browser, 'context', None) is not None:
+            return browser.call('close_browser')
+        from .app_control import close_application
+        answer = close_application(default_browser_process())
+        return answer.replace(default_browser_process(), 'браузер')
 
     if lower in ('пауза музыки', 'останови музыку', 'поставь музыку на паузу'):
         return agent.browser.call('media', 'pause')
