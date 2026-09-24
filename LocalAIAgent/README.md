@@ -107,6 +107,16 @@ templates/, static/     главное окно, отдельное окно н�
 облачный тариф Groq, OpenRouter или Gemini — там нужен бесплатный ключ с сайта сервиса.
 Это необязательно: по умолчанию всё работает без ключей.
 
+## Если llama.cpp не скачивается
+
+Программа сама выбирает новейшую сборку llama.cpp (`bNNNN`) на GitHub. Если GitHub недоступен,
+скачайте вручную архив `llama-bNNNN-bin-win-cpu-x64.zip` со страницы
+https://github.com/ggml-org/llama.cpp/releases и выполните:
+
+```bat
+.venv\Scripts\python.exe scripts\install_llama.py C:\путь\к\llama-bNNNN-bin-win-cpu-x64.zip
+```
+
 ## Проверка
 
 ```bat
