@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru" data-theme="aurora">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local AI Agent</title>
+<script>
+  // Тема до отрисовки — без вспышки.
+  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'aurora';
+        document.documentElement.dataset.animations = localStorage.getItem('agent_animations') || 'on'; } catch (e) {}
+</script>
+<link rel="icon" href="/static/icon-192.png">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="stylesheet" href="/static/style.css?v={{ version }}">
+<link rel="stylesheet" href="/static/themes.css?v={{ version }}">
+<link rel="stylesheet" href="/static/motion.css?v={{ version }}">
+</head>
+<body>
+<div class="scene" aria-hidden="true"></div>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/icon-192.png" alt="">
+      <div><div class="brand-name"><span id="agent-name">Андрей</span></div><small>Голосовой ассистент · работает в любом приложении</small></div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="engine-pill" title="Распознавание речи"><span class="dot"></span><span id="engine">Загрузка…</span></span>
+    <span class="pill" id="ai-pill" title="Ответы на вопросы"><span class="dot"></span><span id="ai-status">ИИ</span></span>
+    <button class="btn ghost icon-btn" id="open-settings" title="Настройки" aria-label="Настройки">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <main class="stage">
+    <section class="card voice-panel" id="voice-panel" data-state="off" aria-label="Голос">
+      <div class="orb-wrap">
+        <div class="orb-ring"></div><div class="orb-ring r2"></div>
+        <button class="orb" id="orb" title="Сказать команду" aria-label="Сказать команду"></button>
+      </div>
+      <div class="voice-title" id="voice-title">Скажите «Андрей»</div>
+      <div class="voice-hint" id="voice-hint">и команду — я выполню её в любом открытом приложении.</div>
+      <div class="heard" id="heard" aria-live="polite"></div>
+      <div class="voice-actions">
+        <button class="btn" id="listen-toggle">Слушать: вкл</button>
+        <button class="btn" id="stop-speaking" hidden>Замолчать</button>
+      </div>
+      <div class="hint">Без имени: <span class="kbd" id="hotkey-label">Ctrl+Alt+Space</span> или клик по сфере</div>
+    </section>
+
+    <section class="card chat-panel" aria-label="Диалог">
+      <div class="chat-head">
+        <h2>Диалог</h2><div class="spacer"></div>
+        <button class="btn ghost" id="clear">Очистить</button>
+      </div>
+      <div class="messages" id="messages" aria-live="polite"></div>
+      <div>
+        <div class="chips" id="chips">
+          <button class="chip" data-command="Какой курс доллара?">Курс доллара</button>
+          <button class="chip" data-command="Какая погода завтра?">Погода завтра</button>
+          <button class="chip" data-command="Сколько белка нужно в день человеку весом 70 кг?">Белок в день</button>
+          <button class="chip" data-command="Куда лучше вложить 100 тысяч рублей на год?">Куда вложить 100 тысяч</button>
+          <button class="chip" data-command="Сколько будет 15% от 2000?">15% от 2000</button>
+          <button class="chip" data-command="Открой калькулятор">Калькулятор</button>
+          <button class="chip" data-command="Помощь">Все команды</button>
+        </div>
+        <div class="composer">
+          <textarea id="chat-input" rows="1" placeholder="Спросите что угодно или дайте команду…"></textarea>
+          <button class="btn icon-btn mic" id="mic" title="Сказать голосом" aria-label="Сказать голосом">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <button class="btn primary" id="send">Отправить</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="pairing" id="pair" hidden>
+  <div class="card">
+    <h2>Подключение к агенту</h2>
+    <p class="hint">Введите код подключения из окна настроек на ПК (раздел «Телефон»).</p>
+    <input id="token" type="password" placeholder="Код подключения" autocomplete="off">
+    <button class="btn primary" id="pair-btn">Подключиться</button>
+  </div>
+</div>
+
+<script src="/static/motion.js?v={{ version }}"></script>
+<script src="/static/core.js?v={{ version }}"></script>
+<script src="/static/voice-output.js?v={{ version }}"></script>
+<script src="/static/speech.js?v={{ version }}"></script>
+<script src="/static/app.js?v={{ version }}"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+/* Keyframes shared by all themes. Respect "reduce motion" and the in-app animation switch. */
+@keyframes appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 80, 120, .5); } 50% { box-shadow: 0 0 0 10px rgba(255, 80, 120, 0); } }
+@keyframes ring { from { transform: scale(.85); opacity: .9; } to { transform: scale(1.25); opacity: 0; } }
+@keyframes think { 0%, 100% { transform: scale(.94) rotate(0deg); } 50% { transform: scale(1.04) rotate(12deg); } }
+@keyframes speak { from { transform: scale(calc(1 + var(--level) * .22)); } to { transform: scale(calc(1.08 + var(--level) * .22)); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes aurora { 0% { transform: translate(-6%, 0) rotate(-4deg) scaleY(1); } 50% { transform: translate(4%, 4%) rotate(3deg) scaleY(1.25); } 100% { transform: translate(8%, -3%) rotate(-2deg) scaleY(.9); } }
+@keyframes twinkle { from { opacity: .35; } to { opacity: .85; } }
+@keyframes grid-run { from { background-position: 0 0, 0 0; } to { background-position: 0 60px, 0 0; } }
+@keyframes glitch { 0%, 92%, 100% { transform: none; } 93% { transform: translate(-2px, 1px) skewX(-8deg); } 95% { transform: translate(2px, -1px); } 97% { transform: translate(-1px, 0) skewX(6deg); } }
+@keyframes petal-fall { to { transform: translateY(110vh) rotate(540deg); } }
+@keyframes petal-sway { from { margin-left: -40px; } to { margin-left: 40px; } }
+@keyframes bubble-rise { to { transform: translateY(-115vh); } }
+@keyframes bubble-wobble { from { margin-left: -12px; } to { margin-left: 12px; } }
+@keyframes rays { from { transform: skewX(-6deg) translateX(-3%); } to { transform: skewX(6deg) translateX(3%); } }
+@keyframes drift { from { transform: translate(-3%, 2%); } to { transform: translate(3%, -2%); } }
+@keyframes sheen { to { background-position: -200% 0; } }
+@keyframes sweep { 0%, 100% { transform: translateX(-30%); } 50% { transform: translateX(30%); } }
+
+html[data-animations="off"] *, html[data-animations="off"] *::before, html[data-animations="off"] *::after { animation: none !important; transition: none !important; }
+html[data-animations="off"] .particle { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .particle { display: none; }
+}
