@@ -86,8 +86,10 @@ def download_whisper(root, gpu=None):
     return target
 
 
-GITHUB_RELEASE = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
-GITHUB_LATEST_PAGE = 'https://github.com/ggml-org/llama.cpp/releases/latest'
+# «Latest» в репозитории llama.cpp может указывать на другой пакет (теги v0.x), поэтому
+# берём список релизов и выбираем новейшую сборку вида bNNNN с архивом для Windows.
+GITHUB_RELEASES = 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30'
+GITHUB_RELEASES_PAGE = 'https://github.com/ggml-org/llama.cpp/releases'
 GITHUB_DOWNLOAD = 'https://github.com/ggml-org/llama.cpp/releases/download/{tag}/llama-{tag}-bin-win-{flavor}-x64.zip'
 HF_API = 'https://huggingface.co/api/models/{repo}'
 HF_FILE = 'https://huggingface.co/{repo}/resolve/main/{file}'
@@ -150,27 +152,60 @@ def pick_asset(assets, flavor):
     return None
 
 
-def llama_asset_url(session, flavor):
-    """Адрес архива: через GitHub API, а при ограничении API — по странице последнего релиза."""
+BUILD_TAG = re.compile(r'^b\d+$')
+
+
+def llama_asset_urls(session, flavor):
+    """Адреса архивов llama.cpp для Windows, от новых к старым (несколько запасных)."""
+    urls = []
     try:
-        response = session.get(GITHUB_RELEASE, timeout=20, headers={'Accept': 'application/vnd.github+json'})
+        response = session.get(GITHUB_RELEASES, timeout=20, headers={'Accept': 'application/vnd.github+json'})
         if response.ok:
-            asset = pick_asset(response.json().get('assets', []), flavor)
-            if asset:
-                return asset['browser_download_url']
+            for release in response.json():
+                if release.get('draft') or not BUILD_TAG.match(release.get('tag_name', '')):
+                    continue
+                asset = pick_asset(release.get('assets', []), flavor)
+                if asset:
+                    urls.append(asset['browser_download_url'])
+                if len(urls) >= 3:
+                    return urls
     except Exception as exc:
         log.info('GitHub API unavailable: %s', exc)
-    response = session.get(GITHUB_LATEST_PAGE, timeout=20, allow_redirects=False)
-    location = response.headers.get('Location', '') or getattr(response, 'url', '')
-    match = re.search(r'/releases/tag/([\w.-]+)', location)
-    if not match:
-        raise DownloadError('не удалось узнать последнюю версию llama.cpp на GitHub')
-    return GITHUB_DOWNLOAD.format(tag=match[1], flavor=flavor)
+    if not urls:
+        # API ограничен (60 запросов в час) — берём номера сборок со страницы релизов.
+        page = session.get(GITHUB_RELEASES_PAGE, timeout=20)
+        tags = sorted({int(t) for t in re.findall(r'/releases/tag/b(\d+)', getattr(page, 'text', '') or '')}, reverse=True)
+        urls = [GITHUB_DOWNLOAD.format(tag=f'b{t}', flavor=flavor) for t in tags[:5]]
+    if not urls:
+        raise DownloadError('не удалось найти сборку llama.cpp на GitHub. Скачайте вручную архив '
+                            f'llama-bXXXX-bin-win-{flavor}-x64.zip со страницы {GITHUB_RELEASES_PAGE} '
+                            'и выполните: python scripts\\install_llama.py путь_к_архиву.zip')
+    return urls
+
+
+def llama_asset_url(session, flavor):
+    return llama_asset_urls(session, flavor)[0]
+
+
+def install_llama_zip(root, archive, flavor='cpu'):
+    """Установить llama.cpp из уже скачанного архива."""
+    import zipfile
+    from .brain.local_llm import runtime_dir, BINARY
+    target = runtime_dir(root, flavor == 'vulkan')
+    target.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(target)
+    except zipfile.BadZipFile:
+        raise DownloadError('архив llama.cpp повреждён — скачайте ещё раз')
+    if not next(iter(target.rglob(BINARY)), None):
+        raise DownloadError('в архиве нет ' + BINARY + ' — возможно, файл удалил антивирус. '
+                            'Добавьте папку ' + str(target) + ' в исключения и повторите')
+    return target
 
 
 def download_llama_runtime(root, flavor='cpu', session=None, progress=None):
     """Скачать официальный llama-server (llama.cpp) с GitHub и распаковать."""
-    import zipfile
     from .brain.local_llm import runtime_dir, BINARY
     target = runtime_dir(root, flavor == 'vulkan')
     if target.is_dir() and next(iter(target.rglob(BINARY)), None):
@@ -179,19 +214,18 @@ def download_llama_runtime(root, flavor='cpu', session=None, progress=None):
         raise DownloadError('автоматическая установка llama.cpp — только для Windows; '
                            'на других системах установите llama-server и добавьте его в PATH')
     session = _session(session)
-    archive = http_download(llama_asset_url(session, flavor), target.with_name(target.name + '.zip'), session, progress)
-    target.mkdir(parents=True, exist_ok=True)
-    try:
-        with zipfile.ZipFile(archive) as zf:
-            zf.extractall(target)
-    except zipfile.BadZipFile:
-        archive.unlink(missing_ok=True)
-        raise DownloadError('архив llama.cpp повреждён — скачайте ещё раз')
-    archive.unlink(missing_ok=True)
-    if not next(iter(target.rglob(BINARY)), None):
-        raise DownloadError('в архиве нет ' + BINARY + ' — возможно, файл удалил антивирус. '
-                            'Добавьте папку ' + str(target) + ' в исключения и повторите')
-    return target
+    errors = []
+    for url in llama_asset_urls(session, flavor):
+        try:
+            archive = http_download(url, target.with_name(target.name + '.zip'), session, progress)
+        except DownloadError as exc:
+            errors.append(str(exc))  # сборка ещё выкладывается — пробуем предыдущую
+            continue
+        try:
+            return install_llama_zip(root, archive, flavor)
+        finally:
+            archive.unlink(missing_ok=True)
+    raise DownloadError('; '.join(errors) or 'не удалось скачать llama.cpp')
 
 
 def gguf_files(session, repo, pattern):

@@ -124,11 +124,13 @@ test_no_technical_error_for_commands (test_fixes.CommandTests.test_no_technical_
 test_polite_and_misheard (test_fixes.CommandTests.test_polite_and_misheard) ... ok
 test_question_detection (test_fixes.CommandTests.test_question_detection) ... ok
 test_interrupted_download_keeps_part (test_fixes.DownloadTests.test_interrupted_download_keeps_part) ... ok
-test_llama_url_falls_back_when_api_limited (test_fixes.DownloadTests.test_llama_url_falls_back_when_api_limited) ... ok
+test_llama_skips_non_build_releases (test_fixes.DownloadTests.test_llama_skips_non_build_releases) ... ok
+test_llama_url_from_releases_page_when_api_limited (test_fixes.DownloadTests.test_llama_url_from_releases_page_when_api_limited) ... ok
 test_llm_uses_backup_repo (test_fixes.DownloadTests.test_llm_uses_backup_repo) ... ok
 test_missing_items_on_first_run (test_fixes.DownloadTests.test_missing_items_on_first_run) ... ok
 test_nothing_missing_when_ai_off_and_models_present (test_fixes.DownloadTests.test_nothing_missing_when_ai_off_and_models_present) ... ok
 test_resume_and_progress (test_fixes.DownloadTests.test_resume_and_progress) ... ok
+test_runtime_tries_previous_build_when_newest_missing (test_fixes.DownloadTests.test_runtime_tries_previous_build_when_newest_missing) ... ok
 test_brain_answers_through_local_server (test_local_llm.LocalServerTests.test_brain_answers_through_local_server) ... ok
 test_files_found (test_local_llm.LocalServerTests.test_files_found) ... ok
 test_missing_model_falls_back_to_installed_one (test_local_llm.LocalServerTests.test_missing_model_falls_back_to_installed_one) ... ok
@@ -178,6 +180,6 @@ test_spotify_opens_in_browser (test_web_services.WebServiceTests.test_spotify_op
 test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_opens_in_browser) ... ok
 
 ----------------------------------------------------------------------
-Ran 178 tests in 2.964s
+Ran 180 tests in 3.732s
 
 OK

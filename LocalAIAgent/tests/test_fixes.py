@@ -103,12 +103,52 @@ class DownloadTests(unittest.TestCase):
             md.http_download('https://x/f', self.root / 'f', session)
         self.assertEqual((self.root / 'f.part').read_bytes(), b'abc')
 
-    def test_llama_url_falls_back_when_api_limited(self):
+    def test_llama_skips_non_build_releases(self):
+        # Реальный случай: «последний» релиз — v0.5.0 (другой пакет) без архивов для Windows.
+        releases = [
+            {'tag_name': 'v0.5.0', 'assets': [{'name': 'gguf-0.5.0.tar.gz', 'browser_download_url': 'x'}]},
+            {'tag_name': 'b11165', 'draft': False, 'assets': [
+                {'name': 'llama-b11165-bin-win-cuda-12.4-x64.zip', 'browser_download_url': 'cuda'},
+                {'name': 'llama-b11165-bin-win-cpu-x64.zip', 'browser_download_url': 'https://gh/b11165-cpu.zip'}]},
+            {'tag_name': 'b11163', 'assets': [
+                {'name': 'llama-b11163-bin-win-cpu-x64.zip', 'browser_download_url': 'https://gh/b11163-cpu.zip'}]},
+        ]
         session = Mock()
-        session.get.side_effect = [Response(403, json_data={'message': 'rate limit'}),
-                                   Response(302, headers={'Location': 'https://github.com/ggml-org/llama.cpp/releases/tag/b7123'})]
-        self.assertEqual(md.llama_asset_url(session, 'cpu'),
-                         'https://github.com/ggml-org/llama.cpp/releases/download/b7123/llama-b7123-bin-win-cpu-x64.zip')
+        session.get.return_value = Response(json_data=releases)
+        self.assertEqual(md.llama_asset_urls(session, 'cpu'), ['https://gh/b11165-cpu.zip', 'https://gh/b11163-cpu.zip'])
+
+    def test_llama_url_from_releases_page_when_api_limited(self):
+        session = Mock()
+        page = SimpleNamespace(text='<a href="/ggml-org/llama.cpp/releases/tag/v0.5.0"></a>'
+                                    '<a href="/ggml-org/llama.cpp/releases/tag/b11163"></a>'
+                                    '<a href="/ggml-org/llama.cpp/releases/tag/b11165"></a>')
+        session.get.side_effect = [Response(403, json_data={'message': 'rate limit'}), page]
+        urls = md.llama_asset_urls(session, 'cpu')
+        self.assertEqual(urls[0], 'https://github.com/ggml-org/llama.cpp/releases/download/b11165/llama-b11165-bin-win-cpu-x64.zip')
+        self.assertEqual(len(urls), 2)
+
+    def test_runtime_tries_previous_build_when_newest_missing(self):
+        import io
+        import zipfile
+        from src.brain.local_llm import BINARY
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, 'w') as zf:
+            zf.writestr(BINARY, 'exe')
+        session = Mock()
+
+        def get(url, **kwargs):
+            if 'api.github.com' in url:
+                return Response(json_data=[
+                    {'tag_name': 'b2', 'assets': [{'name': 'llama-b2-bin-win-cpu-x64.zip', 'browser_download_url': 'https://gh/b2.zip'}]},
+                    {'tag_name': 'b1', 'assets': [{'name': 'llama-b1-bin-win-cpu-x64.zip', 'browser_download_url': 'https://gh/b1.zip'}]}])
+            if url.endswith('b2.zip'):
+                return Response(404)
+            return Response(200, data.getvalue(), {'Content-Length': str(len(data.getvalue()))})
+        session.get.side_effect = get
+        with patch('src.model_downloader.sys.platform', 'win32'):
+            target = md.download_llama_runtime(self.root, 'cpu', session)
+        self.assertTrue((target / BINARY).exists())
+        self.assertFalse(target.with_name('cpu.zip').exists())
 
     def test_llm_uses_backup_repo(self):
         from src.brain.local_llm import find_model
