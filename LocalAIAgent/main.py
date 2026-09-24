@@ -193,7 +193,10 @@ def main():
             hotkey['current'].start()
 
         bind_hotkey(settings)
-        app.extensions['on_settings'] += [voice.apply_settings, bind_hotkey]
+        local_llm = agent.brain.local
+        app.extensions['on_settings'] += [voice.apply_settings, bind_hotkey, local_llm.apply_settings]
+        if settings.get('llm_provider') == 'local':
+            local_llm.warmup(settings)  # нейросеть загружается в память заранее
 
         if sys.platform == 'win32' and (store.meta('startup_initialized') is None or autostart.enabled()):
             autostart.configure(settings.get('autostart', True))
@@ -216,6 +219,7 @@ def main():
         webview.start(gui='edgechromium' if sys.platform == 'win32' else None, debug=False,
                       private_mode=False, storage_path=str(store.root / 'webview_profile'))
         voice.stop()
+        local_llm.stop()
         if hotkey['current']:
             hotkey['current'].stop()
         browser = agent.browser

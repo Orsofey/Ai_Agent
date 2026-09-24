@@ -30,6 +30,12 @@ class APIv5Tests(unittest.TestCase):
         settings = self.client.get('/api/settings', headers=self.headers).json['settings']
         self.assertEqual(settings['wake_word'], 'Андрей')
         self.assertEqual(settings['theme'], 'aurora')
+        self.assertEqual(settings['llm_provider'], 'local')
+
+    def test_old_claude_setting_falls_back_to_local(self):
+        with self.store.connect() as db:
+            db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', ('device:desktop', json.dumps({'llm_provider': 'claude'})))
+        self.assertEqual(self.store.settings('device:desktop')['llm_provider'], 'local')
 
     def test_old_wake_word_migrates(self):
         with self.store.connect() as db:
@@ -52,10 +58,11 @@ class APIv5Tests(unittest.TestCase):
         self.speech.configure.assert_called()
 
     def test_secrets_never_returned(self):
-        self.assertEqual(self.post('secrets', {'name': 'anthropic_api_key', 'value': 'sk-ant-secret'}).status_code, 200)
+        self.assertEqual(self.post('secrets', {'name': 'openai_api_key', 'value': 'gsk-secret'}).status_code, 200)
         body = self.client.get('/api/settings', headers=self.headers).get_data(as_text=True)
-        self.assertNotIn('sk-ant-secret', body)
-        self.assertTrue(json.loads(body)['secrets']['anthropic_api_key'])
+        self.assertNotIn('gsk-secret', body)
+        self.assertTrue(json.loads(body)['secrets']['openai_api_key'])
+        self.assertEqual(self.post('secrets', {'name': 'anthropic_api_key', 'value': 'x'}).status_code, 400)
         self.assertEqual(self.post('secrets', {'name': 'other', 'value': 'x'}).status_code, 400)
 
     def test_chat_stream(self):

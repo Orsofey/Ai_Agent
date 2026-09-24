@@ -98,31 +98,38 @@
 
     <!-- ИИ -->
     <section class="page" id="page-ai">
-      <h1>ИИ и ответы на вопросы</h1><p class="lead">Курсы ЦБ, погода, криптовалюты и калькулятор отвечаются мгновенно из первоисточников. Остальные вопросы — нейросеть с поиском в интернете.</p>
+      <h1>ИИ и ответы на вопросы</h1><p class="lead">Всё бесплатно и без ключей. Курсы ЦБ, погода, криптовалюты и калькулятор отвечаются мгновенно из открытых источников. Остальные вопросы — нейросеть прямо на вашем компьютере.</p>
       <div class="card group">
-        <div class="row"><div class="label"><b>Поставщик ИИ</b></div>
-          <div class="control"><select data-setting="llm_provider" id="provider"><option value="claude">Claude (Anthropic) — рекомендуется</option><option value="openai">OpenAI-совместимый сервер (Ollama, LM Studio…)</option><option value="off">Выключен</option></select></div></div>
-        <div data-provider="claude">
-          <div class="row"><div class="label"><b>Ключ Anthropic API</b><small id="anthropic-state">Ключ хранится только на этом ПК. Получить: console.anthropic.com</small></div>
-            <div class="control"><input type="password" id="anthropic-key" placeholder="sk-ant-…" autocomplete="off"><button class="btn" data-secret="anthropic_api_key" data-input="anthropic-key">Сохранить</button></div></div>
-          <div class="row"><div class="label"><b>Модель</b><small>Opus 5 — самые точные ответы. Haiku 4.5 — самые быстрые.</small></div>
-            <div class="control"><select data-setting="llm_model"><option value="claude-opus-5">Claude Opus 5</option><option value="claude-sonnet-5">Claude Sonnet 5</option><option value="claude-haiku-4-5">Claude Haiku 4.5 (быстрее всего)</option><option value="claude-fable-5-1">Claude Fable 5.1 (максимум)</option></select></div></div>
-          <div class="row"><div class="label"><b>Глубина размышлений</b><small>«Быстро» — для голосового ассистента. «Глубоко» — для сложных вопросов.</small></div>
-            <div class="control"><select data-setting="llm_effort"><option value="low">Быстро</option><option value="medium">Сбалансированно</option><option value="high">Глубоко</option></select></div></div>
+        <div class="row"><div class="label"><b>Нейросеть</b><small id="llm-state">—</small></div>
+          <div class="control"><select data-setting="llm_provider" id="provider"><option value="local">Локальная на этом ПК — бесплатно, офлайн</option><option value="openai">Другой сервер (Ollama, LM Studio, бесплатный облачный)</option><option value="off">Выключена</option></select></div></div>
+        <div data-provider="local">
+          <div class="row"><div class="label"><b>Модель</b><small>Чем больше модель, тем точнее ответы, но тем медленнее и больше памяти.</small></div>
+            <div class="control"><select data-setting="local_model"><option value="qwen3-4b">Qwen3 4B — быстрая (рекомендуется)</option><option value="qwen2.5-7b">Qwen2.5 7B — точнее, 12+ ГБ ОЗУ</option><option value="qwen2.5-3b">Qwen2.5 3B — для слабых ПК</option></select></div></div>
+          <div class="row"><div class="label"><b>Ускорение видеокартой</b><small>Vulkan: NVIDIA, AMD и Intel. Ответы в 3–10 раз быстрее. Нужна отдельная загрузка (≈50 МБ).</small></div>
+            <div class="control"><label class="switch"><input type="checkbox" data-setting="llm_gpu"><span></span></label></div></div>
+          <div class="row stack"><div class="control"><button class="btn primary" id="download-ai" hidden>Скачать нейросеть (≈2,5 ГБ, один раз)</button><div class="models" id="llm-models"></div></div></div>
         </div>
         <div data-provider="openai" hidden>
-          <div class="row"><div class="label"><b>Адрес сервера</b><small>Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://127.0.0.1:1234/v1</small></div>
+          <div class="row stack"><div class="label"><b>Готовые варианты</b><small>Ollama и LM Studio — локально и бесплатно. Groq, OpenRouter и Gemini — бесплатные облачные тарифы, нужен бесплатный ключ с их сайта.</small></div>
+            <div class="control">
+              <button class="btn" data-preset="http://127.0.0.1:11434/v1|qwen3:4b">Ollama</button>
+              <button class="btn" data-preset="http://127.0.0.1:1234/v1|local-model">LM Studio</button>
+              <button class="btn" data-preset="https://api.groq.com/openai/v1|llama-3.3-70b-versatile">Groq</button>
+              <button class="btn" data-preset="https://openrouter.ai/api/v1|deepseek/deepseek-chat-v3-0324:free">OpenRouter</button>
+              <button class="btn" data-preset="https://generativelanguage.googleapis.com/v1beta/openai|gemini-2.5-flash">Gemini</button>
+            </div></div>
+          <div class="row"><div class="label"><b>Адрес сервера</b></div>
             <div class="control"><input data-setting="openai_base_url" placeholder="http://127.0.0.1:11434/v1"></div></div>
           <div class="row"><div class="label"><b>Модель</b></div>
-            <div class="control"><input data-setting="openai_model" placeholder="qwen2.5:7b-instruct"></div></div>
-          <div class="row"><div class="label"><b>Ключ API</b><small id="openai-state">Не нужен для локальных серверов.</small></div>
+            <div class="control"><input data-setting="openai_model" placeholder="qwen3:4b"></div></div>
+          <div class="row"><div class="label"><b>Ключ</b><small id="openai-state">Не нужен для локальных серверов.</small></div>
             <div class="control"><input type="password" id="openai-key" placeholder="необязательно" autocomplete="off"><button class="btn" data-secret="openai_api_key" data-input="openai-key">Сохранить</button></div></div>
         </div>
-        <div class="row"><div class="label"><b>Поиск в интернете</b><small>Для новостей, цен и всего, что меняется.</small></div>
+        <div class="row"><div class="label"><b>Поиск в интернете</b><small>Бесплатный поиск DuckDuckGo для новостей, цен и фактов — ответы точнее и свежее.</small></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="llm_web_search"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Длина ответов</b></div>
           <div class="control"><select data-setting="answer_style"><option value="short">Коротко, для голоса</option><option value="detailed">Подробнее</option></select></div></div>
-        <div class="row stack"><div class="control"><button class="btn primary" id="test-ai">Проверить подключение</button><span class="hint" id="ai-test-result"></span></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="test-ai">Проверить нейросеть</button><span class="hint" id="ai-test-result"></span></div></div>
       </div>
     </section>
 

@@ -12,6 +12,7 @@
     Agent.store.set('agent_settings_page', page);
     if (page === 'recognition') refreshModels();
     if (page === 'voice') loadMicrophones();
+    if (page === 'ai') refreshAI();
   }
   document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => show(b.dataset.page));
 
@@ -77,6 +78,7 @@
     else if (el.tagName === 'INPUT' && el.type !== 'checkbox') { el.addEventListener('change', handler); el.addEventListener('keydown', e => e.key === 'Enter' && el.blur()); }
     else el.addEventListener('change', handler);
   });
+  document.querySelector('[data-setting="llm_gpu"]').addEventListener('change', () => setTimeout(refreshAI, 700));
   $('provider').addEventListener('change', e => document.querySelectorAll('[data-provider]').forEach(b => b.hidden = b.dataset.provider !== e.target.value));
 
   // ---------- горячая клавиша ----------
@@ -122,12 +124,57 @@
     });
   }
 
-  // ---------- ключи ИИ ----------
+  // ---------- ИИ ----------
   function paintSecrets() {
     const s = Agent.secrets || {};
-    $('anthropic-state').textContent = s.anthropic_api_key ? '✓ Ключ сохранён на этом ПК. Введите новый, чтобы заменить.' : 'Ключ хранится только на этом ПК. Получить: console.anthropic.com';
-    $('openai-state').textContent = s.openai_api_key ? '✓ Ключ сохранён.' : 'Не нужен для локальных серверов.';
+    $('openai-state').textContent = s.openai_api_key ? '✓ Ключ сохранён на этом ПК.' : 'Не нужен для локальных серверов.';
   }
+  document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+    const [url, model] = b.dataset.preset.split('|');
+    queue({ openai_base_url: url, openai_model: model }, true);
+    if (!/127\.0\.0\.1|localhost/.test(url)) Agent.toast('Получите бесплатный ключ на сайте сервиса и вставьте его ниже.', 5000);
+  });
+
+  async function refreshAI() {
+    try {
+      const [ai, models] = await Promise.all([Agent.api('ai/status'), Agent.api('models/status')]);
+      const local = ai.local || {};
+      $('llm-state').textContent = ai.provider !== 'local' ? 'Используется внешний сервер.' :
+        local.ready ? '✓ Работает на этом ПК' + (local.runtime === 'vulkan' ? ' · видеокарта' : ' · процессор') :
+        local.starting ? 'Загружается в память…' :
+        !local.runtime_installed || !local.model_installed ? 'Не установлена — нажмите «Скачать» ниже' : (local.error || 'Запустится при первом вопросе');
+      const list = $('llm-models');
+      list.replaceChildren();
+      const rows = [['llama:cpu', { title: 'Движок llama.cpp (процессор)', size_mb: 30, installed: models.llama.cpu.installed }]];
+      if (Agent.settings.llm_gpu) rows.push(['llama:vulkan', { title: 'Движок llama.cpp (видеокарта, Vulkan)', size_mb: 50, installed: models.llama.vulkan.installed }]);
+      ['qwen3-4b', 'qwen2.5-7b', 'qwen2.5-3b'].filter(k => models.llm[k]).forEach(key => rows.push(['llm:' + key, models.llm[key]]));
+      $('download-ai').hidden = models.llama.cpu.installed && models.llm[Agent.settings.local_model] && models.llm[Agent.settings.local_model].installed;
+      rows.forEach(([key, info]) => list.appendChild(modelRow(key, info)));
+    } catch (e) { $('llm-state').textContent = e.message; }
+  }
+
+  function modelRow(key, info) {
+    const row = document.createElement('div');
+    row.className = 'model';
+    row.innerHTML = '<div><b></b><small></small></div><div class="control"></div>';
+    row.querySelector('b').textContent = labels[key] || info.title;
+    row.querySelector('small').textContent = [info.size_mb ? `≈ ${info.size_mb >= 1000 ? (info.size_mb / 1000).toFixed(1).replace('.', ',') + ' ГБ' : info.size_mb + ' МБ'}` : '', info.ram_gb ? `ОЗУ от ${info.ram_gb} ГБ` : ''].filter(Boolean).join(' · ');
+    const control = row.querySelector('.control');
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (info.installed ? 'ok' : '');
+    badge.id = 'badge-' + key;
+    badge.textContent = info.installed ? 'Установлена' : 'Не установлена';
+    control.appendChild(badge);
+    if (!info.installed) {
+      const button = document.createElement('button');
+      button.className = 'btn';
+      button.textContent = 'Скачать';
+      button.onclick = () => download([key]);
+      control.appendChild(button);
+    }
+    return row;
+  }
+
   document.querySelectorAll('[data-secret]').forEach(button => button.onclick = async () => {
     const input = $(button.dataset.input);
     try {
@@ -179,7 +226,7 @@
   };
 
   // ---------- модели ----------
-  const labels = { vad: 'Детектор речи Silero VAD', parakeet: '', gigaam: '', whisper: '', piper: 'Голоса Piper (Ирина, Денис, Amy)' };
+  const labels = { vad: 'Детектор речи Silero VAD', piper: 'Голоса Piper (Ирина, Денис, Amy)' };
   async function refreshModels() {
     try {
       const [models, speech] = await Promise.all([Agent.api('models/status'), Agent.api('speech/status')]);
@@ -189,27 +236,7 @@
       list.replaceChildren();
       const rows = [['vad', models.vad], ...Object.entries(models.stt)];
       rows.push(['piper', { title: labels.piper, installed: Object.values(models.piper).some(v => v.installed) }]);
-      rows.forEach(([key, info]) => {
-        const row = document.createElement('div');
-        row.className = 'model';
-        row.innerHTML = '<div><b></b><small></small></div><div class="control"></div>';
-        row.querySelector('b').textContent = labels[key] || info.title;
-        row.querySelector('small').textContent = info.size_mb ? `≈ ${info.size_mb} МБ` : '';
-        const control = row.querySelector('.control');
-        const badge = document.createElement('span');
-        badge.className = 'badge ' + (info.installed ? 'ok' : '');
-        badge.id = 'badge-' + key;
-        badge.textContent = info.installed ? 'Установлена' : 'Не установлена';
-        control.appendChild(badge);
-        if (!info.installed) {
-          const button = document.createElement('button');
-          button.className = 'btn';
-          button.textContent = 'Скачать';
-          button.onclick = () => download([key]);
-          control.appendChild(button);
-        }
-        list.appendChild(row);
-      });
+      rows.forEach(([key, info]) => list.appendChild(modelRow(key, info)));
       $('download-all').disabled = models.downloading;
     } catch (e) { $('engine-now').textContent = e.message; }
   }
@@ -220,6 +247,7 @@
       $('download-all').disabled = true;
     } catch (e) { Agent.toast(e.message); }
   }
+  $('download-ai').onclick = () => download(['llama:' + (Agent.settings.llm_gpu ? 'vulkan' : 'cpu'), 'llm:' + (Agent.settings.local_model || 'qwen3-4b')]);
   $('download-all').onclick = () => download(['vad', 'parakeet', 'gigaam', 'piper']);
   $('reload-model').onclick = async () => { await Agent.post('speech/load').catch(e => Agent.toast(e.message)); setTimeout(refreshModels, 800); };
 
@@ -261,9 +289,10 @@
         badge.textContent = e.stage === 'start' ? 'Скачивается…' : e.stage === 'done' ? 'Установлена' : e.stage === 'error' ? 'Ошибка' : badge.textContent;
         if (e.stage === 'error') badge.title = e.detail || '';
       }
-      if (e.item === 'all' && e.stage === 'finished') { Agent.toast('Загрузка моделей завершена'); refreshModels(); }
+      if (e.item === 'all' && e.stage === 'finished') { Agent.toast('Загрузка завершена'); refreshModels(); refreshAI(); }
     } else if (e.type === 'settings') {
       Agent.settings = e.settings; fill(e.settings);
+      if (document.getElementById('page-ai').classList.contains('active')) refreshAI();
     }
   }
 

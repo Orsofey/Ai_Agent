@@ -8,7 +8,8 @@ from src.storage import data_root
 source = data_root() / 'models'
 root = Path(__file__).resolve().parents[1]
 target = root / 'dist' / 'LocalAIAgent' / 'models'
-folders = ['silero-vad', 'parakeet-tdt-0.6b-v3', 'gigaam-v3-e2e-rnnt', 'piper', 'small', 'whisper-large-v3-turbo']
+folders = ['silero-vad', 'parakeet-tdt-0.6b-v3', 'gigaam-v3-e2e-rnnt', 'piper', 'small', 'whisper-large-v3-turbo',
+           'llm', 'llama.cpp']
 copied = []
 for name in folders:
     folder = source / name

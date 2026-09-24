@@ -18,5 +18,5 @@ rem Speech models (Parakeet v3, GigaAM v3, Silero VAD) and Piper voices, downloa
 if errorlevel 1 exit /b 1
 echo.
 echo Setup complete. Start with START_WINDOWS.vbs.
-echo Answers to any question: open Settings - AI and paste an Anthropic API key.
+echo Everything runs locally for free: speech recognition, voice and the AI model.
 exit /b 0

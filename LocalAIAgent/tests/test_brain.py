@@ -7,7 +7,7 @@ from unittest.mock import Mock
 from src.brain import Brain, LLMError
 from src.brain.numbers import words_to_digits, plural, say_number
 from src.brain.quick import QuickAnswers, spoken_math, safe_eval, city_candidates, locative
-from src.brain.llm import ClaudeProvider, OpenAICompatibleProvider, ThinkFilter, run_custom_tool
+from src.brain.llm import OpenAICompatibleProvider, ThinkFilter
 from src.storage import Store
 
 CBR = {'Date': '2026-09-24T11:30:00+03:00', 'Valute': {
@@ -124,90 +124,6 @@ class QuickTests(unittest.TestCase):
         self.assertEqual(locative('Сочи'), 'Сочи')
 
 
-# ---------- Claude ----------
-class FakeStream:
-    def __init__(self, texts, message):
-        self.texts, self.message = texts, message
-    def __enter__(self):
-        return self
-    def __exit__(self, *args):
-        return False
-    def __iter__(self):
-        for text in self.texts:
-            yield SimpleNamespace(type='text', text=text)
-    def get_final_message(self):
-        return self.message
-
-
-class FakeMessages:
-    def __init__(self, turns):
-        self.turns = list(turns)
-        self.calls = []
-    def stream(self, **params):
-        self.calls.append(json.loads(json.dumps(params, default=lambda o: getattr(o, '__dict__', str(o)))))
-        return self.turns.pop(0)
-
-
-def claude_with(turns):
-    provider = ClaudeProvider('test-key', FakeTools())
-    messages = FakeMessages(turns)
-    provider.client = SimpleNamespace(beta=SimpleNamespace(messages=messages))
-    return provider, messages
-
-
-class ClaudeTests(unittest.TestCase):
-    def test_streaming_and_params(self):
-        final = SimpleNamespace(stop_reason='end_turn', content=[SimpleNamespace(type='text', text='Привет!')])
-        provider, messages = claude_with([FakeStream(['При', 'вет!'], final)])
-        chunks = []
-        text = provider.stream([{'role': 'user', 'content': 'Привет'}], {'llm_model': 'claude-opus-5'}, on_text=chunks.append)
-        self.assertEqual(text, 'Привет!')
-        self.assertEqual(chunks, ['При', 'вет!'])
-        params = messages.calls[0]
-        self.assertEqual(params['model'], 'claude-opus-5')
-        self.assertEqual(params['output_config'], {'effort': 'low'})
-        self.assertEqual(params['fallbacks'], 'default')
-        self.assertEqual(params['betas'], ['server-side-fallback-2026-07-01'])
-        types = [t.get('type') for t in params['tools']]
-        self.assertIn('web_search_20260209', types)
-        self.assertTrue(all(t['eager_input_streaming'] for t in params['tools'] if 'input_schema' in t))
-
-    def test_haiku_has_no_effort(self):
-        final = SimpleNamespace(stop_reason='end_turn', content=[])
-        provider, messages = claude_with([FakeStream(['Ок'], final)])
-        provider.stream([{'role': 'user', 'content': 'x'}], {'llm_model': 'claude-haiku-4-5'})
-        params = messages.calls[0]
-        self.assertNotIn('output_config', params)
-        self.assertNotIn('fallbacks', params)
-        self.assertIn('web_search_20250305', [t.get('type') for t in params['tools']])
-
-    def test_custom_tool_loop(self):
-        tool_use = SimpleNamespace(type='tool_use', id='toolu_1', name='get_exchange_rates', input={'currencies': ['USD']})
-        first = SimpleNamespace(stop_reason='tool_use', content=[tool_use])
-        second = SimpleNamespace(stop_reason='end_turn', content=[])
-        provider, messages = claude_with([FakeStream([], first), FakeStream(['Доллар стоит 81,52 рубля.'], second)])
-        text = provider.stream([{'role': 'user', 'content': 'курс доллара'}], {})
-        self.assertEqual(text, 'Доллар стоит 81,52 рубля.')
-        result = messages.calls[1]['messages'][-1]['content'][0]
-        self.assertEqual(result['type'], 'tool_result')
-        self.assertEqual(result['tool_use_id'], 'toolu_1')
-        self.assertIn('81.5234', result['content'])
-        self.assertFalse(result['is_error'])
-
-    def test_pause_turn_is_resumed(self):
-        paused = SimpleNamespace(stop_reason='pause_turn', content=[])
-        done = SimpleNamespace(stop_reason='end_turn', content=[])
-        provider, messages = claude_with([FakeStream(['Ищу. '], paused), FakeStream(['Нашёл.'], done)])
-        self.assertEqual(provider.stream([{'role': 'user', 'content': 'новости'}], {}), 'Ищу. Нашёл.')
-        self.assertEqual(len(messages.calls), 2)
-
-    def test_invalid_tool_input_is_error_result(self):
-        content, is_error = run_custom_tool(FakeTools(), 'get_exchange_rates', {'currencies': 'USD'})
-        self.assertTrue(is_error)
-        content, is_error = run_custom_tool(FakeTools(), 'get_weather', {'city': 'Москва'})
-        self.assertFalse(is_error)
-
-
 class OpenAICompatTests(unittest.TestCase):
     def test_stream_and_think_filter(self):
         lines = [b'data: {"choices":[{"delta":{"content":"<think>hmm</think>"}}]}',
@@ -222,6 +138,20 @@ class OpenAICompatTests(unittest.TestCase):
         self.assertEqual(text, 'Привет')
         self.assertEqual(''.join(spoken), 'Привет')
         self.assertEqual(session.post.call_args.kwargs['json']['model'], 'qwen')
+        self.assertNotIn('cache_prompt', session.post.call_args.kwargs['json'])
+
+    def test_fresh_question_gets_search_context(self):
+        tools = FakeTools()
+        tools.web_search = Mock(return_value=[{'title': 'ЦБ', 'snippet': 'Ключевая ставка 16%', 'url': ''}])
+        response = SimpleNamespace(status_code=200, iter_lines=lambda decode_unicode=False: iter([b'data: [DONE]']), text='')
+        session = Mock()
+        session.post.return_value = response
+        provider = OpenAICompatibleProvider('http://127.0.0.1:1/v1', 'local', '', tools, session=session, local=True)
+        provider.stream([{'role': 'user', 'content': 'Какая сейчас ключевая ставка?'}], {'llm_web_search': True})
+        body = session.post.call_args.kwargs['json']
+        self.assertTrue(body['cache_prompt'])
+        self.assertIn('Ключевая ставка 16%', body['messages'][-1]['content'])
+        self.assertIn('голосовой ассистент', body['messages'][0]['content'])
 
     def test_think_filter_split_tags(self):
         f = ThinkFilter()
@@ -237,13 +167,13 @@ class BrainTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_quick_answer_without_key(self):
-        self.assertIn('рубля', self.brain.answer('курс доллара', {'llm_provider': 'claude'}))
+    def test_quick_answer_without_model(self):
+        self.assertIn('рубля', self.brain.answer('курс доллара', {'llm_provider': 'local'}))
 
-    def test_missing_key_message(self):
+    def test_missing_local_model_message(self):
         with self.assertRaises(LLMError) as ctx:
-            self.brain.answer('Сколько белка нужно в день?', {'llm_provider': 'claude'})
-        self.assertIn('ключ', str(ctx.exception))
+            self.brain.answer('Сколько белка нужно в день?', {'llm_provider': 'local'})
+        self.assertIn('Скачать нейросеть', str(ctx.exception))
 
     def test_memory_and_context(self):
         provider = Mock()
@@ -260,10 +190,12 @@ class BrainTests(unittest.TestCase):
     def test_provider_off(self):
         self.assertIsNone(self.brain.answer('Сколько белка нужно?', {'llm_provider': 'off'}))
 
-    def test_key_from_store(self):
-        self.store.set_secret('anthropic_api_key', 'sk-ant-test')
-        self.assertIsInstance(self.brain.provider({'llm_provider': 'claude'}), ClaudeProvider)
-        self.assertEqual(self.store.secrets_status()['anthropic_api_key'], True)
+    def test_openai_provider_uses_saved_key(self):
+        self.store.set_secret('openai_api_key', 'free-key')
+        provider = self.brain.provider({'llm_provider': 'openai', 'openai_base_url': 'https://api.groq.com/openai/v1',
+                                        'openai_model': 'llama-3.3-70b-versatile'})
+        self.assertEqual(provider.api_key, 'free-key')
+        self.assertFalse(provider.local)
 
 
 if __name__ == '__main__':

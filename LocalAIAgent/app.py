@@ -170,6 +170,13 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         store.set_secret(name, data.get('value', ''))
         return jsonify(success=True, secrets=store.secrets_status())
 
+    @app.get('/api/ai/status')
+    def ai_status():
+        brain = getattr(agent, 'brain', None)
+        settings = store.settings(owner())
+        local = brain.local.status(settings) if brain is not None and hasattr(brain, 'local') else None
+        return jsonify(success=True, provider=settings['llm_provider'], local=local)
+
     @app.post('/api/ai/test')
     def ai_test():
         brain = getattr(agent, 'brain', None)
@@ -346,8 +353,17 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     @app.post('/api/models/download')
     def models_download():
         from src.model_downloader import start_download
-        items = (request.get_json() or {}).get('items') or ['vad', 'parakeet', 'gigaam', 'piper']
-        started = start_download(store.root, items, events, on_done=lambda: speech.configure(store.settings('device:desktop')))
+        items = (request.get_json() or {}).get('items') or ['vad', 'parakeet', 'gigaam', 'piper', 'llama:cpu', 'llm:qwen3-4b']
+        if not isinstance(items, list):
+            raise ValueError('items должен быть списком')
+
+        def done():
+            settings = store.settings('device:desktop')
+            speech.configure(settings)
+            brain = getattr(agent, 'brain', None)
+            if brain is not None and hasattr(brain, 'local') and settings['llm_provider'] == 'local':
+                brain.local.warmup(settings)
+        started = start_download(store.root, items, events, on_done=done)
         return jsonify(success=True, started=started)
 
     # ---------------- синтез для телефона ----------------

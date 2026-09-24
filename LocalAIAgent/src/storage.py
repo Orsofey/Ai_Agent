@@ -31,7 +31,7 @@ DEFAULTS = {
     # Голос: вывод
     'tts_enabled': True, 'tts_voice': 'irina', 'tts_voice_en': 'amy', 'tts_rate': 110,
     # ИИ
-    'llm_provider': 'claude', 'llm_model': 'claude-opus-5', 'llm_effort': 'low',
+    'llm_provider': 'local', 'local_model': 'qwen3-4b', 'llm_gpu': False,
     'llm_web_search': True, 'openai_base_url': 'http://127.0.0.1:11434/v1',
     'openai_model': 'qwen2.5:7b-instruct', 'answer_style': 'short', 'city': 'Москва',
     # Управление ПК
@@ -43,9 +43,8 @@ CHOICES = {
     'theme': THEMES,
     'voice_language': ('ru', 'en', 'auto'),
     'stt_engine': ('auto', 'parakeet', 'gigaam', 'whisper'),
-    'llm_provider': ('claude', 'openai', 'off'),
-    'llm_model': ('claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5-1'),
-    'llm_effort': ('low', 'medium', 'high'),
+    'llm_provider': ('local', 'openai', 'off'),
+    'local_model': ('qwen3-4b', 'qwen2.5-7b', 'qwen2.5-3b'),
     'answer_style': ('short', 'detailed'),
     'type_method': ('auto', 'keys', 'paste'),
     'video_source': ('youtube', 'rutube'),
@@ -59,7 +58,7 @@ RANGES = {
 }
 
 # Секреты (ключи API) хранятся отдельно и никогда не возвращаются в /api/settings.
-SECRET_NAMES = ('anthropic_api_key', 'openai_api_key')
+SECRET_NAMES = ('openai_api_key',)
 
 
 class Store:

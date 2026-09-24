@@ -8,7 +8,7 @@ binaries = []
 hiddenimports = ['webview.platforms.edgechromium', 'waitress', 'sqlite3', 'clr', 'winreg',
                  'pystray._win32', 'PIL.Image', 'pyttsx3.drivers', 'pyttsx3.drivers.sapi5']
 packages = ('onnx_asr', 'onnxruntime', 'faster_whisper', 'ctranslate2', 'av', 'tokenizers', 'playwright',
-            'webview', 'pythonnet', 'clr_loader', 'piper', 'sounddevice', '_sounddevice_data', 'anthropic',
+            'webview', 'pythonnet', 'clr_loader', 'piper', 'sounddevice', '_sounddevice_data',
             'ddgs', 'primp', 'pystray', 'pyperclip', 'huggingface_hub', 'yt_dlp')
 for package in packages:
     try:

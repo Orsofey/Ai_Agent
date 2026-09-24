@@ -2,7 +2,7 @@
 
 Библиотеки: Python, Flask, Waitress, pywebview/WebView2, pystray, Pillow, psutil, filelock,
 NumPy, ONNX Runtime, onnx-asr (MIT), PyAV, sounddevice/PortAudio, faster-whisper, CTranslate2,
-piper-tts, pyttsx3, Anthropic Python SDK, requests, ddgs, pyperclip, Hugging Face Hub,
+piper-tts, pyttsx3, llama.cpp (llama-server, MIT), requests, ddgs, pyperclip, Hugging Face Hub,
 Playwright, yt-dlp, PyInstaller, Flutter (Android-клиент).
 
 Модели (скачиваются отдельно, не входят в репозиторий):
@@ -11,6 +11,7 @@ Playwright, yt-dlp, PyInstaller, Flutter (Android-клиент).
 - Sber GigaAM v3 — MIT, ONNX-версия istupakov/gigaam-v3-onnx
 - Silero VAD — MIT, istupakov/silero-vad-onnx
 - Piper voices (rhasspy/piper-voices): ru_RU irina, denis; en_US amy, lessac — см. карточки голосов
+- Qwen3-4B-Instruct-2507, Qwen2.5-7B/3B-Instruct — Apache 2.0 (Qwen2.5-3B — Qwen Research License), GGUF от bartowski
 - Whisper (резерв): Systran/faster-whisper-small, mobiuslabsgmbh/faster-whisper-large-v3-turbo — MIT
 
 Открытые данные без ключей: ЦБ РФ через cbr-xml-daily.ru, Open-Meteo (CC-BY 4.0),

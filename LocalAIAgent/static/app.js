@@ -179,10 +179,19 @@
       $('engine-pill').title = sp.error || ('Распознавание: ' + sp.engine + (sp.last_elapsed ? ', последнее за ' + Math.round(sp.last_elapsed * 1000) + ' мс' : ''));
       if (nativeVoice) paintVoice(data.voice.state, { message: data.voice.error });
       else paintVoice(Agent.settings.voice_enabled ? 'idle' : 'off');
-      const ai = Agent.settings.llm_provider;
-      const aiOk = ai === 'openai' || (ai === 'claude' && Agent.secrets.anthropic_api_key);
-      $('ai-status').textContent = ai === 'off' ? 'ИИ выключен' : aiOk ? 'ИИ подключён' : 'Нужен ключ ИИ';
-      $('ai-pill').className = 'pill ' + (aiOk ? 'ok' : 'warn');
+      const ai = await Agent.api('ai/status');
+      const local = ai.local || {};
+      let text = 'ИИ: внешний сервер', kind = 'ok';
+      if (ai.provider === 'off') { text = 'ИИ выключен'; kind = ''; }
+      else if (ai.provider === 'local') {
+        if (local.ready) text = 'ИИ на этом ПК · готов';
+        else if (local.starting) { text = 'ИИ загружается…'; kind = 'warn'; }
+        else if (!local.model_installed || !local.runtime_installed) { text = 'ИИ не установлен'; kind = 'warn'; }
+        else { text = 'ИИ на этом ПК'; kind = 'warn'; }
+      }
+      $('ai-status').textContent = text;
+      $('ai-pill').className = 'pill ' + kind;
+      $('ai-pill').title = local.error || 'Ответы на вопросы: бесплатно, без ключей';
     } catch (e) { $('engine').textContent = e.message; $('engine-pill').className = 'pill bad'; }
   }
 
@@ -232,9 +241,10 @@
       await loadHistory();
       await pollStatus();
       if (!eventsStarted) { eventsStarted = true; Agent.connectEvents(onEvent); setInterval(pollStatus, 5000); }
-      if (!Agent.secrets.anthropic_api_key && Agent.settings.llm_provider === 'claude' && !Agent.store.get('agent_key_hint')) {
-        Agent.store.set('agent_key_hint', '1');
-        Agent.toast('Чтобы я отвечал на любые вопросы, добавьте ключ ИИ в настройках.', 6000);
+      const ai = await Agent.api('ai/status').catch(() => ({}));
+      if (ai.provider === 'local' && ai.local && (!ai.local.model_installed || !ai.local.runtime_installed) && !Agent.store.get('agent_llm_hint')) {
+        Agent.store.set('agent_llm_hint', '1');
+        Agent.toast('Чтобы я отвечал на любые вопросы, скачайте бесплатную нейросеть: Настройки → ИИ.', 6000);
       }
     } catch (e) {
       if (e.status === 401) $('pair').hidden = false; else Agent.toast(e.message);

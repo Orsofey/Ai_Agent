@@ -1,6 +1,7 @@
 test_chat_stream (test_api.APIv5Tests.test_chat_stream) ... ok
 test_defaults (test_api.APIv5Tests.test_defaults) ... ok
 test_events_token_in_query (test_api.APIv5Tests.test_events_token_in_query) ... ok
+test_old_claude_setting_falls_back_to_local (test_api.APIv5Tests.test_old_claude_setting_falls_back_to_local) ... ok
 test_old_wake_word_migrates (test_api.APIv5Tests.test_old_wake_word_migrates) ... ok
 test_open_settings_fallback (test_api.APIv5Tests.test_open_settings_fallback) ... ok
 test_secrets_never_returned (test_api.APIv5Tests.test_secrets_never_returned) ... ok
@@ -13,18 +14,14 @@ test_default_browser (test_assistant_commands.ServiceCommands.test_default_brows
 test_service_fallback_downloads (test_assistant_commands.ServiceCommands.test_service_fallback_downloads) ... ok
 test_unrelated_returns_none (test_assistant_commands.ServiceCommands.test_unrelated_returns_none) ... ok
 test_yandex_music_search (test_assistant_commands.ServiceCommands.test_yandex_music_search) ... ok
-test_key_from_store (test_brain.BrainTests.test_key_from_store) ... ok
 test_memory_and_context (test_brain.BrainTests.test_memory_and_context) ... ok
-test_missing_key_message (test_brain.BrainTests.test_missing_key_message) ... ok
+test_missing_local_model_message (test_brain.BrainTests.test_missing_local_model_message) ... ok
+test_openai_provider_uses_saved_key (test_brain.BrainTests.test_openai_provider_uses_saved_key) ... ok
 test_provider_off (test_brain.BrainTests.test_provider_off) ... ok
-test_quick_answer_without_key (test_brain.BrainTests.test_quick_answer_without_key) ... ok
-test_custom_tool_loop (test_brain.ClaudeTests.test_custom_tool_loop) ... ok
-test_haiku_has_no_effort (test_brain.ClaudeTests.test_haiku_has_no_effort) ... ok
-test_invalid_tool_input_is_error_result (test_brain.ClaudeTests.test_invalid_tool_input_is_error_result) ... ok
-test_pause_turn_is_resumed (test_brain.ClaudeTests.test_pause_turn_is_resumed) ... ok
-test_streaming_and_params (test_brain.ClaudeTests.test_streaming_and_params) ... ok
+test_quick_answer_without_model (test_brain.BrainTests.test_quick_answer_without_model) ... ok
 test_plural_and_format (test_brain.NumberTests.test_plural_and_format) ... ok
 test_words (test_brain.NumberTests.test_words) ... ok
+test_fresh_question_gets_search_context (test_brain.OpenAICompatTests.test_fresh_question_gets_search_context) ... ok
 test_stream_and_think_filter (test_brain.OpenAICompatTests.test_stream_and_think_filter) ... ok
 test_think_filter_split_tags (test_brain.OpenAICompatTests.test_think_filter_split_tags) ... ok
 test_calculator (test_brain.QuickTests.test_calculator) ... ok
@@ -107,6 +104,11 @@ test_search_stem (test_desktop.ParseTests.test_search_stem) ... ok
 test_type_and_send (test_desktop.ParseTests.test_type_and_send) ... ok
 test_user_example_type_text (test_desktop.ParseTests.test_user_example_type_text) ... ok
 test_windows_and_selection (test_desktop.ParseTests.test_windows_and_selection) ... ok
+test_brain_answers_through_local_server (test_local_llm.LocalServerTests.test_brain_answers_through_local_server) ... ok
+test_files_found (test_local_llm.LocalServerTests.test_files_found) ... ok
+test_missing_model_falls_back_to_installed_one (test_local_llm.LocalServerTests.test_missing_model_falls_back_to_installed_one) ... ok
+test_stop_on_provider_change (test_local_llm.LocalServerTests.test_stop_on_provider_change) ... ok
+test_pick_windows_builds (test_local_llm.ReleaseAssetTests.test_pick_windows_builds) ... ok
 test_import_and_no_duplicate (test_migration.MigrationTests.test_import_and_no_duplicate) ... ok
 test_legacy_password (test_migration.MigrationTests.test_legacy_password) ... ok
 test_cache_dir_created (test_tts.TTSServiceTests.test_cache_dir_created) ... ok
@@ -150,6 +152,6 @@ test_spotify_opens_in_browser (test_web_services.WebServiceTests.test_spotify_op
 test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_opens_in_browser) ... ok
 
 ----------------------------------------------------------------------
-Ran 150 tests in 2.671s
+Ran 152 tests in 2.483s
 
 OK
