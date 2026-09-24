@@ -209,6 +209,18 @@ def main():
         threading.Thread(target=server.run, daemon=True, name='http-server').start()
         voice.start()
 
+        # Если модели не встроены в установщик и ещё не скачаны — докачиваем их сами при первом запуске.
+        from src.model_downloader import missing_items, start_download
+        missing = missing_items(store.root, settings)
+        if missing:
+            def models_ready():
+                current = store.settings(OWNER)
+                speech.configure(current)
+                if current.get('llm_provider') == 'local':
+                    local_llm.warmup(current)
+            logging.info('First run: downloading %s', missing)
+            start_download(store.root, missing, events, on_done=models_ready)
+
         import webview
         webview.settings['ALLOW_DOWNLOADS'] = True
         ui = DesktopUI(f'http://127.0.0.1:{port}', store)

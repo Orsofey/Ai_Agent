@@ -151,6 +151,18 @@
       case 'delta':
         if (voiceBubble && !localRequest) { setBubbleText(voiceBubble, voiceBubble.textContent + e.text); scrollDown(); }
         break;
+      case 'download': {
+        const names = { vad: 'детектор речи', parakeet: 'распознавание речи', gigaam: 'распознавание речи', piper: 'голоса',
+          'llama:cpu': 'движок нейросети', 'llama:vulkan': 'движок нейросети', 'llm:qwen3-4b': 'нейросеть', 'llm:qwen2.5-7b': 'нейросеть', 'llm:qwen3-1.7b': 'нейросеть' };
+        const pill = $('download-pill');
+        if (e.item === 'all') { pill.hidden = true; pollStatus(); break; }
+        pill.hidden = false;
+        const what = names[e.item] || e.item;
+        if (e.stage === 'progress') $('download-status').textContent = `Установка: ${what} ${e.detail.percent}%`;
+        else if (e.stage === 'start') $('download-status').textContent = `Установка: ${what}…`;
+        else if (e.stage === 'error') Agent.toast(`Не удалось скачать ${what}: ${e.detail}`, 8000);
+        break;
+      }
       case 'voice_error':
         Agent.toast(e.message);
         break;

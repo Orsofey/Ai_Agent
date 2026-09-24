@@ -18,15 +18,15 @@ log = logging.getLogger(__name__)
 
 LOCAL_MODELS = {
     'qwen3-4b': {
-        'repo': 'bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF', 'pattern': 'Q4_K_M.gguf',
+        'repos': ['bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF', 'unsloth/Qwen3-4B-Instruct-2507-GGUF'], 'pattern': 'Q4_K_M.gguf',
         'title': 'Qwen3 4B — быстрая и умная (рекомендуется)', 'size_mb': 2500, 'ram_gb': 6,
     },
     'qwen2.5-7b': {
-        'repo': 'bartowski/Qwen2.5-7B-Instruct-GGUF', 'pattern': 'Q4_K_M.gguf',
+        'repos': ['bartowski/Qwen2.5-7B-Instruct-GGUF', 'unsloth/Qwen2.5-7B-Instruct-GGUF'], 'pattern': 'Q4_K_M.gguf',
         'title': 'Qwen2.5 7B — точнее, нужен ПК с 12+ ГБ ОЗУ', 'size_mb': 4700, 'ram_gb': 12,
     },
     'qwen3-1.7b': {
-        'repo': 'bartowski/Qwen_Qwen3-1.7B-GGUF', 'pattern': 'Q4_K_M.gguf',
+        'repos': ['bartowski/Qwen_Qwen3-1.7B-GGUF', 'unsloth/Qwen3-1.7B-GGUF'], 'pattern': 'Q4_K_M.gguf',
         'title': 'Qwen3 1.7B — для слабых ПК', 'size_mb': 1100, 'ram_gb': 4,
     },
 }

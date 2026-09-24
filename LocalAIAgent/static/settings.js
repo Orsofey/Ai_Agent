@@ -329,8 +329,15 @@
       const badge = $('badge-' + e.item);
       if (badge) {
         badge.className = 'badge ' + (e.stage === 'done' ? 'ok' : e.stage === 'error' ? 'bad' : 'busy');
-        badge.textContent = e.stage === 'start' ? 'Скачивается…' : e.stage === 'done' ? 'Установлена' : e.stage === 'error' ? 'Ошибка' : badge.textContent;
-        if (e.stage === 'error') badge.title = e.detail || '';
+        badge.textContent = e.stage === 'start' ? 'Скачивается…' : e.stage === 'progress' ? `Скачивается ${e.detail.percent}% · ${e.detail.done_mb} из ${e.detail.total_mb} МБ`
+          : e.stage === 'done' ? 'Установлена' : e.stage === 'error' ? 'Ошибка' : badge.textContent;
+        const row = badge.closest('.model');
+        let note = row && row.querySelector('.model-error');
+        if (e.stage === 'error' && row) {
+          if (!note) { note = document.createElement('small'); note.className = 'model-error'; note.style.color = 'var(--bad)'; row.firstElementChild.appendChild(note); }
+          note.textContent = 'Ошибка: ' + (e.detail || 'неизвестная') + '. Подробности: logs/agent.log';
+          Agent.toast('Не удалось скачать: ' + (e.detail || ''), 7000);
+        } else if (note && e.stage === 'start') note.remove();
       }
       if (e.item === 'all' && e.stage === 'finished') { Agent.toast('Загрузка завершена'); refreshModels(); refreshAI(); }
     } else if (e.type === 'settings') {

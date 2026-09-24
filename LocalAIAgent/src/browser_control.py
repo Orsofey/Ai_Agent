@@ -88,9 +88,37 @@ class BrowserController:
             if not future.set_running_or_notify_cancel():
                 continue
             try:
-                future.set_result(getattr(self, '_'+method)(*args))
+                future.set_result(self._run(method, args))
             except Exception as exc:
-                future.set_result('Браузер: '+str(exc)[:600])
+                future.set_result('Браузер: '+str(exc)[:300])
+
+    @staticmethod
+    def _is_closed_error(exc):
+        text = str(exc)
+        return any(marker in text for marker in ('has been closed', 'Target closed', 'Browser closed',
+                                                 'Connection closed', 'browser has disconnected'))
+
+    def _run(self, method, args):
+        """Выполнить действие; если пользователь закрыл окно браузера — перезапустить и повторить."""
+        try:
+            return getattr(self, '_'+method)(*args)
+        except Exception as exc:
+            if not self._is_closed_error(exc):
+                raise
+            self._reset()
+            if method in ('close_browser', 'close_tab', 'tabs', 'media'):
+                return 'Браузер агента уже закрыт.'
+            return getattr(self, '_'+method)(*args)
+
+    def _reset(self):
+        self.context = None
+        self.current = None
+        if getattr(self, 'pw', None) is not None:
+            try:
+                self.pw.stop()
+            except Exception:
+                pass
+            self.pw = None
 
     def call(self, method, *args):
         future = Future()

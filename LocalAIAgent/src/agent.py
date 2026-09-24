@@ -18,6 +18,43 @@ HELP = '''Я понимаю команды и отвечаю на вопросы
 Вопросы: «Какой курс доллара?», «100 евро в рублях», «Погода завтра в Казани», «Сколько будет 15% от 2000?», «Сколько белка нужно в день?», «Куда вложить 100 тысяч?».'''
 
 
+# Глаголы-команды: вежливая форма «закройте» → «закрой».
+COMMAND_VERBS = {
+    'закрой', 'открой', 'запусти', 'включи', 'выключи', 'напиши', 'найди', 'отправь', 'сверни', 'разверни',
+    'нажми', 'покажи', 'поставь', 'сделай', 'скажи', 'переведи', 'прочитай', 'выдели', 'скопируй', 'вставь',
+    'удали', 'сотри', 'сохрани', 'отмени', 'останови', 'продолжи', 'напечатай', 'введи', 'набери', 'посчитай',
+    'сочини', 'придумай', 'исправь', 'перескажи', 'обнови', 'прокрути', 'переключи', 'заблокируй', 'расскажи',
+}
+CLOSABLE = r'(?:браузер|окно|вкладку|программу|приложение|телеграм\w*|ворд|хром|видео|музыку)'
+# Частые ошибки распознавания начала команды.
+MISHEARD = [(r'^(?:забудь(?:те)?|забей(?:те)?|закрою|закрыть|за\s?крой)\s+(?=' + CLOSABLE + r')', 'закрой '),
+            (r'^(?:открою|открыть|от\s?крой)\s+', 'открой ')]
+
+
+def normalize_command(text):
+    """«Закройте браузер» → «закрой браузер», «забудьте браузер» → «закрой браузер»."""
+    value = text.strip()
+    match = re.match(r'^(\w+?)(?:(й|ь)те|(и)те)(?=\W|$)', value, re.I)
+    if match:
+        base = match[1] + (match[2] or match[3])
+        if base.casefold() in COMMAND_VERBS:
+            value = base + value[match.end():]
+    for pattern, replacement in MISHEARD:
+        value = re.sub(pattern, replacement, value, count=1, flags=re.I)
+    value = re.sub(r'^пожалуйста[,\s]+', '', value, flags=re.I)
+    return re.sub(r'[,\s]+пожалуйста$', '', value, flags=re.I)
+
+
+QUESTION_WORDS = ('как', 'что', 'кто', 'где', 'когда', 'почему', 'зачем', 'сколько', 'какой', 'какая', 'какое',
+                  'какие', 'куда', 'откуда', 'чем', 'можно', 'нужно', 'стоит', 'посоветуй', 'расскажи', 'объясни',
+                  'подскажи', 'what', 'who', 'how', 'why', 'when', 'where')
+
+
+def looks_like_question(text):
+    words = re.findall(r'\w+', text.casefold())
+    return text.strip().endswith('?') or bool(words and words[0] in QUESTION_WORDS) or len(words) >= 6
+
+
 def strip_wake(text, settings):
     wake = (settings or {}).get('wake_word', 'Андрей')
     return re.sub(r'^(?:эй\s+|ну\s+|слушай\s+)?' + re.escape(wake) + r'(?![\w])[\s,.:;!?—-]*', '', text, flags=re.I)
@@ -85,6 +122,7 @@ class LocalComputerAgent:
     def process_command(self, command, settings=None, owner='default', on_text=None):
         settings = settings or {}
         text = strip_wake(re.sub(r'\s+', ' ', str(command)).strip(), settings).strip()
+        text = normalize_command(text)
         if not text:
             return 'Слушаю.'
 
@@ -148,7 +186,10 @@ class LocalComputerAgent:
             if action == 'search':
                 return self.browser.call('open', 'https://www.google.com/search?q=' + quote(value))
             if error:
-                return error
+                if looks_like_question(question):
+                    return error
+                # Нейросеть недоступна, а фраза похожа на команду — не пугаем техническими ошибками.
+                return f'Не понял команду «{question}». Скажите «помощь», чтобы услышать примеры.'
         elif action == 'search':
             return self.browser.call('open', 'https://www.google.com/search?q=' + quote(value))
         return 'Не понял команду. Скажите «помощь», чтобы услышать примеры.'
