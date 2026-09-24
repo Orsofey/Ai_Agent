@@ -25,9 +25,9 @@ LOCAL_MODELS = {
         'repo': 'bartowski/Qwen2.5-7B-Instruct-GGUF', 'pattern': 'Q4_K_M.gguf',
         'title': 'Qwen2.5 7B — точнее, нужен ПК с 12+ ГБ ОЗУ', 'size_mb': 4700, 'ram_gb': 12,
     },
-    'qwen2.5-3b': {
-        'repo': 'bartowski/Qwen2.5-3B-Instruct-GGUF', 'pattern': 'Q4_K_M.gguf',
-        'title': 'Qwen2.5 3B — для слабых ПК', 'size_mb': 2000, 'ram_gb': 4,
+    'qwen3-1.7b': {
+        'repo': 'bartowski/Qwen_Qwen3-1.7B-GGUF', 'pattern': 'Q4_K_M.gguf',
+        'title': 'Qwen3 1.7B — для слабых ПК', 'size_mb': 1100, 'ram_gb': 4,
     },
 }
 DEFAULT_MODEL = 'qwen3-4b'

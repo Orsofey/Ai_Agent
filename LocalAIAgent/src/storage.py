@@ -32,7 +32,7 @@ DEFAULTS = {
     'tts_enabled': True, 'tts_voice': 'irina', 'tts_voice_en': 'amy', 'tts_rate': 110,
     # ИИ
     'llm_provider': 'local', 'local_model': 'qwen3-4b', 'llm_gpu': False,
-    'llm_web_search': True, 'openai_base_url': 'http://127.0.0.1:11434/v1',
+    'llm_web_search': True, 'ddg_search': False, 'openai_base_url': 'http://127.0.0.1:11434/v1',
     'openai_model': 'qwen2.5:7b-instruct', 'answer_style': 'short', 'city': 'Москва',
     # Управление ПК
     'type_method': 'auto', 'messenger_autosend': False, 'autostart': True,
@@ -44,12 +44,12 @@ CHOICES = {
     'voice_language': ('ru', 'en', 'auto'),
     'stt_engine': ('auto', 'parakeet', 'gigaam', 'whisper'),
     'llm_provider': ('local', 'openai', 'off'),
-    'local_model': ('qwen3-4b', 'qwen2.5-7b', 'qwen2.5-3b'),
+    'local_model': ('qwen3-4b', 'qwen2.5-7b', 'qwen3-1.7b'),
     'answer_style': ('short', 'detailed'),
     'type_method': ('auto', 'keys', 'paste'),
     'video_source': ('youtube', 'rutube'),
-    'tts_voice': ('irina', 'denis', 'baya', 'aidar', 'kseniya', 'xenia'),
-    'tts_voice_en': ('amy', 'lessac'),
+    'tts_voice': ('irina', 'denis'),
+    'tts_voice_en': ('amy',),
 }
 
 RANGES = {

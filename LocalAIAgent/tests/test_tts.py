@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from src.local_tts_service import (
-    LocalTTSService, PIPER_VOICES, SILERO_VOICES, piper_models_dir,
+    LocalTTSService, PIPER_VOICES, piper_models_dir, model_card,
 )
 
 
@@ -20,13 +20,23 @@ class TTSServiceTests(unittest.TestCase):
         for name in PIPER_VOICES:
             self.assertIn(name, ids)
 
-    def test_silero_voices_kept_as_reserve(self):
+    def test_no_non_commercial_voices(self):
+        # Silero TTS (CC BY-NC) и lessac (датасет только для исследований) убраны.
         ids = [v['id'] for v in self.service.available_voices()]
-        for name in SILERO_VOICES:
-            self.assertIn(name, ids)
+        self.assertEqual(sorted(ids), ['amy', 'denis', 'irina'])
+
+    def test_model_card_shown_when_present(self):
+        folder = piper_models_dir(self.temp.name)
+        folder.mkdir(parents=True, exist_ok=True)
+        info = PIPER_VOICES['irina']
+        (folder / info['file']).write_bytes(b'')
+        (folder / (info['file'] + '.json')).write_text('{}')
+        self.assertIsNone(model_card('irina', self.temp.name))
+        (folder / (info['file'] + '.MODEL_CARD')).write_text('License: test', encoding='utf-8')
+        self.assertEqual(model_card('irina', self.temp.name), 'License: test')
 
     def test_status_reports_installed_piper(self):
-        # Без файлов .onnx Piper не готов — движок откатывается на Silero.
+        # Без файлов .onnx Piper не готов — используется системный голос Windows.
         self.assertEqual(self.service.status()['piper_ready'], [])
 
     def test_piper_marked_installed_when_files_present(self):

@@ -1,7 +1,9 @@
 """Локальный нейросетевой синтез речи.
 
-Основной движок — Piper (русские голоса irina / denis, английские amy / lessac).
-Резерв — Silero v4_ru (если установлен torch), затем системный голос Windows.
+Движок — Piper (русские голоса irina / denis, английский amy).
+Если голоса не установлены — системный голос Windows (SAPI).
+Вместе с каждым голосом скачивается его MODEL_CARD с лицензией и авторами —
+она показывается на странице «Лицензии».
 
 Всё работает офлайн. Голоса скачиваются один раз (SETUP_WINDOWS.bat или
 кнопка в настройках) в %LOCALAPPDATA%\\LocalAIAgent\\models\\piper.
@@ -17,8 +19,6 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 _lock = threading.RLock()
-_silero_model = None
-_silero_checked = False
 _piper_voices = {}
 
 PIPER_VOICES = {
@@ -28,10 +28,7 @@ PIPER_VOICES = {
               'title': 'Денис (мужской)', 'lang': 'ru'},
     'amy': {'file': 'en_US-amy-medium.onnx', 'repo_path': 'en/en_US/amy/medium/en_US-amy-medium.onnx',
             'title': 'Amy (английский)', 'lang': 'en'},
-    'lessac': {'file': 'en_US-lessac-medium.onnx', 'repo_path': 'en/en_US/lessac/medium/en_US-lessac-medium.onnx',
-               'title': 'Lessac (английский)', 'lang': 'en'},
 }
-SILERO_VOICES = ('baya', 'aidar', 'kseniya', 'xenia')
 _HF_BASE = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/'
 
 
@@ -83,6 +80,7 @@ def ensure_piper_voice(name, root):
         return None, None
     onnx, config = voice_files(name, root)
     if onnx:
+        ensure_model_card(name, root)
         return onnx, config
     folder = piper_models_dir(root)
     onnx, config = folder / info['file'], folder / (info['file'] + '.json')
@@ -90,7 +88,29 @@ def ensure_piper_voice(name, root):
         return None, None
     if not _download(_HF_BASE + info['repo_path'], onnx):
         return None, None
+    ensure_model_card(name, root)
     return onnx, config
+
+
+def model_card_path(name, root):
+    onnx, _ = voice_files(name, root)
+    return onnx.with_name(onnx.name + '.MODEL_CARD') if onnx else None
+
+
+def ensure_model_card(name, root):
+    """Карточка голоса (датасет, лицензия, авторы) рядом с моделью."""
+    card = model_card_path(name, root)
+    if card is None or card.exists():
+        return card
+    url = _HF_BASE + PIPER_VOICES[name]['repo_path'].rsplit('/', 1)[0] + '/MODEL_CARD'
+    return card if _download(url, card) else None
+
+
+def model_card(name, root):
+    card = model_card_path(name, root)
+    if card is None or not card.exists():
+        return None
+    return card.read_text(encoding='utf-8', errors='replace')[:4000]
 
 
 def get_piper_voice(name, root):
@@ -110,25 +130,6 @@ def get_piper_voice(name, root):
             return None
         _piper_voices[name] = voice
         return voice
-
-
-def get_silero_model():
-    """Резерв Silero (нужен torch; в обычной установке не используется)."""
-    global _silero_model, _silero_checked
-    with _lock:
-        if _silero_checked:
-            return _silero_model
-        _silero_checked = True
-        try:
-            import torch
-            path = Path(os.getenv('SILERO_TTS_PATH', ''))
-            if path.is_file():
-                _silero_model = torch.jit.load(str(path), map_location='cpu')
-                _silero_model.eval()
-        except Exception as exc:
-            log.info('Silero TTS unavailable: %s', exc)
-            _silero_model = None
-        return _silero_model
 
 
 def _piper_pcm(voice, text, length_scale):
@@ -164,9 +165,6 @@ class LocalTTSService:
         for name, info in PIPER_VOICES.items():
             voices.append({'id': name, 'title': info['title'], 'engine': 'piper', 'lang': info['lang'],
                            'installed': voice_files(name, self.root)[0] is not None})
-        for name in SILERO_VOICES:
-            voices.append({'id': name, 'title': name.capitalize() + ' (Silero, резерв)', 'engine': 'silero',
-                           'lang': 'ru', 'installed': get_silero_model() is not None})
         return voices
 
     def status(self):
@@ -188,7 +186,7 @@ class LocalTTSService:
             return None
         length_scale = round(1.0 / rate, 3) if rate and rate > 0 else 1.0
         piper_voice = get_piper_voice(voice, self.root) if voice in PIPER_VOICES else None
-        if piper_voice is None and voice not in SILERO_VOICES:
+        if piper_voice is None:
             piper_voice = get_piper_voice('irina', self.root) or get_piper_voice('denis', self.root)
         if piper_voice is not None:
             try:
@@ -196,15 +194,7 @@ class LocalTTSService:
                 return np.frombuffer(pcm, dtype=np.int16), sample_rate
             except Exception as exc:
                 log.warning('Piper synthesis failed: %s', exc)
-        model = get_silero_model()
-        if model is not None:
-            try:
-                speaker = voice if voice in SILERO_VOICES else 'baya'
-                audio = model.apply_tts(text=text, speaker=speaker, sample_rate=24000, put_accent=True, put_yo=True)
-                return (audio.numpy() * 32767).astype(np.int16), 24000
-            except Exception as exc:
-                log.warning('Silero synthesis failed: %s', exc)
-        return None
+        return None  # дальше — системный голос Windows
 
     def synthesize(self, text, voice='irina', rate=1.0):
         """WAV-файл для удалённых клиентов (телефон). Возвращает путь или None."""

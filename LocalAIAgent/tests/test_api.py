@@ -96,6 +96,24 @@ class APIv5Tests(unittest.TestCase):
     def test_tts_audio_path_traversal(self):
         self.assertEqual(self.client.get('/tts_audio/..%2Fagent.sqlite3').status_code, 404)
 
+    def test_licenses(self):
+        data = self.client.get('/api/licenses', headers=self.headers).json
+        names = ' '.join(item['name'] + item['license'] for section in data['sections'] for item in section['items'])
+        for required in ('Банк', 'MET Norway', 'OpenStreetMap', 'Википедия', 'CoinGecko', 'Parakeet', 'Qwen3 1.7B',
+                         'llama.cpp', 'piper-tts', 'GPL-3.0'):
+            self.assertIn(required, names + ' '.join(i['author'] for s in data['sections'] for i in s['items']))
+        self.assertNotIn('Silero TTS', names)
+        self.assertNotIn('2.5 3B', names)
+        self.assertEqual([v['voice'] for v in data['voices']], ['irina', 'denis', 'amy'])
+        self.assertIn('page-licenses', self.client.get('/settings').get_data(as_text=True))
+
+    def test_removed_components_rejected(self):
+        self.assertEqual(self.post('settings', {'local_model': 'qwen2.5-3b'}).status_code, 400)
+        self.assertEqual(self.post('settings', {'tts_voice_en': 'lessac'}).status_code, 400)
+        self.assertEqual(self.post('settings', {'tts_voice': 'baya'}).status_code, 400)
+        self.assertEqual(self.post('settings', {'local_model': 'qwen3-1.7b'}).status_code, 200)
+        self.assertFalse(self.client.get('/api/settings', headers=self.headers).json['settings']['ddg_search'])
+
     def test_settings_page(self):
         html = self.client.get('/settings').get_data(as_text=True)
         for section in ('page-general', 'page-voice', 'page-recognition', 'page-ai', 'page-control', 'page-appearance'):

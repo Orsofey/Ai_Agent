@@ -3,8 +3,8 @@
 По умолчанию — встроенная локальная нейросеть (llama.cpp + Qwen, см. local_llm.py):
 бесплатно, без ключей и без интернета. Можно указать любой другой сервер с
 /v1/chat/completions: Ollama, LM Studio или бесплатные облачные тарифы.
-Свежие факты (новости, цены, «кто такой…») подмешиваются из бесплатного
-поиска DuckDuckGo, чтобы маленькая модель отвечала точно.
+Факты («кто такой…», «что такое…», «столица…») подмешиваются из Википедии,
+по желанию пользователя — ещё и из DuckDuckGo, чтобы маленькая модель отвечала точно.
 """
 import json
 import logging
@@ -74,12 +74,12 @@ class OpenAICompatibleProvider:
         if not settings.get('llm_web_search', True) or not FRESH_HINTS.search(question):
             return ''
         try:
-            results = self.tools.web_search(question, 5)
+            results = self.tools.web_search(question, 5, duckduckgo=settings.get('ddg_search', False))
         except Exception as exc:
             log.info('web search failed: %s', exc)
             return ''
-        lines = [f"- {r['title']}: {r['snippet']}" for r in results if r.get('snippet')]
-        return ('Результаты поиска в интернете (используй их для точного ответа):\n' + '\n'.join(lines)) if lines else ''
+        lines = [f"- [{r.get('source', 'поиск')}] {r['title']}: {r['snippet']}" for r in results if r.get('snippet')]
+        return ('Справочные данные (используй их для точного ответа):\n' + '\n'.join(lines)) if lines else ''
 
     def stream(self, history, settings, on_text=None, system=None, max_tokens=1500, with_tools=True):
         messages = [{'role': 'system', 'content': system or system_prompt(settings)}]
@@ -96,6 +96,8 @@ class OpenAICompatibleProvider:
         body = {'model': self.model, 'messages': messages, 'stream': True,
                 'temperature': 0.3, 'max_tokens': max_tokens}
         if self.local:
+            # Qwen3: отвечать сразу, без режима размышлений.
+            body['chat_template_kwargs'] = {'enable_thinking': False}
             body['cache_prompt'] = True  # llama-server повторно использует уже посчитанный системный промпт
         parts = []
         think = ThinkFilter()

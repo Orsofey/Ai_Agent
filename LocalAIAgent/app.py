@@ -25,7 +25,7 @@ from src.storage import Store, SECRET_NAMES
 
 log = logging.getLogger(__name__)
 
-VOICE_IDS = ('irina', 'denis', 'amy', 'lessac', 'baya', 'aidar', 'kseniya', 'xenia')
+VOICE_IDS = ('irina', 'denis', 'amy')
 VERSION = '5.0'
 
 
@@ -365,6 +365,11 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
                 brain.local.warmup(settings)
         started = start_download(store.root, items, events, on_done=done)
         return jsonify(success=True, started=started)
+
+    @app.get('/api/licenses')
+    def licenses():
+        from src.licenses import collect
+        return jsonify(success=True, **collect(store.root))
 
     # ---------------- синтез для телефона ----------------
     @app.get('/api/ai/voices')

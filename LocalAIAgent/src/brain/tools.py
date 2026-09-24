@@ -1,19 +1,30 @@
-"""Live data sources without API keys: ЦБ РФ, Open-Meteo, CoinGecko, DuckDuckGo.
+"""Live data from sources that allow commercial use, no API keys.
+
+- курсы валют: официальный XML-сервис Банка России (cbr.ru);
+- погода: MET Norway Locationforecast (CC BY 4.0), города — OpenStreetMap Nominatim (ODbL);
+- справка: Википедия (CC BY-SA 4.0);
+- криптовалюты: CoinGecko (с указанием источника);
+- DuckDuckGo — только если пользователь включил его в настройках (неофициальный доступ).
 
 Каждый ответ кешируется, чтобы повторные вопросы отвечались мгновенно.
 """
 import logging
+import re
 import threading
 import time
-from datetime import date
+import xml.etree.ElementTree as ET
+from collections import OrderedDict
+from datetime import datetime, timedelta
 
 log = logging.getLogger(__name__)
 
-CBR_URL = 'https://www.cbr-xml-daily.ru/daily_json.js'
-ER_URL = 'https://open.er-api.com/v6/latest/{base}'
-GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search'
-WEATHER_URL = 'https://api.open-meteo.com/v1/forecast'
+CBR_URL = 'https://www.cbr.ru/scripts/XML_daily.asp'
+GEO_URL = 'https://nominatim.openstreetmap.org/search'
+WEATHER_URL = 'https://api.met.no/weatherapi/locationforecast/2.0/compact'
 COIN_URL = 'https://api.coingecko.com/api/v3/simple/price'
+WIKI_URL = 'https://{lang}.wikipedia.org/w/api.php'
+# MET Norway и Wikimedia требуют представляться: название программы и адрес для связи.
+USER_AGENT = 'LocalAIAgent/5.0 (+https://github.com/Orsofey/Ai_Agent)'
 
 CURRENCY_WORDS = {
     'USD': ('доллар', 'бакс', 'usd', 'dollar'),
@@ -66,15 +77,77 @@ COINS = {
 COIN_TITLES = {'bitcoin': 'Биткоин', 'ethereum': 'Эфир', 'the-open-network': 'Toncoin', 'tether': 'USDT',
                'solana': 'Solana', 'binancecoin': 'BNB', 'dogecoin': 'Dogecoin', 'ripple': 'XRP'}
 
-WMO = {
-    0: 'ясно', 1: 'преимущественно ясно', 2: 'переменная облачность', 3: 'пасмурно',
-    45: 'туман', 48: 'изморозь и туман', 51: 'лёгкая морось', 53: 'морось', 55: 'сильная морось',
-    56: 'ледяная морось', 57: 'сильная ледяная морось', 61: 'небольшой дождь', 63: 'дождь',
-    65: 'сильный дождь', 66: 'ледяной дождь', 67: 'сильный ледяной дождь', 71: 'небольшой снег',
-    73: 'снег', 75: 'сильный снегопад', 77: 'снежные зёрна', 80: 'ливень', 81: 'ливни',
-    82: 'сильный ливень', 85: 'снегопад', 86: 'сильный снегопад', 95: 'гроза',
-    96: 'гроза с градом', 99: 'сильная гроза с градом',
+MET_SYMBOLS = {
+    'clearsky': 'ясно', 'fair': 'малооблачно', 'partlycloudy': 'переменная облачность', 'cloudy': 'пасмурно',
+    'fog': 'туман', 'lightrain': 'небольшой дождь', 'rain': 'дождь', 'heavyrain': 'сильный дождь',
+    'lightrainshowers': 'небольшой ливень', 'rainshowers': 'ливни', 'heavyrainshowers': 'сильные ливни',
+    'lightsleet': 'небольшой мокрый снег', 'sleet': 'мокрый снег', 'heavysleet': 'сильный мокрый снег',
+    'lightsleetshowers': 'мокрый снег', 'sleetshowers': 'мокрый снег', 'heavysleetshowers': 'сильный мокрый снег',
+    'lightsnow': 'небольшой снег', 'snow': 'снег', 'heavysnow': 'сильный снегопад',
+    'lightsnowshowers': 'небольшой снег', 'snowshowers': 'снегопад', 'heavysnowshowers': 'сильный снегопад',
 }
+
+
+def met_condition(symbol):
+    """'lightrainshowers_day' → 'небольшой ливень'; «…andthunder» → «… с грозой»."""
+    base = re.sub(r'_(day|night|polartwilight)$', '', str(symbol or ''))
+    thunder = base.endswith('andthunder')
+    base = base[:-len('andthunder')] if thunder else base
+    base = base.replace('lightss', 'lights')  # в API MET есть коды с опечаткой «lightss…»
+    text = MET_SYMBOLS.get(base) or 'осадки'
+    return text + ' с грозой' if thunder else text
+
+
+def parse_cbr_xml(content):
+    """XML_daily.asp → (дата ISO, {код: (номинал, курс)})."""
+    root = ET.fromstring(content)
+    day = datetime.strptime(root.attrib['Date'], '%d.%m.%Y').date()
+    values = {}
+    for valute in root.findall('Valute'):
+        code = valute.findtext('CharCode')
+        nominal = float(valute.findtext('Nominal').replace(',', '.'))
+        value = float(valute.findtext('Value').replace(',', '.'))
+        values[code] = (nominal, value)
+    return day, values
+
+
+def summarize_met(payload, days=3, today=None):
+    """Ответ MET Norway → текущая погода и сводка по дням в местном времени."""
+    series = payload['properties']['timeseries']
+    first = series[0]['data']
+    details = first['instant']['details']
+    now_symbol = (first.get('next_1_hours') or first.get('next_6_hours') or {}).get('summary', {}).get('symbol_code')
+    current = dict(temperature=details.get('air_temperature'), wind=details.get('wind_speed'),
+                   humidity=details.get('relative_humidity'), condition=met_condition(now_symbol))
+    by_day = OrderedDict()
+    for item in series:
+        utc = datetime.fromisoformat(item['time'].replace('Z', '+00:00'))
+        moment = utc.astimezone()
+        info = by_day.setdefault(moment.date(), dict(temps=[], winds=[], rain=0.0, symbols=[]))
+        inst = item['data']['instant']['details']
+        info['temps'].append(inst.get('air_temperature'))
+        info['winds'].append(inst.get('wind_speed') or 0)
+        six = item['data'].get('next_6_hours')
+        if six and utc.hour % 6 == 0:  # шестичасовые блоки не перекрываются
+            info['rain'] += six.get('details', {}).get('precipitation_amount') or 0
+            symbol = six.get('summary', {}).get('symbol_code')
+            if 9 <= moment.hour <= 15:
+                info['symbols'].insert(0, symbol)  # дневная погода важнее ночной
+            else:
+                info['symbols'].append(symbol)
+    start = today or datetime.now().astimezone().date()
+    daily = []
+    for day, info in by_day.items():
+        if day < start or len(daily) >= days:
+            continue
+        temps = [t for t in info['temps'] if t is not None]
+        if not temps:
+            continue
+        daily.append(dict(date=day.isoformat(), t_min=min(temps), t_max=max(temps), wind=max(info['winds']),
+                          precipitation=round(info['rain'], 1),
+                          condition=met_condition(info['symbols'][0] if info['symbols'] else None)))
+    return dict(current=current, daily=daily)
+
 
 
 def currency_code(word):
@@ -108,25 +181,43 @@ class DataTools:
         if self._session is None:
             import requests
             self._session = requests.Session()
-            self._session.headers['User-Agent'] = 'LocalAIAgent/5.0'
+            self._session.headers['User-Agent'] = USER_AGENT
         return self._session
 
-    def _get(self, key, ttl, url, params=None):
+    def _cached(self, key, ttl, loader):
         now = time.monotonic()
         with self._lock:
             cached = self._cache.get(key)
             if cached and now - cached[0] < ttl:
                 return cached[1]
-        response = self.session.get(url, params=params, timeout=self.timeout)
-        response.raise_for_status()
-        data = response.json()
+        data = loader()
         with self._lock:
             self._cache[key] = (now, data)
         return data
 
-    # ---- валюты ----
+    def _get(self, key, ttl, url, params=None):
+        def load():
+            response = self.session.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        return self._cached(key, ttl, load)
+
+    # ---- валюты: официальный сервис Банка России ----
+    def _cbr_xml(self, day=None):
+        params = {'date_req': day.strftime('%d/%m/%Y')} if day else None
+        response = self.session.get(CBR_URL, params=params, timeout=self.timeout)
+        response.raise_for_status()
+        return parse_cbr_xml(response.content)
+
     def cbr(self):
-        return self._get('cbr', 1800, CBR_URL)
+        """Курсы на сегодня и на предыдущую дату ЦБ (для изменения за день)."""
+        def load():
+            day, values = self._cbr_xml()
+            _, previous = self._cbr_xml(day - timedelta(days=1))
+            return {'Date': day.isoformat(), 'Valute': {
+                code: {'Nominal': nominal, 'Value': value, 'Previous': previous.get(code, (nominal, value))[1]}
+                for code, (nominal, value) in values.items()}}
+        return self._cached('cbr', 1800, load)
 
     def rate(self, code):
         """Курс валюты к рублю по ЦБ: dict(value, previous, date) за 1 единицу."""
@@ -153,25 +244,21 @@ class DataTools:
                 result[code.upper()] = {'error': str(exc)}
         return result
 
-    # ---- погода ----
+    # ---- погода: MET Norway + OpenStreetMap Nominatim ----
     def geocode(self, city):
-        data = self._get('geo:' + city.casefold(), 86400, GEO_URL,
-                         {'name': city, 'count': 1, 'language': 'ru', 'format': 'json'})
-        results = data.get('results') or []
-        if not results:
+        data = self._get('geo:' + city.casefold(), 7 * 86400, GEO_URL,
+                         {'q': city, 'format': 'jsonv2', 'limit': 1, 'accept-language': 'ru'})
+        if not data:
             raise LookupError('Город не найден: ' + city)
-        place = results[0]
-        return place.get('name', city), float(place['latitude']), float(place['longitude'])
+        place = data[0]
+        name = place.get('name') or place.get('display_name', city).split(',')[0]
+        return name, float(place['lat']), float(place['lon'])
 
     def forecast(self, city, days=3):
         name, lat, lon = self.geocode(city)
-        data = self._get(f'wx:{lat:.2f}:{lon:.2f}', 600, WEATHER_URL, {
-            'latitude': lat, 'longitude': lon, 'timezone': 'auto', 'forecast_days': max(1, min(int(days), 7)),
-            'current': 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,precipitation',
-            'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max',
-            'wind_speed_unit': 'ms',
-        })
-        return name, data
+        # MET Norway просит не больше 4 знаков после запятой в координатах.
+        payload = self._get(f'wx:{lat:.2f}:{lon:.2f}', 900, WEATHER_URL, {'lat': round(lat, 4), 'lon': round(lon, 4)})
+        return name, summarize_met(payload, max(1, min(int(days), 7)))
 
     # ---- криптовалюты ----
     def crypto(self, ids):
@@ -179,23 +266,41 @@ class DataTools:
         return self._get('coin:' + ','.join(ids), 120, COIN_URL,
                          {'ids': ','.join(ids), 'vs_currencies': 'usd,rub', 'include_24hr_change': 'true'})
 
-    # ---- поиск в интернете (для провайдеров без встроенного веб-поиска) ----
-    def web_search(self, query, count=5):
+    # ---- справка: Википедия ----
+    def wikipedia(self, query, count=3):
+        lang = 'en' if re.search(r'[a-z]', query, re.I) and not re.search(r'[а-яё]', query, re.I) else 'ru'
+        data = self._get(f'wiki:{lang}:{query.casefold()}', 3600, WIKI_URL.format(lang=lang), {
+            'action': 'query', 'format': 'json', 'formatversion': 2, 'generator': 'search',
+            'gsrsearch': query, 'gsrlimit': count, 'prop': 'extracts|info', 'inprop': 'url',
+            'exintro': 1, 'explaintext': 1, 'exsentences': 4, 'redirects': 1})
+        pages = sorted((data.get('query') or {}).get('pages', []), key=lambda p: p.get('index', 99))
+        return [dict(title=p.get('title', ''), url=p.get('fullurl', ''), snippet=(p.get('extract') or '')[:700],
+                     source='Википедия') for p in pages if p.get('extract')]
+
+    # ---- DuckDuckGo: только по явному включению в настройках ----
+    def duckduckgo(self, query, count=5):
         try:
             from ddgs import DDGS
         except ImportError:
             from duckduckgo_search import DDGS
         with DDGS(timeout=self.timeout) as ddgs:
             items = list(ddgs.text(query, region='ru-ru', max_results=count))
-        return [dict(title=i.get('title', ''), url=i.get('href', ''), snippet=i.get('body', '')) for i in items]
+        return [dict(title=i.get('title', ''), url=i.get('href', ''), snippet=i.get('body', ''), source='DuckDuckGo')
+                for i in items]
+
+    def web_search(self, query, count=5, duckduckgo=False):
+        results = []
+        try:
+            results += self.wikipedia(query, 3)
+        except Exception as exc:
+            log.info('Wikipedia search failed: %s', exc)
+        if duckduckgo:
+            try:
+                results += self.duckduckgo(query, count)
+            except Exception as exc:
+                log.info('DuckDuckGo search failed: %s', exc)
+        return results
 
 
 def describe_day(daily, index):
-    code = daily['weather_code'][index]
-    return dict(
-        condition=WMO.get(code, 'осадки'), t_max=daily['temperature_2m_max'][index],
-        t_min=daily['temperature_2m_min'][index],
-        rain=(daily.get('precipitation_probability_max') or [None] * 8)[index],
-        wind=(daily.get('wind_speed_10m_max') or [None] * 8)[index],
-        date=daily['time'][index] if 'time' in daily else str(date.today()),
-    )
+    return daily[min(index, len(daily) - 1)]

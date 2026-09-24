@@ -1,7 +1,7 @@
 """Instant exact answers without an LLM: курсы, конвертация, погода, крипта, калькулятор.
 
 Эти вопросы — самые частые у голосового ассистента. Ответ идёт из
-первоисточника (ЦБ РФ, Open-Meteo, CoinGecko) за доли секунды и не зависит
+первоисточника (Банк России, MET Norway, CoinGecko) за доли секунды и не зависит
 от того, насколько свежи знания языковой модели.
 """
 import ast
@@ -11,7 +11,7 @@ import re
 from datetime import date, datetime
 
 from .numbers import words_to_digits, plural, say_number
-from .tools import (CURRENCY_NAMES, CURRENCY_GENITIVE, COIN_TITLES, WMO, currency_code,
+from .tools import (CURRENCY_NAMES, CURRENCY_GENITIVE, COIN_TITLES, currency_code,
                     coin_id, describe_day)
 
 _WEEKDAYS = ('понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу', 'воскресенье')
@@ -197,7 +197,7 @@ class QuickAnswers:
         change = data.get('usd_24h_change')
         if change is not None:
             answer += f'. За сутки {signed(round(change, 1))} процента'
-        return answer + '.'
+        return answer + '. Данные CoinGecko.'
 
     # «погода», «какая погода завтра в Казани», «будет ли дождь»
     def _weather(self, lower, settings):
@@ -216,21 +216,19 @@ class QuickAnswers:
         if index == 0 and data.get('current'):
             cur = data['current']
             day = describe_day(daily, 0)
-            text = (f'Сейчас в {where} {WMO.get(cur["weather_code"], "")}, '
-                    f'{signed_temp(cur["temperature_2m"])}, ощущается как {signed_temp(cur["apparent_temperature"])}. '
+            text = (f'Сейчас в {where} {cur["condition"]}, {signed_temp(cur["temperature"])}. '
                     f'Днём до {signed_temp(day["t_max"])}, ночью {signed_temp(day["t_min"])}')
-            if day['rain'] is not None and day['rain'] >= 30:
-                text += f', вероятность осадков {day["rain"]} процентов'
-            return text + '.'
+            if day['precipitation'] >= 0.5:
+                text += f', осадки до {say_number(day["precipitation"], 1)} миллиметра'
+            return text + '. По данным MET Norway.'
         day = describe_day(daily, index)
         when = 'Завтра' if index == 1 else 'Послезавтра'
         text = f'{when} в {where}: {day["condition"]}, от {signed_temp(day["t_min"])} до {signed_temp(day["t_max"])}'
-        if day['rain'] is not None:
-            text += f', вероятность осадков {day["rain"]} процентов'
+        if day['precipitation'] >= 0.5:
+            text += f', осадки до {say_number(day["precipitation"], 1)} миллиметра'
         if day['wind'] is not None and day['wind'] >= 8:
             text += f', сильный ветер до {round(day["wind"])} метров в секунду'
-        return text + '.'
-
+        return text + '. По данным MET Norway.'
 
     def _forecast(self, spoken, default_city):
         if not spoken:

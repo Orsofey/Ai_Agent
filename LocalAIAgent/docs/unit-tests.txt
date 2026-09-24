@@ -1,9 +1,11 @@
 test_chat_stream (test_api.APIv5Tests.test_chat_stream) ... ok
 test_defaults (test_api.APIv5Tests.test_defaults) ... ok
 test_events_token_in_query (test_api.APIv5Tests.test_events_token_in_query) ... ok
+test_licenses (test_api.APIv5Tests.test_licenses) ... ok
 test_old_claude_setting_falls_back_to_local (test_api.APIv5Tests.test_old_claude_setting_falls_back_to_local) ... ok
 test_old_wake_word_migrates (test_api.APIv5Tests.test_old_wake_word_migrates) ... ok
 test_open_settings_fallback (test_api.APIv5Tests.test_open_settings_fallback) ... ok
+test_removed_components_rejected (test_api.APIv5Tests.test_removed_components_rejected) ... ok
 test_secrets_never_returned (test_api.APIv5Tests.test_secrets_never_returned) ... ok
 test_settings_callbacks (test_api.APIv5Tests.test_settings_callbacks) ... ok
 test_settings_page (test_api.APIv5Tests.test_settings_page) ... ok
@@ -82,6 +84,15 @@ test_lock_released_on_bad_audio (test_core.SpeechTests.test_lock_released_on_bad
 test_long_audio_rejected (test_core.SpeechTests.test_long_audio_rejected) ... ok
 test_not_ready_reports_503 (test_core.SpeechTests.test_not_ready_reports_503) ... ok
 test_single_model_inference (test_core.SpeechTests.test_single_model_inference) ... ok
+test_parse_official_xml (test_data_sources.CBRTests.test_parse_official_xml) ... ok
+test_rates_with_previous_day (test_data_sources.CBRTests.test_rates_with_previous_day) ... ok
+test_duckduckgo_only_when_enabled (test_data_sources.SearchTests.test_duckduckgo_only_when_enabled) ... ok
+test_english_query_uses_english_wikipedia (test_data_sources.SearchTests.test_english_query_uses_english_wikipedia) ... ok
+test_wikipedia_by_default (test_data_sources.SearchTests.test_wikipedia_by_default) ... ok
+test_daily_summary (test_data_sources.WeatherTests.test_daily_summary) ... ok
+test_forecast_uses_nominatim_and_met (test_data_sources.WeatherTests.test_forecast_uses_nominatim_and_met) ... ok
+test_symbols (test_data_sources.WeatherTests.test_symbols) ... ok
+test_user_agent_identifies_app (test_data_sources.WeatherTests.test_user_agent_identifies_app) ... ok
 test_agent_routes_desktop_first (test_desktop.ExecuteTests.test_agent_routes_desktop_first) ... ok
 test_close_tab_only_in_browser (test_desktop.ExecuteTests.test_close_tab_only_in_browser) ... ok
 test_dictation_flag (test_desktop.ExecuteTests.test_dictation_flag) ... ok
@@ -113,9 +124,10 @@ test_import_and_no_duplicate (test_migration.MigrationTests.test_import_and_no_d
 test_legacy_password (test_migration.MigrationTests.test_legacy_password) ... ok
 test_cache_dir_created (test_tts.TTSServiceTests.test_cache_dir_created) ... ok
 test_empty_text_returns_none (test_tts.TTSServiceTests.test_empty_text_returns_none) ... ok
+test_model_card_shown_when_present (test_tts.TTSServiceTests.test_model_card_shown_when_present) ... ok
+test_no_non_commercial_voices (test_tts.TTSServiceTests.test_no_non_commercial_voices) ... ok
 test_piper_marked_installed_when_files_present (test_tts.TTSServiceTests.test_piper_marked_installed_when_files_present) ... ok
 test_piper_voices_listed (test_tts.TTSServiceTests.test_piper_voices_listed) ... ok
-test_silero_voices_kept_as_reserve (test_tts.TTSServiceTests.test_silero_voices_kept_as_reserve) ... ok
 test_status_reports_installed_piper (test_tts.TTSServiceTests.test_status_reports_installed_piper) ... ok
 test_unknown_voice_returns_none (test_tts.TTSServiceTests.test_unknown_voice_returns_none) ... ok
 test_auto (test_voice.EngineChoiceTests.test_auto) ... ok
@@ -152,6 +164,6 @@ test_spotify_opens_in_browser (test_web_services.WebServiceTests.test_spotify_op
 test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_opens_in_browser) ... ok
 
 ----------------------------------------------------------------------
-Ran 152 tests in 2.483s
+Ran 164 tests in 2.670s
 
 OK

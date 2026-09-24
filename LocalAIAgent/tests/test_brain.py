@@ -15,10 +15,10 @@ CBR = {'Date': '2026-09-24T11:30:00+03:00', 'Valute': {
     'EUR': {'Nominal': 1, 'Value': 95.1, 'Previous': 95.3},
     'CNY': {'Nominal': 1, 'Value': 11.4, 'Previous': 11.4},
     'JPY': {'Nominal': 100, 'Value': 55.0, 'Previous': 55.0}}}
-FORECAST = {'current': {'temperature_2m': 12.4, 'apparent_temperature': 10.1, 'weather_code': 3},
-            'daily': {'time': ['2026-09-24', '2026-09-25', '2026-09-26'], 'weather_code': [3, 61, 0],
-                      'temperature_2m_max': [15, 13, 18], 'temperature_2m_min': [7, 6, 9],
-                      'precipitation_probability_max': [10, 80, 0], 'wind_speed_10m_max': [4, 9, 3]}}
+FORECAST = {'current': {'temperature': 12.4, 'wind': 3.0, 'humidity': 70, 'condition': 'пасмурно'},
+            'daily': [dict(date='2026-09-24', condition='пасмурно', t_min=7, t_max=15, precipitation=0.0, wind=4),
+                      dict(date='2026-09-25', condition='небольшой дождь', t_min=6, t_max=13, precipitation=4.2, wind=9),
+                      dict(date='2026-09-26', condition='ясно', t_min=9, t_max=18, precipitation=0.0, wind=3)]}
 
 
 class FakeTools:
@@ -97,15 +97,19 @@ class QuickTests(unittest.TestCase):
     def test_weather_now_default_city(self):
         answer = self.ask('Какая погода?', city='Москва')
         self.assertTrue(answer.startswith('Сейчас в Москве пасмурно, плюс 12 градусов'), answer)
+        self.assertTrue(answer.endswith('По данным MET Norway.'))
 
     def test_weather_tomorrow_inflected_city(self):
         answer = self.ask('погода завтра в Казани')
         self.assertIn('Завтра в Казани: небольшой дождь', answer)
-        self.assertIn('80 процентов', answer)
+        self.assertIn('осадки до 4,2 миллиметра', answer)
+        self.assertIn('сильный ветер до 9 метров в секунду', answer)
         self.assertIn('казань', self.tools.cities)
 
     def test_crypto(self):
-        self.assertIn('Биткоин сейчас стоит 112 346 долларов', self.ask('Сколько стоит биткоин?'))
+        answer = self.ask('Сколько стоит биткоин?')
+        self.assertIn('Биткоин сейчас стоит 112 346 долларов', answer)
+        self.assertTrue(answer.endswith('Данные CoinGecko.'))
 
     def test_not_quick(self):
         for text in ('Сколько белка нужно в день?', 'Открой калькулятор', 'Найди рецепт пиццы', 'включи песню про дождь'):
@@ -150,6 +154,8 @@ class OpenAICompatTests(unittest.TestCase):
         provider.stream([{'role': 'user', 'content': 'Какая сейчас ключевая ставка?'}], {'llm_web_search': True})
         body = session.post.call_args.kwargs['json']
         self.assertTrue(body['cache_prompt'])
+        self.assertEqual(body['chat_template_kwargs'], {'enable_thinking': False})
+        tools.web_search.assert_called_once_with('Какая сейчас ключевая ставка?', 5, duckduckgo=False)
         self.assertIn('Ключевая ставка 16%', body['messages'][-1]['content'])
         self.assertIn('голосовой ассистент', body['messages'][0]['content'])
 

@@ -13,6 +13,7 @@
     if (page === 'recognition') refreshModels();
     if (page === 'voice') loadMicrophones();
     if (page === 'ai') refreshAI();
+    if (page === 'licenses') loadLicenses();
   }
   document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => show(b.dataset.page));
 
@@ -147,7 +148,7 @@
       list.replaceChildren();
       const rows = [['llama:cpu', { title: 'Движок llama.cpp (процессор)', size_mb: 30, installed: models.llama.cpu.installed }]];
       if (Agent.settings.llm_gpu) rows.push(['llama:vulkan', { title: 'Движок llama.cpp (видеокарта, Vulkan)', size_mb: 50, installed: models.llama.vulkan.installed }]);
-      ['qwen3-4b', 'qwen2.5-7b', 'qwen2.5-3b'].filter(k => models.llm[k]).forEach(key => rows.push(['llm:' + key, models.llm[key]]));
+      ['qwen3-4b', 'qwen2.5-7b', 'qwen3-1.7b'].filter(k => models.llm[k]).forEach(key => rows.push(['llm:' + key, models.llm[key]]));
       $('download-ai').hidden = models.llama.cpu.installed && models.llm[Agent.settings.local_model] && models.llm[Agent.settings.local_model].installed;
       rows.forEach(([key, info]) => list.appendChild(modelRow(key, info)));
     } catch (e) { $('llm-state').textContent = e.message; }
@@ -250,6 +251,48 @@
   $('download-ai').onclick = () => download(['llama:' + (Agent.settings.llm_gpu ? 'vulkan' : 'cpu'), 'llm:' + (Agent.settings.local_model || 'qwen3-4b')]);
   $('download-all').onclick = () => download(['vad', 'parakeet', 'gigaam', 'piper']);
   $('reload-model').onclick = async () => { await Agent.post('speech/load').catch(e => Agent.toast(e.message)); setTimeout(refreshModels, 800); };
+
+  // ---------- лицензии ----------
+  let licensesLoaded = false;
+  async function loadLicenses() {
+    if (licensesLoaded) return;
+    const box = $('licenses');
+    try {
+      const data = await Agent.api('licenses');
+      box.replaceChildren();
+      const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+      data.sections.forEach(section => {
+        const group = el('div', 'card group');
+        group.append(el('h3', null, section.title), el('p', 'hint', section.note));
+        section.items.forEach(item => {
+          const row = el('div', 'row');
+          const label = el('div', 'label');
+          label.append(el('b', null, item.name), el('small', null, item.author));
+          if (item.attribution) label.append(el('small', null, item.attribution));
+          const control = el('div', 'control');
+          const link = el('a', 'badge', item.license);
+          link.href = item.url; link.target = '_blank'; link.rel = 'noopener';
+          control.append(link);
+          row.append(label, control);
+          group.append(row);
+        });
+        box.append(group);
+      });
+      const voices = el('div', 'card group');
+      voices.append(el('h3', null, 'Карточки голосов Piper'), el('p', 'hint', 'Лицензия и авторы датасета каждого голоса — из его карточки (MODEL_CARD), скачанной вместе с голосом.'));
+      data.voices.forEach(v => {
+        const row = el('div', 'row stack');
+        const label = el('div', 'label');
+        label.append(el('b', null, v.title));
+        label.append(el('small', null, !v.installed ? 'Голос не установлен.' : v.card ? '' : 'Карточка не найдена — скачайте голос заново в разделе «Распознавание».'));
+        row.append(label);
+        if (v.card) { const pre = el('pre', 'hint', v.card); pre.style.whiteSpace = 'pre-wrap'; pre.style.margin = '0'; row.append(pre); }
+        voices.append(row);
+      });
+      box.append(voices);
+      licensesLoaded = true;
+    } catch (e) { box.textContent = e.message; }
+  }
 
   // ---------- телефон и профиль ----------
   async function loadConnection() {
