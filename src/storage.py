@@ -40,13 +40,14 @@ DEFAULTS = {
     'type_method': 'auto', 'messenger_autosend': False, 'autostart': True,
     'minimize_to_tray': True, 'video_source': 'youtube',
     # Характер: «Да, сэр, включаю Telegram».
-    'address': 'сэр', 'butler': True,
+    'address': 'сэр', 'butler': True, 'ack': True, 'voice_preset': 'jarvis',
     # Telegram: как произносите → как записан контакт («Арсений Крэк = Arseny Crack»).
     'contact_aliases': '', 'contacts_latin': False,
 }
 LONG_TEXT = {'contact_aliases': 3000}
 # Платные разделы: «Оформление», «Распознавание», «Озвучка». Без подписки действуют значения по умолчанию.
-PREMIUM_KEYS = ('theme', 'animations', 'show_hud', 'stt_engine', 'tts_enabled', 'tts_voice', 'tts_voice_en', 'tts_rate')
+PREMIUM_KEYS = ('theme', 'animations', 'show_hud', 'stt_engine', 'tts_enabled', 'tts_voice', 'tts_voice_en', 'tts_rate',
+                'voice_preset')
 
 CHOICES = {
     'theme': THEMES,
@@ -60,6 +61,7 @@ CHOICES = {
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
     'address': ('сэр', 'мадам', 'босс', 'none'),
+    'voice_preset': ('classic', 'jarvis', 'friday', 'narrator', 'trailer', 'robot'),
 }
 
 RANGES = {

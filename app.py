@@ -409,7 +409,7 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         if voice_id not in VOICE_IDS:
             voice_id = 'irina'
         try:
-            audio_path = local_tts.synthesize(text, voice_id)
+            audio_path = local_tts.synthesize(text, voice_id, preset=store.settings(owner()).get('voice_preset', 'classic'))
         except Exception as exc:
             return jsonify(success=False, error=str(exc))
         if not audio_path:

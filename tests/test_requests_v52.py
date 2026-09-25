@@ -78,7 +78,7 @@ class StopAllTests(unittest.TestCase):
         second = threading.Thread(target=lambda: results.append(service.run('вторая', 'u', {})[0]))
         second.start()
         time.sleep(0.05)
-        self.assertEqual(service.control('останови все команды', {}), 'Все команды остановлены.')
+        self.assertEqual(service.control('останови все команды', {}), 'Хорошо, сэр, все команды остановлены.')
         first.join(2)
         second.join(2)
         self.assertEqual(results, ['Остановлено.', 'Остановлено.'])
@@ -105,13 +105,13 @@ class StopAllTests(unittest.TestCase):
         speech = Mock()
         speech.transcribe_array.return_value = {'text': 'Андрей, останови все команды'}
         service = Mock()
-        service.cancel_all.return_value = 'Все команды остановлены.'
+        service.cancel_all.return_value = 'Хорошо, сэр, все команды остановлены.'
         player = Mock(speaking=False, last_end=0.0, available=True)
         voice = VoiceAssistant(speech, service, EventBus(), lambda: {'wake_word': 'Андрей'}, player=player)
         voice.handle_segment(b'')
         service.cancel_all.assert_called_once()
         service.run.assert_not_called()
-        player.say.assert_called_once()
+        player.acknowledge.assert_called_once_with('Хорошо, сэр, все команды остановлены.', {'wake_word': 'Андрей'})
 
 
 class CommandTests(unittest.TestCase):

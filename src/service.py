@@ -60,7 +60,7 @@ class AssistantService:
         self.events.emit('cancelled')
         return was
 
-    def cancel_all(self):
+    def cancel_all(self, settings=None):
         """«Останови все команды»: текущая и ожидающие команды, озвучка, диктовка, уточняющие вопросы."""
         self.stop_generation += 1
         self.cancel()
@@ -71,16 +71,19 @@ class AssistantService:
         if dialog is not None and hasattr(dialog, 'pending'):
             dialog.pending.clear()
         self.events.emit('state', state='idle')
-        return 'Все команды остановлены.'
+        from .dialog import address_of, stop_reply
+        return stop_reply('all', address_of(settings))
 
     def control(self, text, settings=None):
         """Стоп-фразы выполняются сразу, мимо очереди команд. Вернуть ответ или None."""
         from .agent import strip_wake
+        from .dialog import address_of, stop_reply
         kind = stop_kind(strip_wake(str(text).strip(), settings or {}))
         if kind == 'all':
-            return self.cancel_all()
+            return self.cancel_all(settings)
         if kind == 'one':
-            return 'Остановлено.' if self.cancel() else 'Нечего останавливать.'
+            self.cancel()
+            return stop_reply('one', address_of(settings))
         return None
 
     def run(self, text, owner, settings=None, source='text', on_text=None, speak=True):

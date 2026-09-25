@@ -44,6 +44,8 @@
           <div class="control"><select data-setting="address"><option value="сэр">Сэр</option><option value="мадам">Мадам</option><option value="босс">Босс</option><option value="none">Без обращения</option></select></div></div>
         <div class="row"><div class="label"><b>Отвечать как дворецкий</b><small>Живые, разнообразные подтверждения команд: «Слушаюсь, сэр», «Сию минуту, сэр».</small></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="butler"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Отвечать «Секунду, сэр»</b><small>Сразу подтверждает голосовую команду, пока она выполняется.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="ack"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Язык речи</b><small>«Русский + английский» распознаёт оба языка автоматически.</small></div>
           <div class="control"><select data-setting="voice_language"><option value="auto">Русский + английский</option><option value="ru">Только русский (максимальная точность)</option><option value="en">Только английский</option></select></div></div>
         <div class="row"><div class="label"><b>Ваш город</b><small>Для погоды и местного поиска.</small></div>
@@ -102,6 +104,8 @@
       <div class="card group">
         <div class="row"><div class="label"><b>Озвучивать ответы</b></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="tts_enabled"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Стиль голоса</b><small>«Джарвис» — спокойный ИИ-дворецкий с цифровым оттенком. Стили — обработка звука, а не копии голосов реальных актёров.</small></div>
+          <div class="control"><select data-setting="voice_preset"><option value="jarvis">Джарвис — ИИ-дворецкий</option><option value="friday">Пятница — ИИ-ассистентка</option><option value="narrator">Диктор</option><option value="trailer">Трейлер</option><option value="robot">Робот</option><option value="classic">Обычный</option></select></div></div>
         <div class="row"><div class="label"><b>Русский голос</b></div>
           <div class="control"><select data-setting="tts_voice" id="voice-ru"><option value="irina">Ирина</option><option value="denis">Денис</option></select></div></div>
         <div class="row"><div class="label"><b>Английский голос</b><small>Для ответов на английском.</small></div>

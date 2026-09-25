@@ -219,6 +219,7 @@ def main():
                                channel_timeout=300)
         threading.Thread(target=server.run, daemon=True, name='http-server').start()
         voice.start()
+        voice.prewarm()  # «Секунду, сэр» звучит без задержки
 
         # Если модели не встроены в установщик и ещё не скачаны — докачиваем их сами при первом запуске.
         from src.model_downloader import missing_items, start_download
