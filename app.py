@@ -303,6 +303,14 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         voice.listen_once()
         return jsonify(success=True)
 
+    @app.post('/api/cancel')
+    def cancel():
+        """Кнопка «Пауза»: прервать текущую команду и замолчать."""
+        was_running = service.cancel()
+        if voice is not None and hasattr(voice, 'reset'):
+            voice.reset()
+        return jsonify(success=True, cancelled=was_running)
+
     @app.post('/api/voice/stop-speaking')
     def voice_stop_speaking():
         if player is not None:

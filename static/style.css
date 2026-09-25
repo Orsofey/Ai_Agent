@@ -233,3 +233,12 @@ select option { background: var(--surface-strong); color: var(--text); }
   .row { grid-template-columns: 1fr; }
   .row .control { justify-content: flex-start; }
 }
+
+/* Кнопка «Пауза»: прерывает текущую команду; цвет и свечение берутся из темы. */
+.pause-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-fill); color: var(--on-accent);
+  border-color: transparent; box-shadow: 0 0 18px var(--glow); animation: pause-pulse 1.6s ease-in-out infinite; }
+.pause-btn[hidden] { display: none; }
+.pause-btn svg { fill: currentColor; stroke: none; }
+.pause-btn:hover { box-shadow: 0 0 0 3px var(--ring), 0 0 24px var(--glow); }
+@keyframes pause-pulse { 50% { box-shadow: 0 0 6px var(--glow); } }
+[data-animations="off"] .pause-btn { animation: none; }

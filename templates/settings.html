@@ -39,6 +39,10 @@
           <div class="control"><input data-setting="wake_word" maxlength="40" placeholder="Андрей"></div></div>
         <div class="row"><div class="label"><b>Другие варианты имени</b><small>Через запятую: как вас может «услышать» распознавание (например: Андрюша, Andrew).</small></div>
           <div class="control"><input data-setting="wake_aliases" maxlength="200" placeholder="Андрюша, Andrew"></div></div>
+        <div class="row"><div class="label"><b>Обращение к вам</b><small>«Да, сэр, включаю Telegram», «Что открыть, сэр?».</small></div>
+          <div class="control"><select data-setting="address"><option value="сэр">Сэр</option><option value="мадам">Мадам</option><option value="босс">Босс</option><option value="none">Без обращения</option></select></div></div>
+        <div class="row"><div class="label"><b>Отвечать как дворецкий</b><small>Живые, разнообразные подтверждения команд: «Слушаюсь, сэр», «Сию минуту, сэр».</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="butler"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Язык речи</b><small>«Русский + английский» распознаёт оба языка автоматически.</small></div>
           <div class="control"><select data-setting="voice_language"><option value="auto">Русский + английский</option><option value="ru">Только русский (максимальная точность)</option><option value="en">Только английский</option></select></div></div>
         <div class="row"><div class="label"><b>Ваш город</b><small>Для погоды и местного поиска.</small></div>

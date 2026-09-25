@@ -6,6 +6,9 @@ import psutil
 
 from .app_control import launch, close_application
 from .conversation import match_casual
+from .dialog import (Dialog, butler, incomplete_verb, misheard_command, question_for_confirm,
+                     question_for_object)
+from .youtube import youtube_command
 
 HELP = '''Я понимаю команды и отвечаю на вопросы. Обращайтесь по имени, например: «Андрей, …».
 В любом приложении: «Напиши текст привет, Милана», «Напиши и отправь …», «Отправь», «Новая строка», «Сотри слово», «Выдели всё», «Скопируй», «Вставь», «Сохрани», «Нажми Ctrl+Shift+T».
@@ -118,44 +121,84 @@ class LocalComputerAgent:
         self.browser = browser
         self.brain = brain
         self.desktop_commands = desktop_commands
+        self.dialog = Dialog()
+
+    def awaiting(self, owner='default'):
+        """Агент задал вопрос и ждёт ответа (голос слушает без имени)."""
+        return self.dialog.awaiting(owner)
 
     def process_command(self, command, settings=None, owner='default', on_text=None):
         settings = settings or {}
+        address = settings.get('address', 'сэр')
+        address = '' if address == 'none' else address
         text = strip_wake(re.sub(r'\s+', ' ', str(command)).strip(), settings).strip()
-        text = normalize_command(text)
+        text = normalize_command(text).strip(' ,.')
         if not text:
-            return 'Слушаю.'
+            return f'Слушаю, {address}.' if address else 'Слушаю.'
 
+        # Ответ на уточняющий вопрос агента: «Что открыть, сэр?» → «Телеграм».
+        kind, value = self.dialog.resolve(owner, text, COMMAND_VERBS)
+        if kind == 'reply':
+            return f'Хорошо, {address}, отменяю.' if address else 'Хорошо, отменяю.'
+        if kind == 'run':
+            text = value
+        elif not self._is_known_command(text):
+            verb = incomplete_verb(text)
+            if verb:
+                self.dialog.set(owner, 'object', verb)
+                return question_for_object(verb, address)
+            if not looks_like_question(text):
+                fixed = misheard_command(text, COMMAND_VERBS)
+                if fixed:
+                    self.dialog.set(owner, 'confirm', fixed)
+                    return question_for_confirm(fixed, address)
+
+        result, kind = self._route(text, settings, owner, on_text)
+        if kind == 'action' and settings.get('butler', True):
+            return butler(result, text, address)
+        return result
+
+    def _is_known_command(self, text):
+        from .desktop.commands import parse as desktop_parse
+        return desktop_parse(text) is not None or youtube_command(text) is not None
+
+    def _route(self, text, settings, owner, on_text):
+        """Выполнить команду. Вернуть (текст, вид): action — действие, info — ответ."""
         # 1. Действия в активном приложении (печать текста, клавиши, окна, мессенджеры).
         if self.desktop_commands is not None:
             result = self.desktop_commands.handle(text, settings)
             if result is not None:
-                return result
+                return result, 'action'
 
-        # 2. Сервисы и браузер.
+        # 2. Видео на YouTube в том же окне: «открой первое видео», «найди на ютубе…».
+        yt = youtube_command(text)
+        if yt is not None:
+            return self.browser.call('youtube', *yt), 'action'
+
+        # 3. Сервисы и браузер.
         from .assistant_commands import handle, HELP_EXTRA
         extra = handle(self, text, settings)
         if extra is not None:
-            return extra
+            return extra, 'action'
 
-        # 3. Разговор: приветствия, время, дата — мгновенно и офлайн.
+        # 4. Разговор: приветствия, время, дата — мгновенно и офлайн.
         casual, answer = match_casual(text)
         if casual:
-            return answer
+            return answer, 'info'
 
         action, value = parse_command(text, settings)
         if action == 'help':
-            return HELP + HELP_EXTRA
+            return HELP + HELP_EXTRA, 'info'
         if action == 'system':
-            return f'Процессор загружен на {psutil.cpu_percent(interval=0.2):.0f}%, память — на {psutil.virtual_memory().percent:.0f}%.'
+            return f'Процессор загружен на {psutil.cpu_percent(interval=0.2):.0f}%, память — на {psutil.virtual_memory().percent:.0f}%.', 'info'
         if action == 'refuse_mass':
-            return 'Массовое закрытие отключено для защиты несохранённых данных. Назовите конкретное приложение.'
+            return 'Массовое закрытие отключено для защиты несохранённых данных. Назовите конкретное приложение.', 'action'
         if action == 'open_app':
-            return launch(value)
+            return launch(value), 'action'
         if action == 'close_app':
-            return close_application(value)
+            return close_application(value), 'action'
         if action == 'open_url':
-            return self.browser.call('open', value)
+            return self.browser.call('open', value), 'action'
         if action == 'video':
             source = settings.get('video_source', 'youtube')
             match = re.search(r'\s+(?:на|в)\s+(ютубе?|youtube|рутубе?|rutube)$', value, re.I)
@@ -163,14 +206,14 @@ class LocalComputerAgent:
                 source = 'rutube' if match[1].casefold().startswith(('рутуб', 'rutube')) else 'youtube'
                 value = value[:match.start()].strip()
             if not value:
-                return 'Укажите название или ссылку на видео.'
-            return self.browser.call('video', value, source)
+                return 'Укажите название или ссылку на видео.', 'action'
+            return self.browser.call('video', value, source), 'action'
         if action in ('pause', 'play'):
-            return self.browser.call('media', action)
+            return self.browser.call('media', action), 'action'
         if action in ('close_tab', 'close_browser', 'tabs'):
-            return self.browser.call(action)
+            return self.browser.call(action), 'action'
 
-        # 4. Любой вопрос: точные данные (курсы, погода, калькулятор) или ИИ.
+        # 5. Любой вопрос: точные данные (курсы, погода, калькулятор) или ИИ.
         question = value if action == 'search' else text
         if self.brain is not None:
             from .brain import LLMError
@@ -182,14 +225,14 @@ class LocalComputerAgent:
             else:
                 error = None
             if answer:
-                return answer
+                return answer, 'info'
             if action == 'search':
-                return self.browser.call('open', 'https://www.google.com/search?q=' + quote(value))
+                return self.browser.call('open', 'https://www.google.com/search?q=' + quote(value)), 'action'
             if error:
                 if looks_like_question(question):
-                    return error
+                    return error, 'info'
                 # Нейросеть недоступна, а фраза похожа на команду — не пугаем техническими ошибками.
-                return f'Не понял команду «{question}». Скажите «помощь», чтобы услышать примеры.'
+                return f'Не понял команду «{question}». Скажите «помощь», чтобы услышать примеры.', 'info'
         elif action == 'search':
-            return self.browser.call('open', 'https://www.google.com/search?q=' + quote(value))
-        return 'Не понял команду. Скажите «помощь», чтобы услышать примеры.'
+            return self.browser.call('open', 'https://www.google.com/search?q=' + quote(value)), 'action'
+        return 'Не понял команду. Скажите «помощь», чтобы услышать примеры.', 'info'

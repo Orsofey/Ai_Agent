@@ -171,20 +171,84 @@ class BrowserController:
             raise ValueError('Разрешены только обычные http/https ссылки без пароля.')
         return url
 
-    def _open(self, url):
+    def _open(self, url, new_tab=False):
+        """Открыть ссылку. По умолчанию — в текущей вкладке агента, чтобы всё шло в одном окне."""
         self.valid_url(url)
         self._ensure()
-        page = self.context.new_page()
+        page = None
+        if not new_tab:
+            pages = [p for p in self.context.pages if not p.is_closed()]
+            page = self.current if self.current in pages else (pages[-1] if pages else None)
+        if page is None:
+            page = self.context.new_page()
+            try:
+                page.on('focus', lambda p=page: setattr(self, 'current', p))
+            except Exception:
+                pass
         self.current = page
-        # Запоминаем вкладку как активную при любом взаимодействии с ней
-        try:
-            page.on('focus', lambda p=page: setattr(self, 'current', p))
-        except Exception:
-            pass
         page.goto(url, wait_until='domcontentloaded')
         page.bring_to_front()
-        name = self._site_name(url)
-        return 'Открываю '+name
+        return 'Открываю ' + self._site_name(url)
+
+    # ---- YouTube / Rutube в том же окне ----
+    PICK_SCRIPT = """(skip) => {
+        const seen = new Set(), links = [];
+        for (const a of document.querySelectorAll('a[href]')) {
+            const href = a.href || '';
+            const m = href.match(/youtube\\.com\\/(?:watch\\?v=|shorts\\/)([\\w-]{11})/) || href.match(/rutube\\.ru\\/video\\/(\\w+)/);
+            if (!m || m[1] === skip || seen.has(m[1])) continue;
+            const box = a.getBoundingClientRect();
+            if (!box.width || !box.height || a.closest('#masthead, ytd-masthead, [hidden]')) continue;
+            seen.add(m[1]);
+            links.push(href);
+        }
+        return links;
+    }"""
+
+    def _youtube(self, action, arg=None):
+        if action == 'search':
+            if self.context is not None and self.current is not None and 'rutube' in (self.current.url or ''):
+                return self._open('https://rutube.ru/search/?query=' + quote(arg)).replace('Открываю', 'Ищу на') + ': ' + arg
+            self._open('https://www.youtube.com/results?search_query=' + quote(arg))
+            return 'Ищу на YouTube: ' + arg
+        if self.context is None:
+            if action == 'pick':
+                self._open('https://www.youtube.com')
+            else:
+                raise RuntimeError('Сначала откройте YouTube: скажите «Запусти ютуб».')
+        page = self._active()
+        if action == 'pick':
+            current = re.search(r'[?&]v=([\w-]{11})', page.url or '')
+            try:
+                page.wait_for_selector('a[href*="/watch?v="], a[href*="/video/"]', timeout=10000)
+            except Exception:
+                pass
+            links = page.evaluate(self.PICK_SCRIPT, current[1] if current else '')
+            if not links:
+                return 'Не нашёл видео на странице. Откройте YouTube или поиск и повторите.'
+            index = arg - 1 if arg > 0 else len(links) + arg
+            if not 0 <= index < len(links):
+                return f'На странице только {len(links)} видео.'
+            page.goto(links[index], wait_until='domcontentloaded')
+            try:
+                page.wait_for_selector('video', timeout=10000)
+            except Exception:
+                pass
+            self._media('play')
+            return f'Открываю видео номер {arg}.' if arg > 0 else 'Открываю последнее видео.'
+        if action == 'next':
+            page.keyboard.press('Shift+N')
+            return 'Включаю следующее видео.'
+        if action == 'back':
+            page.go_back(wait_until='domcontentloaded')
+            return 'Возвращаюсь назад.'
+        if action == 'fullscreen':
+            page.keyboard.press('f')
+            return 'Готово.'
+        if action == 'seek':
+            page.evaluate('s => { const v = document.querySelector("video"); if (v) v.currentTime = Math.max(0, v.currentTime + s); }', arg)
+            return f'Перематываю {"назад" if arg < 0 else "вперёд"} на {abs(arg)} секунд.'
+        raise RuntimeError('Неизвестное действие с видео.')
 
     @staticmethod
     def _site_name(url):

@@ -98,7 +98,16 @@ class VoiceLoopTests(unittest.TestCase):
         player.speaking = True
         voice.handle_segment(AUDIO, started=time.monotonic())
         self.assertGreaterEqual(player.stopped, 1)
-        self.assertEqual(service.run.call_args.args[0], 'стоп')
+        # «Стоп» не ставится в очередь, а сразу прерывает текущую команду.
+        service.cancel.assert_called_once()
+        service.run.assert_not_called()
+
+    def test_barge_in_with_other_command(self):
+        voice, service, player, _ = assistant('Андрей, открой калькулятор')
+        player.speaking = True
+        voice.handle_segment(AUDIO, started=time.monotonic())
+        self.assertGreaterEqual(player.stopped, 1)
+        self.assertEqual(service.run.call_args.args[0], 'открой калькулятор')
 
     def test_dictation_types_everything(self):
         voice, service, player, commands = assistant('Привет запятая как дела', dictation=True)

@@ -37,6 +37,10 @@ DEFAULTS = {
     # Управление ПК
     'type_method': 'auto', 'messenger_autosend': False, 'autostart': True,
     'minimize_to_tray': True, 'video_source': 'youtube',
+    # Характер: «Да, сэр, включаю Telegram».
+    'address': 'сэр', 'butler': True,
+    # Telegram: как произносите → как записан контакт («Арсений Крэк = Arseny Crack»).
+    'contact_aliases': '',
 }
 
 CHOICES = {
@@ -50,6 +54,7 @@ CHOICES = {
     'video_source': ('youtube', 'rutube'),
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
+    'address': ('сэр', 'мадам', 'босс', 'none'),
 }
 
 RANGES = {

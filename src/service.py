@@ -11,6 +11,14 @@ class Busy(RuntimeError):
     pass
 
 
+class Cancelled(Exception):
+    """Пользователь нажал «Пауза» или сказал «стоп»."""
+
+
+STOP_PHRASES = {'стоп', 'стой', 'хватит', 'отмена', 'отмени', 'замолчи', 'пауза', 'остановись', 'прекрати',
+                'стоп стоп', 'тихо', 'помолчи', 'stop', 'cancel'}
+
+
 class AssistantService:
     def __init__(self, store, agent, events, player=None):
         self.store = store
@@ -18,6 +26,17 @@ class AssistantService:
         self.events = events
         self.player = player
         self.lock = threading.Lock()
+        self.cancel_event = threading.Event()
+        self.running = False
+
+    def cancel(self):
+        """Прервать текущую команду и озвучку. Возвращает True, если было что прерывать."""
+        was = self.running or bool(self.player and self.player.is_busy())
+        self.cancel_event.set()
+        if self.player is not None:
+            self.player.stop()
+        self.events.emit('cancelled')
+        return was
 
     def run(self, text, owner, settings=None, source='text', on_text=None, speak=True):
         settings = settings or self.store.settings(owner)
@@ -32,17 +51,39 @@ class AssistantService:
                 speaker = SentenceSpeaker(self.player, settings)
 
             def delta(chunk):
+                if self.cancel_event.is_set():
+                    raise Cancelled()
                 self.events.emit('delta', text=chunk, owner=owner)
                 if on_text:
                     on_text(chunk)
                 if speaker:
                     speaker.feed(chunk)
 
-            try:
-                result = self.agent.process_command(text, settings, owner=owner, on_text=delta)
-            except Exception:
-                log.exception('Command failed')
-                result = 'Не удалось выполнить команду. Подробности в журнале logs/agent.log.'
+            outcome = {}
+
+            def work():
+                try:
+                    outcome['result'] = self.agent.process_command(text, settings, owner=owner, on_text=delta)
+                except Cancelled:
+                    pass
+                except Exception:
+                    log.exception('Command failed')
+                    outcome['result'] = 'Не удалось выполнить команду. Подробности в журнале logs/agent.log.'
+
+            self.cancel_event.clear()
+            self.running = True
+            worker = threading.Thread(target=work, daemon=True, name='command')
+            worker.start()
+            while worker.is_alive() and not self.cancel_event.is_set():
+                worker.join(0.05)
+            self.running = False
+            if self.cancel_event.is_set() and 'result' not in outcome:
+                # Долгое действие (браузер, загрузка) дорабатывает в фоне, но ассистент уже свободен.
+                self.store.add(owner, 'agent', 'Остановлено.')
+                self.events.emit('message', role='agent', text='Остановлено.', source=source, owner=owner, spoken=False)
+                self.events.emit('state', state='idle')
+                return 'Остановлено.', False
+            result = outcome.get('result')
             result = str(result or '').strip() or 'Готово.'
             if speaker:
                 speaker.finish(result)

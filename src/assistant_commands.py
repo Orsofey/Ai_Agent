@@ -105,6 +105,8 @@ def handle(agent, command, settings):
     m = re.match(r'^(?:открой|запусти|включи)\s+(.+)$', lower)
     if m:
         name = normalize_service(m[1])
-        if name in web_services.WEB_SERVICES and name not in ('telegram', 'телеграм'):
+        # YouTube и Rutube открываются в браузере агента: им можно управлять голосом
+        # («открой первое видео», «пауза», «следующее видео»).
+        if name in web_services.WEB_SERVICES and name not in ('telegram', 'телеграм', 'youtube', 'ютуб', 'rutube', 'рутуб'):
             return web_services.open_service(name, agent)
     return None
