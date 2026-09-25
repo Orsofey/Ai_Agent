@@ -20,8 +20,8 @@ STALE_SECONDS = 20.0    # фразы старше не выполняем
 
 
 def _is_stop(command):
-    from ..service import STOP_PHRASES
-    return command.casefold().strip(' .,!?…') in STOP_PHRASES
+    from ..service import stop_kind
+    return stop_kind(command)
 
 
 class VoiceAssistant:
@@ -247,10 +247,17 @@ class VoiceAssistant:
             return None
         if not command:
             return None
-        if _is_stop(command):
-            # «Андрей, стоп» — прервать текущую команду и речь немедленно, без очереди.
-            self.service.cancel()
-            self._set_state('idle')
+        kind = _is_stop(command)
+        if kind:
+            # «Андрей, стоп» / «Андрей, останови все команды» — сразу, без очереди.
+            if kind == 'all':
+                reply = self.service.cancel_all()
+                self.reset()
+                if self.player and getattr(self.player, 'available', False):
+                    self.player.say(reply, settings)
+            else:
+                self.service.cancel()
+                self._set_state('idle')
             return None
         if background:
             threading.Thread(target=self._execute, args=(command, settings), daemon=True, name='voice-command').start()

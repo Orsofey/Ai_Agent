@@ -142,6 +142,9 @@ class LocalComputerAgent:
             return f'Хорошо, {address}, отменяю.' if address else 'Хорошо, отменяю.'
         if kind == 'run':
             text = value
+        elif self._discord_without_server(text):
+            self.dialog.set(owner, 'object', 'зайди на дискорд сервер')
+            return f'На какой сервер Discord зайти, {address}?' if address else 'На какой сервер Discord зайти?'
         elif not self._is_known_command(text):
             verb = incomplete_verb(text)
             if verb:
@@ -157,6 +160,12 @@ class LocalComputerAgent:
         if kind == 'action' and settings.get('butler', True):
             return butler(result, text, address)
         return result
+
+    @staticmethod
+    def _discord_without_server(text):
+        from .desktop.messengers import parse_discord
+        request = parse_discord(text)
+        return request is not None and not request['server']
 
     def _is_known_command(self, text):
         from .desktop.commands import parse as desktop_parse

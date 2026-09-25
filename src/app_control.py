@@ -86,7 +86,13 @@ def launch(name):
         if app in UWP_APPS:
             subprocess.Popen(['explorer.exe', 'shell:AppsFolder\\'+UWP_APPS[app]], creationflags=subprocess.CREATE_NO_WINDOW)
             return 'Открываю '+name
-        return 'Приложение не найдено: '+name+'. Попробуйте системное имя, например notepad.'
+        # Любая программа из меню «Пуск»: «Юнити» → Unity Hub, «фотошоп» → Adobe Photoshop.
+        from . import start_menu
+        shortcut = start_menu.find(app) or start_menu.find(normalize(name))
+        if shortcut:
+            os.startfile(shortcut)
+            return 'Открываю ' + os.path.splitext(os.path.basename(shortcut))[0]
+        return 'Приложение не найдено: '+name+'. Проверьте, что оно установлено и есть в меню «Пуск».'
     except OSError as exc:
         return 'Не удалось запустить приложение: '+str(exc)
 

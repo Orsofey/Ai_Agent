@@ -246,6 +246,9 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def chat():
         message, ident = validate_command(request.get_json())
         who = owner()
+        stopped = service.control(message, store.settings(who))
+        if stopped:
+            return jsonify(success=True, response=stopped, spoken=False)
         if service.lock.locked():
             return jsonify(success=False, message='Выполняется предыдущая команда. Повторите позже.'), 429
         existing = claim(ident, who)
@@ -259,6 +262,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def chat_stream():
         message, ident = validate_command(request.get_json())
         who = owner()
+        stopped = service.control(message, store.settings(who))
+        if stopped:
+            reply = 'data: ' + json.dumps({'type': 'done', 'response': stopped}, ensure_ascii=False) + '\n\n'
+            return Response(reply, mimetype='text/event-stream')
         if service.lock.locked():
             return jsonify(success=False, message='Выполняется предыдущая команда. Повторите позже.'), 429
         existing = claim(ident, who)

@@ -74,6 +74,14 @@ RU_TO_EN = {
     "терминал": "wt",
     "командная строка": "cmd",
     "повершелл": "powershell",
+    # Unity: «Открой Юнити» запускает Unity Hub
+    "юнити": "Unity Hub",
+    "юнити хаб": "Unity Hub",
+    "юнити хоб": "Unity Hub",
+    "юнити хап": "Unity Hub",
+    "unity": "Unity Hub",
+    "unity hub": "Unity Hub",
+    "юнитихаб": "Unity Hub",
 }
 
 UWP_APPS = {
@@ -92,6 +100,10 @@ UWP_APPS = {
 }
 
 KNOWN_PATHS = {
+    "Unity Hub": [
+        r"C:\Program Files\Unity Hub\Unity Hub.exe",
+        os.path.expandvars(r"%LocalAppData%\Programs\Unity Hub\Unity Hub.exe"),
+    ],
     "chrome": [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",

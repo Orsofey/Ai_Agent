@@ -48,19 +48,31 @@ _PATTERNS = [
     re.compile(_VERB + r'\s+(?:в|во)\s+(?P<app>' + _APP_WORDS + r')\b\s*,?\s*' + _NAME + _TEXT, re.I | re.S),
 ]
 _CHAT = r'(?:чат|диалог|переписку|группу|канал|беседу|личку)'
+_GO = r'(?:открой|открыть|найди|найти|покажи|показать|перейди|перейти|зайди|зайти|переключись|переключиться|войди|войти)'
 _OPEN_PATTERNS = [
-    # «Открой чат с Арсением Крэком (в телеграме)», «перейди в группу Семья»
-    re.compile(r'^(?:открой|найди|покажи|перейди\s+в|зайди\s+в|переключись\s+на)\s+' + _CHAT +
-               r'\s+(?:с\s+|со\s+)?(?P<who>.+?)(?:\s+(?:в|во)\s+(?P<app>' + _APP_WORDS + r'))?$', re.I),
-    # «Открой в телеграме Арсения», «найди в телеграме чат Работа»
-    re.compile(r'^(?:открой|найди|покажи)\s+(?:в|во)\s+(?P<app>' + _APP_WORDS + r')\s+(?:' + _CHAT +
-               r'\s+)?(?:с\s+|со\s+)?(?P<who>.+)$', re.I),
+    # «Открой чат с Арсением Крэком (в телеграме)», «перейди в группу Семья», «перейти в чат Избранное»
+    re.compile(r'^' + _GO + r'\s+(?:в\s+|на\s+)?' + _CHAT + r'\s+(?:с\s+|со\s+)?(?P<who>.+?)(?:\s+(?:в|во)\s+(?P<app>' +
+               _APP_WORDS + r'))?$', re.I),
     # «Открой телеграм и найди Арсения Крэка»
-    re.compile(r'^(?:открой|запусти|включи)\s+(?P<app>' + _APP_WORDS + r')\s+и\s+(?:найди|открой|перейди\s+в)\s+(?:' +
+    re.compile(r'^(?:открой|запусти|включи)\s+(?P<app>' + _APP_WORDS + r')\s+и\s+' + _GO + r'\s+(?:в\s+)?(?:' +
                _CHAT + r'\s+)?(?:с\s+|со\s+)?(?P<who>.+)$', re.I),
+    # «Открой в телеграм(е) (чат) Катя», «открой телеграм чат Катя», «найди в телеграме Арсения»
+    re.compile(r'^' + _GO + r'\s+(?:(?:в|во)\s+)?(?P<app>' + _APP_WORDS + r')\s+(?:' + _CHAT +
+               r'\s+)?(?:с\s+|со\s+)?(?P<who>.+)$', re.I),
     # «Перейди к Арсению в телеграме»
-    re.compile(r'^(?:перейди|переключись|зайди)\s+к\s+(?P<who>.+?)\s+(?:в|во)\s+(?P<app>' + _APP_WORDS + r')$', re.I),
+    re.compile(r'^' + _GO + r'\s+к\s+(?P<who>.+?)\s+(?:в|во)\s+(?P<app>' + _APP_WORDS + r')$', re.I),
 ]
+
+
+def _tidy(text):
+    """Распознавание пишет «Telegram-чат», «чат«Избранное»», «чат, Катя» — приводим к словам через пробел."""
+    value = re.sub(r'[«»"“”„]', ' ', str(text))
+    value = re.sub(r'(?<=\w)-(?=(?:чат|групп|канал))', ' ', value, flags=re.I)
+    value = re.sub(r'(телеграм\w*?|telegram)(чат)', r'\1 \2', value, flags=re.I)
+    value = re.sub(r'[,:;]', ' ', value)
+    return re.sub(r'\s+', ' ', value).strip().strip('.!?')
+
+
 # Сообщение в уже открытый чат: «ответь привет», «напиши в чат я скоро буду».
 _CURRENT = re.compile(r'^(?:(?P<send>ответь|отправь\s+в\s+(?:этот\s+)?чат)|(?:напиши|напечатай)\s+в\s+(?:этот\s+|текущий\s+)?чат)'
                       r'\s*[,:\-—]?\s*(?:что\s+|текст\s+)?(?P<text>.+)$', re.I | re.S)
@@ -133,7 +145,14 @@ def find_alias(who, aliases):
         other = search_stem(spoken).casefold().split()
         if len(other) == len(words) and all(a.startswith(b) or b.startswith(a) for a, b in zip(words, other)):
             return real
-    return None
+    # Распознавание ошибается в редких фамилиях: «Арсений Краг» ≈ «Арсений Крэк».
+    from difflib import SequenceMatcher
+    best, score = None, 0.0
+    for spoken, real in aliases.items():
+        ratio = SequenceMatcher(None, ' '.join(words), search_stem(spoken).casefold()).ratio()
+        if ratio > score:
+            best, score = real, ratio
+    return best if score >= 0.78 else None
 
 
 def search_query(who, settings=None):
@@ -170,7 +189,7 @@ def parse(text):
 
 def parse_open(text, default_app='telegram'):
     """«Открой чат с Арсением Крэком» → dict(app, who) или None."""
-    value = re.sub(r'\s+', ' ', str(text)).strip().strip('.!?')
+    value = _tidy(text)
     for pattern in _OPEN_PATTERNS:
         match = pattern.match(value)
         if match:
@@ -249,3 +268,54 @@ def send_message(desktop, request, autosend=False, root=None, settings=None):
         winapi.hotkey('enter')
         return f"Отправил в {profile['title']} для «{request['who']}»."
     return f"Написал в {profile['title']} для «{request['who']}». Скажите «отправь», чтобы отправить."
+
+
+# ---------------- Discord: «Андрей, зайди на дискорд сервер Майнкрафт» ----------------
+_DISCORD = r'(?:дискорд\w*|discord)'
+_SERVER = r'(?:сервер\w*|серв)'
+_ENTER = r'(?:зайди|зайти|перейди|перейти|войди|войти|открой|открыть|переключись|покажи)'
+_DISCORD_PATTERNS = [
+    # «Зайди на (дискорд) сервер Майнкрафт (в дискорде)», «открой дискорд сервер Друзья»
+    re.compile(r'^' + _ENTER + r'\s+(?:(?:на|в)\s+)?(?:' + _DISCORD + r'\s+)?' + _SERVER + r'(?:\s+' + _DISCORD +
+               r')?(?:\s+(?P<name>.+?))?(?:\s+(?:в|на)\s+' + _DISCORD + r')?$', re.I),
+    # «Зайди в дискорд на сервер Майнкрафт», «зайди в дискорде на сервер …»
+    re.compile(r'^' + _ENTER + r'\s+(?:в|на)\s+' + _DISCORD + r'\s+(?:(?:на|в)\s+)?' + _SERVER + r'(?:\s+(?P<name>.+))?$', re.I),
+    # «Открой дискорд и зайди на сервер Майнкрафт»
+    re.compile(r'^(?:открой|запусти|включи)\s+' + _DISCORD + r'\s+и\s+' + _ENTER + r'\s+(?:(?:на|в)\s+)?' + _SERVER +
+               r'(?:\s+(?P<name>.+))?$', re.I),
+]
+
+
+def parse_discord(text):
+    """dict(server=имя) или dict(server='') — сервер не назван; None — не про Discord."""
+    value = _tidy(text)
+    for pattern in _DISCORD_PATTERNS:
+        match = pattern.match(value)
+        if match:
+            name = (match['name'] or '').strip(' ,.')
+            name = re.sub(r'^(?:под названием|который называется|называется)\s+', '', name, flags=re.I)
+            return dict(server=name)
+    return None
+
+
+def open_discord_server(desktop, name, settings=None, root=None):
+    """Открыть Discord (запустить, если закрыт) и перейти на сервер через Ctrl+K «*имя»."""
+    from . import winapi
+    from ..app_control import activate_running
+    fresh = not activate_running('дискорд')
+    if fresh:
+        # Discord после запуска проверяет обновления — ждём окно дольше обычного.
+        if not desktop.activate_process({'discord.exe'}, launch_name='дискорд', timeout=60):
+            return 'Не удалось открыть Discord. Запустите его и повторите.'
+        time.sleep(7)
+    else:
+        time.sleep(0.4)
+    winapi.release_modifiers()
+    winapi.hotkey('esc')
+    time.sleep(0.15)
+    winapi.hotkey('ctrl', 'k')  # быстрый переход; «*» — искать только серверы
+    time.sleep(0.6)
+    winapi.type_unicode('*' + search_query(name, settings))
+    time.sleep(1.0)
+    winapi.hotkey('enter')
+    return f'Захожу на сервер «{name}» в Discord.'

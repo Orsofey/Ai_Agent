@@ -2,6 +2,7 @@
 import logging
 import threading
 
+from . import abort
 from .tts_player import SentenceSpeaker
 
 log = logging.getLogger(__name__)
@@ -15,8 +16,27 @@ class Cancelled(Exception):
     """Пользователь нажал «Пауза» или сказал «стоп»."""
 
 
-STOP_PHRASES = {'стоп', 'стой', 'хватит', 'отмена', 'отмени', 'замолчи', 'пауза', 'остановись', 'прекрати',
-                'стоп стоп', 'тихо', 'помолчи', 'stop', 'cancel'}
+# «Отмени» (Ctrl+Z) и «пауза» (видео) — отдельные команды, поэтому их здесь нет.
+STOP_PHRASES = {'стоп', 'стой', 'хватит', 'отмена', 'замолчи', 'остановись', 'прекрати',
+                'стоп стоп', 'тихо', 'помолчи', 'stop', 'cancel', 'останови команду', 'останови', 'отмени команду',
+                'выключись', 'отключись', 'стоп команда', 'хватит хватит', 'всё хватит', 'все хватит', 'остановить',
+                'прекрати команду', 'стоп команду'}
+STOP_ALL_PHRASES = {'останови все команды', 'останови всё', 'останови все', 'отмени все команды', 'стоп всё', 'стоп все',
+                    'прекрати всё', 'прекрати все', 'останови все действия', 'остановить все команды', 'стоп все команды',
+                    'отмени всё', 'отмени все', 'стоп всем командам', 'выключи все команды'}
+
+
+def stop_kind(text):
+    """'all' — «останови все команды», 'one' — «стоп», иначе None."""
+    import re
+    value = re.sub(r'[^\w\s]', ' ', str(text).casefold().replace('ё', 'е'))
+    value = ' '.join(value.split())
+    phrases = {p.replace('ё', 'е') for p in STOP_ALL_PHRASES}
+    if value in phrases:
+        return 'all'
+    if value in {p.replace('ё', 'е') for p in STOP_PHRASES}:
+        return 'one'
+    return None
 
 
 class AssistantService:
@@ -28,20 +48,49 @@ class AssistantService:
         self.lock = threading.Lock()
         self.cancel_event = threading.Event()
         self.running = False
+        self.stop_generation = 0
 
     def cancel(self):
         """Прервать текущую команду и озвучку. Возвращает True, если было что прерывать."""
         was = self.running or bool(self.player and self.player.is_busy())
+        abort.abort_all()  # печать текста и макросы тоже останавливаются
         self.cancel_event.set()
         if self.player is not None:
             self.player.stop()
         self.events.emit('cancelled')
         return was
 
+    def cancel_all(self):
+        """«Останови все команды»: текущая и ожидающие команды, озвучка, диктовка, уточняющие вопросы."""
+        self.stop_generation += 1
+        self.cancel()
+        commands = getattr(self.agent, 'desktop_commands', None)
+        if commands is not None:
+            commands.dictation = False
+        dialog = getattr(self.agent, 'dialog', None)
+        if dialog is not None and hasattr(dialog, 'pending'):
+            dialog.pending.clear()
+        self.events.emit('state', state='idle')
+        return 'Все команды остановлены.'
+
+    def control(self, text, settings=None):
+        """Стоп-фразы выполняются сразу, мимо очереди команд. Вернуть ответ или None."""
+        from .agent import strip_wake
+        kind = stop_kind(strip_wake(str(text).strip(), settings or {}))
+        if kind == 'all':
+            return self.cancel_all()
+        if kind == 'one':
+            return 'Остановлено.' if self.cancel() else 'Нечего останавливать.'
+        return None
+
     def run(self, text, owner, settings=None, source='text', on_text=None, speak=True):
         settings = settings or self.store.settings(owner)
+        generation = self.stop_generation
         if not self.lock.acquire(timeout=90):
             raise Busy('Выполняется предыдущая команда. Повторите позже.')
+        if generation != self.stop_generation:
+            self.lock.release()
+            return 'Остановлено.', False  # команда ждала в очереди, а пользователь остановил всё
         try:
             self.store.add(owner, 'user', text)
             self.events.emit('message', role='user', text=text, source=source, owner=owner)
@@ -62,9 +111,10 @@ class AssistantService:
             outcome = {}
 
             def work():
+                abort.begin()
                 try:
                     outcome['result'] = self.agent.process_command(text, settings, owner=owner, on_text=delta)
-                except Cancelled:
+                except (Cancelled, abort.Aborted):
                     pass
                 except Exception:
                     log.exception('Command failed')
