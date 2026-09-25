@@ -120,8 +120,8 @@ class BrowserController:
             if not self._is_closed_error(exc):
                 raise
             self._reset()
-            if method in ('close_site', 'url'):
-                return None if method == 'close_site' else ''
+            if method in ('close_site', 'url', 'player'):
+                return '' if method == 'url' else None
             if method in ('close_browser', 'close_tab', 'tabs', 'media'):
                 return 'Браузер агента уже закрыт.'
             return getattr(self, '_'+method)(*args)
@@ -427,6 +427,61 @@ class BrowserController:
         except Exception:
             self.current = pages[-1]
         return 'Вкладка закрыта. Осталось: '+str(len(pages))+'.'
+
+    # ---- Музыкальные сервисы: «Включи Imagine Dragons», «Запусти плеер» ----
+    MUSIC = [
+        ('music.yandex', 'Яндекс Музыке', 'https://music.yandex.ru/search?text={q}'),
+        ('music.youtube', 'YouTube Music', 'https://music.youtube.com/search?q={q}'),
+        ('open.spotify', 'Spotify', 'https://open.spotify.com/search/{q}'),
+        ('vk.com', 'VK Музыке', 'https://vk.com/audio?q={q}&section=search'),
+        ('zvuk.com', 'Звуке', 'https://zvuk.com/search?query={q}'),
+        ('soundcloud', 'SoundCloud', 'https://soundcloud.com/search?q={q}'),
+    ]
+    PLAY_FIRST = """() => {
+        const bar = 'header, nav, footer, [class*="PlayerBar"], [class*="player-bar"], [class*="PlayerControls"], [data-testid="now-playing-bar"], ytmusic-player-bar, [class*="audio_page_player"]';
+        const words = ['воспроизв', 'play', 'слушать', 'играть'];
+        const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.top < innerHeight; };
+        const main = document.querySelector('main, [role=main], #content, #main') || document;
+        const buttons = [...main.querySelectorAll('button, [role=button], a[aria-label]'), ...document.querySelectorAll('button, [role=button]')];
+        for (const b of buttons) {
+            const label = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.dataset.testid || '')).toLowerCase();
+            if (!words.some(w => label.includes(w)) || label.includes('pause') || label.includes('пауз')) continue;
+            if (b.closest(bar) || !visible(b)) continue;
+            b.click();
+            return label.trim().slice(0, 80) || 'play';
+        }
+        const link = [...document.querySelectorAll('a[href*="/track/"], a[href*="/watch?v="], a[href*="/song/"]')].find(visible);
+        if (link) { link.click(); return 'link'; }
+        return '';
+    }"""
+
+    def _music_service(self, url):
+        return next((m for m in self.MUSIC if m[0] in (url or '')), None)
+
+    def _music(self, query, service=None):
+        """Найти песню или исполнителя в текущем музыкальном сервисе (или Яндекс Музыке) и включить."""
+        current = self._url()
+        info = next((m for m in self.MUSIC if m[0] == service), None) or self._music_service(current) or self.MUSIC[0]
+        self._open(info[2].format(q=quote(query)))
+        page = self._active()
+        clicked = ''
+        for _ in range(12):  # результаты поиска подгружаются скриптами
+            page.wait_for_timeout(500)
+            clicked = page.evaluate(self.PLAY_FIRST)
+            if clicked:
+                break
+        if clicked == 'link':
+            page.wait_for_timeout(1500)
+            self._media('play')
+        if not clicked:
+            return f'Нашёл «{query}» в {info[1]}. Нажмите на трек — сервис может требовать вход в аккаунт.'
+        return f'Включаю «{query}» в {info[1]}.'
+
+    def _player(self):
+        """«Запусти плеер»: продолжить музыку или видео на текущей вкладке."""
+        if self.context is None:
+            return None
+        return self._media('play')
 
     def _close_site(self, url):
         """«Закрой YouTube»: закрыть вкладки этого сайта в браузере агента. None — таких вкладок нет."""

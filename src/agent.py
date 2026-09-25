@@ -162,6 +162,39 @@ class LocalComputerAgent:
             return butler(result, text, address)
         return result
 
+    def _music_request(self, text):
+        from . import music
+        from .app_control import RU_TO_EN, normalize
+        request = music.parse(text, on_music_page=False)
+        if request is not None:
+            return request
+        if music.parse(text, on_music_page=True) is None:
+            return None  # не похоже на песню — браузер даже не спрашиваем
+        try:
+            url = self.browser.call('url') or ''
+        except Exception:
+            url = ''
+        if not isinstance(url, str) or not any(m in url for m in ('music.yandex', 'music.youtube', 'open.spotify',
+                                                                   'vk.com/audio', 'vk.com/music', 'zvuk.com', 'soundcloud')):
+            return None
+        request = music.parse(text, on_music_page=True)
+        if request and request[0] == 'play':
+            name = normalize(request[1])
+            from . import sites, start_menu
+            if name in RU_TO_EN or sites.find(name) or start_menu.find(name):
+                return None  # «Включи Telegram» — это программа, а не песня
+        return request
+
+    def _media_key(self):
+        """Клавиша «Play/Pause» — работает с любым плеером: Spotify, Яндекс Музыка, браузер."""
+        if self.desktop_commands is None:
+            return 'Не нашёл плеер. Откройте музыкальный сервис и повторите.'
+        try:
+            self.desktop_commands.desktop.hotkey('media_play_pause')
+        except Exception:
+            return 'Не нашёл плеер. Откройте музыкальный сервис и повторите.'
+        return 'Запускаю плеер.'
+
     @staticmethod
     def _discord_without_server(text):
         from .desktop.messengers import parse_discord
@@ -170,7 +203,8 @@ class LocalComputerAgent:
 
     def _is_known_command(self, text):
         from .desktop.commands import parse as desktop_parse
-        return desktop_parse(text) is not None or youtube_command(text) is not None
+        from . import music
+        return desktop_parse(text) is not None or youtube_command(text) is not None or music.parse(text) is not None
 
     def _route(self, text, settings, owner, on_text):
         """Выполнить команду. Вернуть (текст, вид): action — действие, info — ответ."""
@@ -185,13 +219,23 @@ class LocalComputerAgent:
         if yt is not None:
             return self.browser.call('youtube', *yt), 'action'
 
-        # 3. «Открой в браузере Claude Code», «открой в Яндекс Браузере YouTube».
+        # 3. Музыка: «Включи Imagine Dragons» на открытом музыкальном сервисе, «Запусти плеер».
         from . import sites
+        music_request = self._music_request(text)
+        if music_request is not None:
+            if music_request[0] == 'player':
+                result = self.browser.call('player')
+                if not result or result.startswith(('Не нашёл', 'Браузер')):
+                    result = self._media_key()
+                return result, 'action'
+            return self.browser.call('music', music_request[1], music_request[2]), 'action'
+
+        # 4. «Открой в браузере Claude Code», «открой в Яндекс Браузере YouTube».
         request = sites.parse(text)
         if request:
             return sites.open_site(request['site'], request['browser']), 'action'
 
-        # 4. Сервисы и браузер.
+        # 5. Сервисы и браузер.
         from .assistant_commands import handle, HELP_EXTRA
         extra = handle(self, text, settings)
         if extra is not None:
