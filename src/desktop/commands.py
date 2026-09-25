@@ -252,6 +252,20 @@ class DesktopCommands:
                 return None  # пусть закроет вкладку браузер агента
             return str(exc)
 
+    def close_browser_tab(self, names):
+        """«Закрой YouTube» в обычном браузере: Ctrl+W, если в заголовке активной вкладки есть название сайта."""
+        from .controller import BROWSER_PROCESSES
+        try:
+            title, process = self.desktop.target_title()
+        except Exception:
+            return None
+        title = (title or '').casefold()
+        name = next((n for n in names if n and n.casefold() in title), None)
+        if process not in BROWSER_PROCESSES or not name:
+            return None
+        self.desktop.hotkey('ctrl', 'w')
+        return 'Закрываю вкладку ' + name + '.'
+
     def execute(self, action, args, settings):
         d = self.desktop
         if not getattr(d, 'available', True):

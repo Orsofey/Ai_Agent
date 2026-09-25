@@ -120,6 +120,8 @@ class BrowserController:
             if not self._is_closed_error(exc):
                 raise
             self._reset()
+            if method in ('close_site', 'url'):
+                return None if method == 'close_site' else ''
             if method in ('close_browser', 'close_tab', 'tabs', 'media'):
                 return 'Браузер агента уже закрыт.'
             return getattr(self, '_'+method)(*args)
@@ -425,6 +427,28 @@ class BrowserController:
         except Exception:
             self.current = pages[-1]
         return 'Вкладка закрыта. Осталось: '+str(len(pages))+'.'
+
+    def _close_site(self, url):
+        """«Закрой YouTube»: закрыть вкладки этого сайта в браузере агента. None — таких вкладок нет."""
+        if self.context is None:
+            return None
+        host = urlparse(url).hostname or ''
+        site = host.removeprefix('www.').split('.')[0]
+        pages = [p for p in self.context.pages if not p.is_closed() and site and site in (urlparse(p.url).hostname or '')]
+        for page in pages:
+            page.close(run_before_unload=True)
+        if not pages:
+            return None
+        self.current = None
+        return 'Закрываю ' + self._site_name(url) + '.'
+
+    def _url(self):
+        """Адрес текущей вкладки, не запуская браузер."""
+        if self.context is None:
+            return ''
+        pages = [p for p in self.context.pages if not p.is_closed()]
+        page = self.current if self.current in pages else (pages[-1] if pages else None)
+        return page.url if page else ''
 
     def _close_browser(self):
         if self.context is None:

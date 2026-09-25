@@ -184,7 +184,13 @@ class LocalComputerAgent:
         if yt is not None:
             return self.browser.call('youtube', *yt), 'action'
 
-        # 3. Сервисы и браузер.
+        # 3. «Открой в браузере Claude Code», «открой в Яндекс Браузере YouTube».
+        from . import sites
+        request = sites.parse(text)
+        if request:
+            return sites.open_site(request['site'], request['browser']), 'action'
+
+        # 4. Сервисы и браузер.
         from .assistant_commands import handle, HELP_EXTRA
         extra = handle(self, text, settings)
         if extra is not None:
@@ -203,9 +209,23 @@ class LocalComputerAgent:
         if action == 'refuse_mass':
             return 'Массовое закрытие отключено для защиты несохранённых данных. Назовите конкретное приложение.', 'action'
         if action == 'open_app':
-            return launch(value), 'action'
+            result = launch(value)
+            if result.startswith('Приложение не найдено') and sites.find(value):
+                return sites.open_site(value), 'action'  # «Открой Claude Code» — такой программы нет, есть сайт
+            return result, 'action'
         if action == 'close_app':
-            return close_application(value), 'action'
+            result = close_application(value)
+            url = sites.find(value)
+            if url and ('не запущено' in result or result.startswith('Не удалось')):
+                # «Закрой YouTube» — это вкладка, а не программа.
+                closed = self.browser.call('close_site', url)
+                if closed:
+                    return closed, 'action'
+                if self.desktop_commands is not None:
+                    closed = self.desktop_commands.close_browser_tab([value] + sites.SITES.get(url, []))
+                    if closed:
+                        return closed, 'action'
+            return result, 'action'
         if action == 'open_url':
             return self.browser.call('open', value), 'action'
         if action == 'video':
