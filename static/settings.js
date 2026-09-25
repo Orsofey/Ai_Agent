@@ -319,45 +319,93 @@
   $('clear-history').onclick = async () => { if (confirm('Удалить историю диалога?')) { await Agent.post('history/clear'); Agent.toast('История очищена'); } };
 
   // ---------- аккаунт и подписка ----------
-  let account = { premium: true }, paymentTimer = null;
+  let account = { premium: true }, paymentTimer = null, authMode = 'login';
+  const authBox = $('auth-box');
+  function message(text, kind) {
+    const box = $('account-message');
+    box.textContent = text || '';
+    box.className = 'auth-message ' + (kind || '');
+  }
+  function setMode(mode) {
+    authMode = mode;
+    authBox.dataset.mode = mode;
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    $('account-submit').firstElementChild.textContent = mode === 'login' ? 'Войти' : 'Создать аккаунт';
+    $('account-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    message('');
+  }
+  document.querySelectorAll('.auth-tab').forEach(t => t.onclick = () => setMode(t.dataset.mode));
+  document.querySelectorAll('[data-eye]').forEach(b => b.onclick = () => {
+    const input = $(b.dataset.eye);
+    input.type = input.type === 'password' ? 'text' : 'password';
+    b.classList.toggle('on', input.type === 'text');
+  });
   function paintAccount(a) {
     account = a;
     document.body.classList.toggle('locked', !a.premium);
     const date = a.expires ? new Date(a.expires).toLocaleDateString('ru-RU') : '';
-    $('account-title').textContent = a.logged_in ? a.email : 'Вы не вошли';
-    $('account-plan').textContent = a.plan === 'lifetime' ? 'Подписка навсегда — спасибо!'
-      : a.plan === 'monthly' ? `Подписка активна до ${date}` : 'Бесплатный тариф: команды и ответы без ограничений';
-    $('account-badge').textContent = a.premium ? 'Подписка активна' : 'Бесплатно';
-    $('account-pill').className = 'pill ' + (a.premium ? 'ok' : '');
-    $('account-form').hidden = a.logged_in;
-    $('account-actions').hidden = !a.logged_in;
-    if (!a.configured) $('account-message').textContent = 'Сервер подписки ещё не подключён в этой сборке. Разработчику: см. docs/SUBSCRIPTION.md.';
+    authBox.hidden = a.logged_in;
+    $('profile-box').hidden = !a.logged_in;
+    $('promo-box').hidden = !a.logged_in || a.plan === 'lifetime';
+    $('plans-box').hidden = a.plan === 'lifetime';
+    $('plans-hint').hidden = a.plan === 'lifetime';
+    if (a.logged_in) {
+      $('account-title').textContent = a.email;
+      $('account-avatar').textContent = (a.email || '?')[0].toUpperCase();
+      $('account-plan').textContent = a.owner ? 'Владелец — все функции открыты'
+        : a.plan === 'lifetime' ? 'Подписка навсегда — спасибо!'
+        : a.plan === 'monthly' ? `Подписка активна до ${date}` : 'Бесплатный тариф: команды и ответы без ограничений';
+      const badge = $('account-badge');
+      badge.textContent = a.owner ? 'Владелец' : a.plan === 'lifetime' ? 'Навсегда' : a.plan === 'monthly' ? 'Premium' : 'Бесплатно';
+      badge.className = 'plan-badge ' + (a.premium ? 'premium' : '');
+      $('account-check').hidden = a.plan === 'lifetime';
+    }
+    if (!a.configured && !a.logged_in) message('Сервер аккаунтов ещё не подключён в этой сборке. Разработчику: docs/AMVERA.md.', 'bad');
   }
   async function loadAccount() {
     try { paintAccount((await Agent.api('account')).account); } catch (e) { /* */ }
   }
-  async function accountAction(path, body) {
-    $('account-message').textContent = '…';
+  async function accountAction(path, body, button) {
+    if (button) button.classList.add('loading'), button.disabled = true;
     try {
       const data = await Agent.post(path, body);
       paintAccount(data.account);
-      $('account-message').textContent = data.account.premium ? 'Подписка активна — все разделы открыты.' : 'Готово.';
-      $('account-password').value = '';
       await Agent.loadSettings(); fill(Agent.settings);
       return data.account;
-    } catch (e) { $('account-message').textContent = e.message; return null; }
+    } catch (e) { message(e.message, 'bad'); Agent.toast(e.message, 4000); return null; }
+    finally { if (button) button.classList.remove('loading'), button.disabled = false; }
   }
-  $('account-login').onclick = () => accountAction('account/login', { email: $('account-email').value.trim(), password: $('account-password').value });
-  $('account-register').onclick = () => accountAction('account/register', { email: $('account-email').value.trim(), password: $('account-password').value });
-  $('account-logout').onclick = () => accountAction('account/logout');
-  $('account-check').onclick = () => accountAction('account/check');
+  $('auth-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('account-email').value.trim(), password = $('account-password').value;
+    document.querySelectorAll('.field-icon').forEach(f => f.classList.remove('invalid'));
+    const invalid = id => { $(id).closest('.field-icon').classList.add('invalid'); $(id).focus(); };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) { message('Введите email, например name@mail.ru', 'bad'); return invalid('account-email'); }
+    if (password.length < 8) { message('Пароль — не короче 8 символов', 'bad'); return invalid('account-password'); }
+    if (authMode === 'register' && password !== $('account-password2').value) { message('Пароли не совпадают', 'bad'); return invalid('account-password2'); }
+    message('');
+    const a = await accountAction(authMode === 'login' ? 'account/login' : 'account/register', { email, password }, $('account-submit'));
+    if (a) {
+      $('account-password').value = $('account-password2').value = '';
+      Agent.toast(a.owner ? 'С возвращением! Все функции открыты.' : authMode === 'login' ? 'Вы вошли в аккаунт' : 'Аккаунт создан', 4000);
+    }
+  });
+  $('account-logout').onclick = () => accountAction('account/logout').then(() => setMode('login'));
+  $('account-check').onclick = () => accountAction('account/check', {}, $('account-check'));
+  $('promo-apply').onclick = async () => {
+    const code = $('promo-code').value.trim();
+    if (!code) { $('promo-code').focus(); return; }
+    const a = await accountAction('account/promo', { code }, $('promo-apply'));
+    if (a && a.premium) { $('promo-code').value = ''; Agent.toast('Промокод активирован: подписка навсегда!', 6000); }
+  };
+  $('promo-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('promo-apply').click(); });
 
   async function buy(plan) {
-    if (!account.logged_in) { show('account'); $('account-message').textContent = 'Сначала войдите или зарегистрируйтесь — подписка привязывается к аккаунту.'; $('account-email').focus(); return; }
+    if (!account.logged_in) { show('account'); setMode('register'); message('Сначала войдите или зарегистрируйтесь — подписка привязывается к аккаунту.', 'bad'); $('account-email').focus(); return; }
     try {
       const data = await Agent.post('account/checkout', { plan });
       if (!data.opened) window.open(data.url, '_blank');
-      $('account-message').textContent = 'Откроется страница оплаты ЮKassa. После оплаты подписка включится автоматически.';
+      Agent.toast('Откроется страница оплаты ЮKassa. После оплаты подписка включится автоматически.', 6000);
       show('account');
       clearInterval(paymentTimer);
       let tries = 0;
@@ -369,7 +417,7 @@
           if (a && a.premium) { Agent.toast('Оплата получена. Спасибо! Все разделы открыты.', 6000); await Agent.loadSettings(); fill(Agent.settings); }
         }
       }, 5000);
-    } catch (e) { $('account-message').textContent = e.message; Agent.toast(e.message, 5000); }
+    } catch (e) { Agent.toast(e.message, 5000); }
   }
   document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buy(b.dataset.buy));
 

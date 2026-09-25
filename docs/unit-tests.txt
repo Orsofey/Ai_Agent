@@ -187,6 +187,40 @@ test_typed_stop_bypasses_busy_lock (test_requests_v52.StopAllTests.test_typed_st
 test_typing_is_interrupted (test_requests_v52.StopAllTests.test_typing_is_interrupted) ... ok
 test_voice_stop_all_speaks (test_requests_v52.StopAllTests.test_voice_stop_all_speaks) ... ok
 test_kinds (test_requests_v52.StopPhraseTests.test_kinds) ... ok
+test_join_types_exclamation_search (test_requests_v53.DiscordTests.test_join_types_exclamation_search) ... ok
+test_reaction_in_discord_and_elsewhere (test_requests_v53.DiscordTests.test_reaction_in_discord_and_elsewhere) ... ok
+test_reactions (test_requests_v53.DiscordTests.test_reactions) ... ok
+test_voice_channel_not_misheard_as_find (test_requests_v53.DiscordTests.test_voice_channel_not_misheard_as_find) ... ok
+test_voice_channel_parse (test_requests_v53.DiscordTests.test_voice_channel_parse) ... ok
+test_agent_plays_on_music_page (test_requests_v53.MusicTests.test_agent_plays_on_music_page) ... ok
+test_app_names_are_not_songs (test_requests_v53.MusicTests.test_app_names_are_not_songs) ... ok
+test_parse (test_requests_v53.MusicTests.test_parse) ... ok
+test_play_first_script (test_requests_v53.MusicTests.test_play_first_script) ... ok
+test_player_falls_back_to_media_key (test_requests_v53.MusicTests.test_player_falls_back_to_media_key) ... ok
+test_send_draft (test_requests_v53.SendDraftTests.test_send_draft) ... ok
+test_send_draft_returns_to_chat (test_requests_v53.SendDraftTests.test_send_draft_returns_to_chat) ... ok
+test_amvera_env_config (test_requests_v53.ServerAccountTests.test_amvera_env_config) ... ok
+test_amvera_files (test_requests_v53.ServerAccountTests.test_amvera_files) ... ok
+test_app_promo_endpoint (test_requests_v53.ServerAccountTests.test_app_promo_endpoint) ... ok
+test_owner_email_cannot_be_taken (test_requests_v53.ServerAccountTests.test_owner_email_cannot_be_taken) ... ok
+test_owner_has_everything (test_requests_v53.ServerAccountTests.test_owner_has_everything) ... ok
+test_payments_disabled_without_yookassa (test_requests_v53.ServerAccountTests.test_payments_disabled_without_yookassa) ... ok
+test_promo_gives_lifetime (test_requests_v53.ServerAccountTests.test_promo_gives_lifetime) ... ok
+test_promo_rules (test_requests_v53.ServerAccountTests.test_promo_rules) ... ok
+test_public_key_pinned_on_first_contact (test_requests_v53.ServerAccountTests.test_public_key_pinned_on_first_contact) ... ok
+test_agent_opens_in_named_browser (test_requests_v53.SitesTests.test_agent_opens_in_named_browser) ... ok
+test_app_name_cases (test_requests_v53.SitesTests.test_app_name_cases) ... ok
+test_close_site_tab (test_requests_v53.SitesTests.test_close_site_tab) ... ok
+test_parse_and_resolve (test_requests_v53.SitesTests.test_parse_and_resolve) ... ok
+test_unknown_app_that_is_a_site (test_requests_v53.SitesTests.test_unknown_app_that_is_a_site) ... ok
+test_ack_is_not_cut_by_answer (test_requests_v53.SpeechTests.test_ack_is_not_cut_by_answer) ... ok
+test_phrases (test_requests_v53.SpeechTests.test_phrases) ... ok
+test_prewarm_makes_ack_instant (test_requests_v53.SpeechTests.test_prewarm_makes_ack_instant) ... ok
+test_typed_stop_reply (test_requests_v53.SpeechTests.test_typed_stop_reply) ... ok
+test_voice_command_is_acknowledged_first (test_requests_v53.SpeechTests.test_voice_command_is_acknowledged_first) ... ok
+test_jarvis_default_and_premium (test_requests_v53.VoiceStyleTests.test_jarvis_default_and_premium) ... ok
+test_presets_process_audio (test_requests_v53.VoiceStyleTests.test_presets_process_audio) ... ok
+test_service_uses_preset_voice (test_requests_v53.VoiceStyleTests.test_service_uses_preset_voice) ... ok
 test_amount_mismatch_rejected (test_subscription.SubscriptionTests.test_amount_mismatch_rejected) ... ok
 test_expired_month_locks_again (test_subscription.SubscriptionTests.test_expired_month_locks_again) ... ok
 test_forged_license_rejected (test_subscription.SubscriptionTests.test_forged_license_rejected) ... ok
@@ -246,13 +280,13 @@ test_app_installed_launches_app (test_web_services.WebServiceTests.test_app_inst
 test_app_not_installed_offers_download (test_web_services.WebServiceTests.test_app_not_installed_offers_download) ... ok
 test_known_services_have_url (test_web_services.WebServiceTests.test_known_services_have_url) ... ok
 test_music_opens_in_browser (test_web_services.WebServiceTests.test_music_opens_in_browser) ... ok
+test_music_uses_agent_browser_not_system (test_web_services.WebServiceTests.test_music_uses_agent_browser_not_system) ... ok
 test_open_service_unknown_returns_none (test_web_services.WebServiceTests.test_open_service_unknown_returns_none) ... ok
 test_service_opens_in_browser_even_if_app_installed (test_web_services.WebServiceTests.test_service_opens_in_browser_even_if_app_installed) ... ok
 test_spotify_opens_in_browser (test_web_services.WebServiceTests.test_spotify_opens_in_browser) ... ok
 test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_opens_in_browser) ... ok
-test_windows_opens_default_browser_first (test_web_services.WebServiceTests.test_windows_opens_default_browser_first) ... ok
 
 ----------------------------------------------------------------------
-Ran 253 tests in 5.338s
+Ran 287 tests in 9.482s
 
 OK

@@ -27,7 +27,7 @@ from src.storage import PremiumRequired, Store, SECRET_NAMES
 log = logging.getLogger(__name__)
 
 VOICE_IDS = ('irina', 'denis', 'amy')
-VERSION = '5.1'
+VERSION = '5.3'
 
 
 def local_ip():
@@ -431,7 +431,8 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         ui = app.extensions.get('ui')
         if ui is None:
             return jsonify(success=True, opened=False)
-        ui.open_settings()
+        section = str((request.get_json(silent=True) or {}).get('section', ''))
+        ui.open_settings(section if re.fullmatch(r'[a-z]{0,20}', section) else '')
         return jsonify(success=True, opened=True)
 
     @app.post('/api/ui/show-main')
@@ -535,6 +536,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     @app.post('/api/account/logout')
     def account_logout():
         return account_reply(license.logout)
+
+    @app.post('/api/account/promo')
+    def account_promo():
+        return account_reply(lambda: license.promo((request.get_json() or {}).get('code', '')))
 
     @app.post('/api/account/check')
     def account_check():

@@ -78,17 +78,20 @@ class DesktopUI:
 
     tray_available = False
 
-    def open_settings(self):
+    def open_settings(self, section=''):
         import webview
+        path = '/settings' + ('?section=' + section if section else '')
         with self.lock:
             if self.settings_window is not None:
                 try:
+                    if section:
+                        self.settings_window.load_url(self.url(path))
                     self.settings_window.show()
                     self.settings_window.restore()
                     return
                 except Exception:
                     self.settings_window = None
-            window = webview.create_window('Настройки — ' + TITLE, self.url('/settings'), width=1020, height=780,
+            window = webview.create_window('Настройки — ' + TITLE, self.url(path), width=1020, height=780,
                                            min_size=(760, 560), background_color='#0b1020')
             window.events.closed += self._settings_closed
             self.settings_window = window

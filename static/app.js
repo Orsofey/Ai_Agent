@@ -188,6 +188,9 @@
       case 'voice_error':
         Agent.toast(e.message);
         break;
+      case 'account':
+        loadAccountChip();
+        break;
       case 'settings':
         Agent.settings = e.settings;
         Agent.applyTheme(e.settings.theme, e.settings.animations);
@@ -252,6 +255,15 @@
   $('mic').onclick = listenOnce;
   $('orb').onclick = listenOnce;
   $('open-settings').onclick = () => Agent.openSettings();
+  $('account-chip').onclick = () => Agent.openSettings('account');
+  async function loadAccountChip() {
+    try {
+      const a = (await Agent.api('account')).account;
+      $('chip-avatar').textContent = a.logged_in ? (a.email || '?')[0].toUpperCase() : '?';
+      $('chip-text').textContent = !a.logged_in ? 'Войти' : a.owner ? 'Владелец' : a.premium ? 'Premium' : 'Аккаунт';
+      $('account-chip').classList.toggle('premium', !!a.premium);
+    } catch (e) { /* */ }
+  }
   $('stop-speaking').onclick = pause;
   $('pause').onclick = pause;
   $('listen-toggle').onclick = async () => {
@@ -278,6 +290,7 @@
       reflect();
       await loadHistory();
       await pollStatus();
+      loadAccountChip();
       if (!eventsStarted) { eventsStarted = true; Agent.connectEvents(onEvent); setInterval(pollStatus, 5000); }
       const ai = await Agent.api('ai/status').catch(() => ({}));
       if (ai.provider === 'local' && ai.local && (!ai.local.model_installed || !ai.local.runtime_installed) && !Agent.store.get('agent_llm_hint')) {
