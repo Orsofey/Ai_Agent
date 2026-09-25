@@ -119,6 +119,7 @@ class MacSystemTests(unittest.TestCase):
         self.assertEqual(md.pick_asset(assets, 'cpu', 'darwin')['name'], f'llama-b7000-bin-macos-{md.MAC_ARCH}.zip')
         self.assertEqual(md.pick_asset(assets, 'cpu', 'win32')['name'], 'llama-b7000-bin-win-cpu-x64.zip')
 
+    @unittest.skipIf(sys.platform == 'win32', 'в Windows нет права на запуск в стиле Unix')
     def test_llama_tar_install_sets_exec_bit(self):
         import io
         import tarfile
