@@ -207,12 +207,29 @@
 
     <!-- ТЕЛЕФОН -->
     <section class="page" id="page-phone">
-      <h1>Управление с телефона</h1><p class="lead">ПК и телефон должны быть в одной доверенной сети. Установите Android-клиент (BUILD_ANDROID.bat) или откройте адрес в браузере телефона.</p>
+      <h1>iPhone и Android</h1><p class="lead">Управляйте компьютером с телефона: команды, вопросы, диктовка. Телефон и ПК должны быть в одной сети Wi‑Fi.</p>
       <div class="card group">
-        <div class="row"><div class="label"><b>Адрес ПК</b></div><div class="control"><code id="pc-address">—</code></div></div>
+        <div class="row phone-pair">
+          <div class="label"><b>Наведите камеру телефона на код</b>
+            <small>Откроется «Андрей», уже подключённый к этому ПК. На iPhone: «Поделиться» → «На экран Домой» — появится значок приложения.</small>
+            <small style="margin-top:8px">Адрес вручную: <code id="pc-address">—</code></small></div>
+          <div class="control"><img id="pair-qr" class="qr" alt="QR-код подключения" width="180" height="180"></div></div>
         <div class="row"><div class="label"><b>Код подключения</b><small>Даёт управление ПК — никому не сообщайте.</small></div>
           <div class="control"><input type="password" id="connection-token" readonly><button class="btn" id="show-token">Показать</button></div></div>
         <p class="hint">HTTP в локальной сети не шифруется. Для доступа извне используйте защищённый VPN.</p>
+      </div>
+      <div class="card group">
+        <div class="row stack"><div class="label"><b>«Привет, Siri, Андрей…» на iPhone</b>
+          <small>Голосом с заблокированного iPhone, AirPods или Apple Watch. Один раз создайте быструю команду:</small></div>
+          <ol class="examples steps">
+            <li>Приложение «Быстрые команды» → «+» → назовите команду <b>Андрей</b>.</li>
+            <li>Действие «Диктовать текст» (язык — русский).</li>
+            <li>Действие «Получить содержимое URL»: адрес <code id="siri-url">http://…/api/siri</code>, метод <b>POST</b>,
+              заголовок <b>X-Agent-Token</b> = код подключения, тело JSON: поле <b>text</b> = «Диктованный текст».</li>
+            <li>Действие «Получить значение для ключа» <b>response</b> → «Произнести текст».</li>
+          </ol>
+          <p class="hint">Теперь скажите: «Привет, Siri, Андрей» → «открой ютуб на компьютере» или «какой курс доллара». Команды выполняются на ПК, ответ читает Siri.</p>
+        </div>
       </div>
     </section>
 

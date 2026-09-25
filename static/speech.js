@@ -14,7 +14,13 @@
 
   async function start(onText, onStatus) {
     if (state.recording) return stop();
-    if (!navigator.mediaDevices || !window.MediaRecorder) throw new Error('Запись звука недоступна в этом браузере.');
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      // iPhone/Safari даёт микрофон сайтам только по HTTPS. В локальной сети — системная диктовка.
+      const error = new Error(window.isSecureContext ? 'Запись звука недоступна в этом браузере.'
+        : 'Скажите команду через диктовку: нажмите 🎤 на клавиатуре. Или «Привет, Siri, Андрей» — см. раздел «Телефон» в настройках ПК.');
+      error.dictation = true;
+      throw error;
+    }
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     const mime = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m));
     recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});

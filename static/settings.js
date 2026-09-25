@@ -300,6 +300,9 @@
     try {
       const c = await Agent.api('connection');
       $('pc-address').textContent = `http://${c.ip}:${c.port}`;
+      $('siri-url').textContent = `http://${c.ip}:${c.port}/api/siri`;
+      fetch('/api/connection/qr', { headers: { 'X-Agent-Token': Agent.token, 'X-Device-ID': Agent.device } })
+        .then(r => r.ok ? r.blob() : null).then(b => { if (b) $('pair-qr').src = URL.createObjectURL(b); });
       $('connection-token').value = c.token;
       $('storage').textContent = 'Данные хранятся на ПК: ' + c.storage;
     } catch (e) { /* */ }

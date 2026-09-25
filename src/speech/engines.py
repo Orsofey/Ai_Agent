@@ -8,9 +8,9 @@
 """
 import logging
 import os
-import sys
 import time
 from pathlib import Path
+from ..paths import app_base
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def models_dir(root):
 
 
 def bundled_models_dir():
-    base = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2]
+    base = app_base()
     return base / 'models'
 
 

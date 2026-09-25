@@ -14,6 +14,8 @@ def data_root():
         return Path(os.environ['LOCAL_AI_DATA_DIR'])
     if sys.platform == 'win32':
         return Path(os.getenv('LOCALAPPDATA', Path.home())) / 'LocalAIAgent'
+    if sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Application Support' / 'LocalAIAgent'
     return Path.home() / '.local' / 'share' / 'LocalAIAgent'
 
 

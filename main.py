@@ -15,11 +15,18 @@ OWNER = 'device:desktop'
 def message(text):
     if sys.platform == 'win32':
         ctypes.windll.user32.MessageBoxW(None, text, TITLE, 0x10)
+    elif sys.platform == 'darwin':
+        import subprocess
+        safe = text.replace('\\', '').replace('"', "'")
+        subprocess.run(['osascript', '-e', f'display alert "{TITLE}" message "{safe}"'], timeout=60)
     else:
         print(text, file=sys.stderr)
 
 
 def focus_existing():
+    if sys.platform == 'darwin':
+        import subprocess
+        return subprocess.run(['osascript', '-e', f'tell application "{TITLE}" to activate'], timeout=10).returncode == 0
     if sys.platform != 'win32':
         return False
     from ctypes import wintypes
@@ -103,6 +110,8 @@ class DesktopUI:
 
 def start_tray(ui, voice, store):
     """Иконка в области уведомлений: открыть, настройки, слушать, выход."""
+    if sys.platform == 'darwin':
+        return None  # на Mac меню строки требует главного потока, который занят окном; есть иконка в Dock
     try:
         import pystray
         from PIL import Image
@@ -230,6 +239,9 @@ def main():
         tray = start_tray(ui, voice, store)
         # При автозапуске Windows агент стартует в трее и сразу слушает.
         ui.create_main(hidden='--minimized' in sys.argv and ui.tray_available)
+        if sys.platform == 'darwin':
+            from src.desktop.macapi import request_permissions
+            request_permissions()  # «Универсальный доступ» для печати текста в другие приложения
         webview.start(gui='edgechromium' if sys.platform == 'win32' else None, debug=False,
                       private_mode=False, storage_path=str(store.root / 'webview_profile'))
         voice.stop()

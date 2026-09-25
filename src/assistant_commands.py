@@ -5,6 +5,7 @@
 отвечает только на свои фразы, а остальное передаёт дальше по цепочке.
 """
 import os
+import sys
 import re
 import webbrowser
 from urllib.parse import quote
@@ -57,6 +58,8 @@ def default_browser(url, agent=None):
             pass
     if os.name == 'nt':
         os.startfile(url)
+        return 'Открываю браузер.'
+    if sys.platform == 'darwin' and web_services.system_open(url):
         return 'Открываю браузер.'
     if webbrowser.open(url):
         return 'Открываю браузер.'

@@ -9,6 +9,7 @@ import sys
 import time
 
 IS_WINDOWS = sys.platform == 'win32'
+IS_MAC = sys.platform == 'darwin'
 
 
 class DesktopUnavailable(RuntimeError):
@@ -86,9 +87,13 @@ if IS_WINDOWS:
     kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
 
+def supported():
+    return IS_WINDOWS or IS_MAC
+
+
 def _require():
-    if not IS_WINDOWS:
-        raise DesktopUnavailable('Управление другими приложениями доступно на Windows.')
+    if not supported():
+        raise DesktopUnavailable('Управление другими приложениями доступно на Windows и macOS.')
 
 
 def _key_input(vk=0, scan=0, flags=0):
@@ -247,3 +252,10 @@ def lock_workstation():
 
 def own_pid():
     return os.getpid()
+
+
+# ---------------- macOS ----------------
+if IS_MAC:
+    # Та же функциональность через Quartz и AppKit (см. macapi.py).
+    from .macapi import (close, focus, foreground, hotkey, is_window, lock_workstation,  # noqa: F811
+                         process_name, release_modifiers, show, type_unicode, window_pid, window_title)

@@ -31,5 +31,8 @@ pyperclip>=1.9
 playwright>=1.51,<2
 yt-dlp>=2025.3.31
 
+# QR-код для подключения телефона
+segno>=1.6,<2
+
 # Сборка
 PyInstaller>=6.12,<7

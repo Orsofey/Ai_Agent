@@ -27,7 +27,7 @@ from src.storage import PremiumRequired, Store, SECRET_NAMES
 log = logging.getLogger(__name__)
 
 VOICE_IDS = ('irina', 'denis', 'amy')
-VERSION = '5.0'
+VERSION = '5.1'
 
 
 def local_ip():
@@ -146,7 +146,7 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
 
     def autostart_supported():
         import sys
-        return sys.platform == 'win32'
+        return sys.platform in ('win32', 'darwin')
 
     @app.post('/api/settings')
     def save_settings():
@@ -439,6 +439,32 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def connection():
         return jsonify(success=True, ip=local_ip(), port=request.host.split(':')[-1],
                        storage=str(store.root), token=store.meta('pairing_token'), user=session.get('user'))
+
+    def phone_link(device='iphone'):
+        port = request.host.split(':')[-1]
+        return f"http://{local_ip()}:{port}/#token={store.meta('pairing_token')}&device={device}"
+
+    @app.get('/api/connection/qr')
+    def connection_qr():
+        """QR-код для телефона: камера iPhone/Android открывает уже подключённое приложение."""
+        import io
+        import segno
+        buffer = io.BytesIO()
+        segno.make(phone_link(), error='m').save(buffer, kind='svg', scale=6, border=2, dark='#0b1020', light='#ffffff')
+        return Response(buffer.getvalue(), mimetype='image/svg+xml', headers={'Cache-Control': 'no-store'})
+
+    @app.post('/api/siri')
+    def siri():
+        """Для «Быстрых команд» iPhone: «Привет, Siri, Андрей» → диктовка → ответ читает Siri."""
+        data = request.get_json(silent=True) or {}
+        text = str(data.get('text') or data.get('message') or '').strip()
+        if not 1 <= len(text) <= 2000:
+            raise ValueError('Нужен текст команды')
+        if service.lock.locked():
+            return jsonify(success=False, response='Секунду, выполняю предыдущую команду.'), 429
+        who = 'device:' + re.sub(r'[^\w-]', '', request.headers.get('X-Device-ID', 'siri'))[:80]
+        result, _ = service.run(text, who, store.settings('device:desktop'), source='phone', speak=False)
+        return jsonify(success=True, response=result)
 
     @app.post('/api/register')
     def register():

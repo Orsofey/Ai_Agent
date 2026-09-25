@@ -206,7 +206,7 @@
   async function pollStatus() {
     try {
       const data = await Agent.api('voice/status');
-      nativeVoice = data.native;
+      nativeVoice = data.native && Agent.device === 'desktop';  // на телефоне — свой микрофон
       const sp = data.speech;
       $('engine').textContent = sp.ready ? sp.engine + ' · готов' : (sp.loading ? sp.engine + ' · загрузка…' : (sp.error ? 'Нет модели речи' : sp.engine));
       $('engine-pill').className = 'pill ' + (sp.ready ? 'ok' : sp.loading ? 'warn' : 'bad');
@@ -238,7 +238,10 @@
     try {
       await BrowserRecorder.start(text => { if (text) send(text); else Agent.toast('Речь не распознана'); },
         st => { $('mic').classList.toggle('recording', st === 'recording'); paintVoice(st === 'recording' ? 'listening' : st === 'transcribing' ? 'transcribing' : 'idle'); });
-    } catch (e) { Agent.toast(e.message); }
+    } catch (e) {
+      Agent.toast(e.message, 7000);
+      if (e.dictation) $('chat-input').focus();  // iPhone: диктовка кнопкой 🎤 на клавиатуре
+    }
   }
 
   // ---------- интерфейс ----------

@@ -45,8 +45,11 @@ def targets(name):
 
 
 def launch(name):
+    if sys.platform == 'darwin':
+        from . import macos
+        return macos.launch(name)
     if sys.platform != 'win32':
-        return 'Открытие приложений в этой сборке поддерживается на Windows.'
+        return 'Открытие приложений поддерживается на Windows и macOS.'
     app = resolve(name)
     if not app or len(app) > 150:
         return 'Укажите имя приложения.'
@@ -128,6 +131,9 @@ def _find_windows(pids):
 def activate_running(name):
     """Если приложение уже запущено - разворачивает и выводит его окно вперёд.
     Возвращает True, если окно найдено и активировано."""
+    if sys.platform == 'darwin':
+        from . import macos
+        return macos.activate_running(name)
     if sys.platform != 'win32':
         return False
     names = set(targets(name))
@@ -163,8 +169,11 @@ def activate_running(name):
 
 
 def close_application(name):
+    if sys.platform == 'darwin':
+        from . import macos
+        return macos.close_application(name)
     if sys.platform != 'win32':
-        return 'Безопасное закрытие окон поддерживается только на Windows.'
+        return 'Безопасное закрытие окон поддерживается на Windows и macOS.'
     names = set(targets(name))
     if not names or names & PROTECTED:
         return 'Не удалось закрыть: укажите конкретное приложение.'

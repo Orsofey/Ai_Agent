@@ -9,9 +9,15 @@
   Agent.store = store;
 
   const fragment = new URLSearchParams(location.hash.slice(1));
+  const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  Agent.iOS = iOS;
+  if (fragment.has('device') && /^[\w-]{1,80}$/.test(fragment.get('device'))) store.set('agent_device', fragment.get('device'));
   if (fragment.has('token')) {
     store.set('agent_token', fragment.get('token'));
-    history.replaceState(null, '', location.pathname);
+    // На iPhone ссылка с кодом остаётся в адресе, чтобы «На экран Домой» открывал уже подключённое приложение.
+    if (!(iOS && !standalone)) history.replaceState(null, '', location.pathname);
+    else document.querySelectorAll('link[rel=manifest]').forEach(link => link.remove());
   }
   Agent.token = store.get('agent_token', '');
   Agent.device = store.get('agent_device') || 'desktop';

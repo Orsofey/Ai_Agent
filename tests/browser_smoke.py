@@ -3,13 +3,15 @@
     python tests/browser_smoke.py            # после `python -m playwright install chromium`
     PLAYWRIGHT_CHROMIUM=/path/to/chrome python tests/browser_smoke.py
 
-Проверяет: потоковый ответ в чате, отдельное окно настроек, смену темы с
-синхронизацией между окнами, автосохранение настроек. STT и агент — заглушки.
+Проверяет: потоковый ответ в чате, кнопку «Пауза», отдельное окно настроек, замки платных разделов,
+смену темы после оплаты с синхронизацией между окнами, автосохранение, QR-код для телефона.
+STT, агент и сервер подписки — заглушки.
 """
 import os
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -27,6 +29,11 @@ def main():
         agent.brain = None
 
         def run(text, settings, owner=None, on_text=None):
+            if 'длинн' in text:
+                for _ in range(400):  # долгий ответ — его остановит кнопка «Пауза»
+                    on_text('слово ')
+                    time.sleep(0.02)
+                return 'не должно дойти'
             for word in ('Курс ', 'доллара ', '81,52 ', 'рубля.'):
                 if on_text:
                     on_text(word)
@@ -34,7 +41,13 @@ def main():
         agent.process_command.side_effect = run
         speech = Mock()
         speech.status.return_value = {'ready': True, 'engine': 'Parakeet v3', 'loading': False, 'error': None}
-        app = create_app(store, speech, agent)
+        paid = {'premium': False}
+        license = Mock()
+        license.is_premium = lambda: paid['premium']
+        license.status = lambda: {'configured': True, 'logged_in': paid['premium'], 'email': 'a@b.ru' if paid['premium'] else None,
+                                  'plan': 'lifetime' if paid['premium'] else 'free', 'plan_name': '', 'expires': None,
+                                  'premium': paid['premium'], 'prices': {'monthly': 100, 'lifetime': 500}, 'pending_payment': None}
+        app = create_app(store, speech, agent, license=license)
         server = create_server(app, host='127.0.0.1', port=0, threads=8)
         threading.Thread(target=server.run, daemon=True).start()
         base = f'http://127.0.0.1:{server.effective_port}'
@@ -54,9 +67,34 @@ def main():
                 main_page.wait_for_function("[...document.querySelectorAll('.msg.agent')].some(m => m.textContent.includes('81,52 рубля'))")
                 assert agent.process_command.call_count == 1
 
+                # Пауза: долгий ответ прерывается, кнопка появляется только во время выполнения.
+                assert main_page.is_hidden('#pause')
+                main_page.fill('#chat-input', 'Расскажи длинную историю')
+                main_page.click('#send')
+                main_page.wait_for_selector('#pause', state='visible')
+                main_page.click('#pause')
+                main_page.wait_for_selector('#pause', state='hidden')
+                main_page.wait_for_selector('#send', state='visible')
+                main_page.fill('#chat-input', 'Какой курс доллара?')
+                main_page.click('#send')
+                main_page.wait_for_function("[...document.querySelectorAll('.msg.agent')].filter(m => m.textContent.includes('81,52 рубля')).length === 2")
+
                 settings_page = context.new_page()
                 settings_page.on('pageerror', lambda e: errors.append(str(e)))
                 settings_page.goto(base + '/settings')
+                # Без подписки: замки и платёжная карточка, тема не меняется.
+                settings_page.wait_for_function("document.body.classList.contains('locked')")
+                assert settings_page.is_visible('[data-page="appearance"] .lock-badge')
+                settings_page.click('[data-page="appearance"]')
+                assert settings_page.is_visible('#page-appearance .paywall')
+                settings_page.click('[data-page="account"]')
+                assert settings_page.is_visible('.plan.best')
+                settings_page.click('[data-page="phone"]')
+                settings_page.wait_for_function("document.getElementById('pair-qr').naturalWidth > 0")
+                # Оплата прошла — разделы открываются.
+                paid['premium'] = True
+                settings_page.reload()
+                settings_page.wait_for_function("!document.body.classList.contains('locked')")
                 settings_page.click('[data-page="appearance"]')
                 settings_page.click('.theme-card[data-value="cyberpunk"]')
                 settings_page.wait_for_function("document.documentElement.dataset.theme === 'cyberpunk'")

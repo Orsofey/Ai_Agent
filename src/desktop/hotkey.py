@@ -1,4 +1,4 @@
-"""Global hotkey (works while any application is active) via RegisterHotKey."""
+"""Global hotkey (works while any application is active): RegisterHotKey on Windows, a Quartz event tap on macOS."""
 import logging
 import sys
 import threading
@@ -39,6 +39,10 @@ class GlobalHotkey:
         self.error = None
 
     def start(self):
+        if sys.platform == 'darwin':
+            self.thread = threading.Thread(target=self._run_mac, daemon=True, name='global-hotkey')
+            self.thread.start()
+            return True
         if sys.platform != 'win32':
             return False
         self.thread = threading.Thread(target=self._run, daemon=True, name='global-hotkey')
@@ -71,7 +75,44 @@ class GlobalHotkey:
         finally:
             user32.UnregisterHotKey(None, 1)
 
+    def _run_mac(self):
+        """Слушать нажатия через CGEventTap (нужно разрешение «Мониторинг ввода»)."""
+        import Quartz as Q
+        from .macapi import KEYCODES, MODIFIER_FLAGS
+        parts = [p.strip().casefold() for p in str(self.spec).split('+') if p.strip()]
+        names = {'win': 'cmd', 'cmd': 'cmd', 'ctrl': 'ctrl', 'alt': 'alt', 'shift': 'shift'}
+        try:
+            wanted = sum(MODIFIER_FLAGS[names[p]] for p in parts[:-1])
+            code = KEYCODES[parts[-1]]
+        except (KeyError, IndexError):
+            self.error = 'Неизвестное сочетание: ' + self.spec
+            return
+        mask = sum(MODIFIER_FLAGS.values())
+
+        def callback(proxy, kind, event, refcon):
+            if kind == Q.kCGEventKeyDown and not Q.CGEventGetIntegerValueField(event, Q.kCGKeyboardEventAutorepeat):
+                if Q.CGEventGetIntegerValueField(event, Q.kCGKeyboardEventKeycode) == code and \
+                        Q.CGEventGetFlags(event) & mask == wanted:
+                    threading.Thread(target=self.callback, daemon=True).start()
+            return event
+
+        tap = Q.CGEventTapCreate(Q.kCGSessionEventTap, Q.kCGHeadInsertEventTap, Q.kCGEventTapOptionListenOnly,
+                                 Q.CGEventMaskBit(Q.kCGEventKeyDown), callback, None)
+        if tap is None:
+            self.error = 'Разрешите «Мониторинг ввода» для приложения в настройках macOS.'
+            log.warning(self.error)
+            return
+        source = Q.CFMachPortCreateRunLoopSource(None, tap, 0)
+        self.loop = Q.CFRunLoopGetCurrent()
+        Q.CFRunLoopAddSource(self.loop, source, Q.kCFRunLoopCommonModes)
+        Q.CGEventTapEnable(tap, True)
+        Q.CFRunLoopRun()
+
     def stop(self):
+        if sys.platform == 'darwin' and getattr(self, 'loop', None) is not None:
+            import Quartz
+            Quartz.CFRunLoopStop(self.loop)
+            return
         if self.thread_id and sys.platform == 'win32':
             import ctypes
             ctypes.windll.user32.PostThreadMessageW(self.thread_id, WM_QUIT, 0, 0)
