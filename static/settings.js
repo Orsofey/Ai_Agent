@@ -14,6 +14,7 @@
     if (page === 'voice') loadMicrophones();
     if (page === 'ai') refreshAI();
     if (page === 'licenses') loadLicenses();
+    if (page === 'account') loadAccount();
   }
   document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => show(b.dataset.page));
 
@@ -119,7 +120,7 @@
         '<div class="theme-info"><b></b><small></small></div>';
       card.querySelector('b').textContent = theme.name;
       card.querySelector('small').textContent = theme.note;
-      card.onclick = () => { document.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('selected', c === card)); queue({ theme: theme.id }, true); };
+      card.onclick = () => { if (!account.premium) { Agent.toast('Темы доступны по подписке', 3000); show('account'); return; } document.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('selected', c === card)); queue({ theme: theme.id }, true); };
       box.appendChild(card);
       if (window.AgentMotion) AgentMotion.decorate(card.querySelector('.scene'), theme.id);
     });
@@ -301,18 +302,9 @@
       $('pc-address').textContent = `http://${c.ip}:${c.port}`;
       $('connection-token').value = c.token;
       $('storage').textContent = 'Данные хранятся на ПК: ' + c.storage;
-      $('profile').textContent = c.user ? 'Профиль: ' + c.user : 'Гостевой профиль этого устройства';
     } catch (e) { /* */ }
   }
   $('show-token').onclick = () => { const t = $('connection-token'); t.type = t.type === 'password' ? 'text' : 'password'; $('show-token').textContent = t.type === 'password' ? 'Показать' : 'Скрыть'; };
-  for (const action of ['register', 'login', 'logout']) $(action).onclick = async () => {
-    try {
-      await Agent.post(action, { name: $('username').value, password: $('password').value });
-      $('password').value = '';
-      $('account-status').textContent = action === 'register' ? 'Аккаунт создан. Теперь войдите.' : 'Готово';
-      if (action !== 'register') { await Agent.loadSettings(); fill(Agent.settings); loadConnection(); }
-    } catch (e) { $('account-status').textContent = e.message; }
-  };
   $('export').onclick = async () => {
     try {
       const data = await Agent.api('export');
@@ -322,6 +314,61 @@
     } catch (e) { Agent.toast(e.message); }
   };
   $('clear-history').onclick = async () => { if (confirm('Удалить историю диалога?')) { await Agent.post('history/clear'); Agent.toast('История очищена'); } };
+
+  // ---------- аккаунт и подписка ----------
+  let account = { premium: true }, paymentTimer = null;
+  function paintAccount(a) {
+    account = a;
+    document.body.classList.toggle('locked', !a.premium);
+    const date = a.expires ? new Date(a.expires).toLocaleDateString('ru-RU') : '';
+    $('account-title').textContent = a.logged_in ? a.email : 'Вы не вошли';
+    $('account-plan').textContent = a.plan === 'lifetime' ? 'Подписка навсегда — спасибо!'
+      : a.plan === 'monthly' ? `Подписка активна до ${date}` : 'Бесплатный тариф: команды и ответы без ограничений';
+    $('account-badge').textContent = a.premium ? 'Подписка активна' : 'Бесплатно';
+    $('account-pill').className = 'pill ' + (a.premium ? 'ok' : '');
+    $('account-form').hidden = a.logged_in;
+    $('account-actions').hidden = !a.logged_in;
+    if (!a.configured) $('account-message').textContent = 'Сервер подписки ещё не подключён в этой сборке. Разработчику: см. docs/SUBSCRIPTION.md.';
+  }
+  async function loadAccount() {
+    try { paintAccount((await Agent.api('account')).account); } catch (e) { /* */ }
+  }
+  async function accountAction(path, body) {
+    $('account-message').textContent = '…';
+    try {
+      const data = await Agent.post(path, body);
+      paintAccount(data.account);
+      $('account-message').textContent = data.account.premium ? 'Подписка активна — все разделы открыты.' : 'Готово.';
+      $('account-password').value = '';
+      await Agent.loadSettings(); fill(Agent.settings);
+      return data.account;
+    } catch (e) { $('account-message').textContent = e.message; return null; }
+  }
+  $('account-login').onclick = () => accountAction('account/login', { email: $('account-email').value.trim(), password: $('account-password').value });
+  $('account-register').onclick = () => accountAction('account/register', { email: $('account-email').value.trim(), password: $('account-password').value });
+  $('account-logout').onclick = () => accountAction('account/logout');
+  $('account-check').onclick = () => accountAction('account/check');
+
+  async function buy(plan) {
+    if (!account.logged_in) { show('account'); $('account-message').textContent = 'Сначала войдите или зарегистрируйтесь — подписка привязывается к аккаунту.'; $('account-email').focus(); return; }
+    try {
+      const data = await Agent.post('account/checkout', { plan });
+      if (!data.opened) window.open(data.url, '_blank');
+      $('account-message').textContent = 'Откроется страница оплаты ЮKassa. После оплаты подписка включится автоматически.';
+      show('account');
+      clearInterval(paymentTimer);
+      let tries = 0;
+      paymentTimer = setInterval(async () => {
+        const a = ++tries > 120 ? null : await Agent.post('account/check').then(d => d.account).catch(() => null);
+        if (a) paintAccount(a);
+        if (tries > 120 || (a && a.premium && !a.pending_payment)) {
+          clearInterval(paymentTimer);
+          if (a && a.premium) { Agent.toast('Оплата получена. Спасибо! Все разделы открыты.', 6000); await Agent.loadSettings(); fill(Agent.settings); }
+        }
+      }, 5000);
+    } catch (e) { $('account-message').textContent = e.message; Agent.toast(e.message, 5000); }
+  }
+  document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buy(b.dataset.buy));
 
   // ---------- живые события ----------
   function onEvent(e) {
@@ -340,6 +387,8 @@
         } else if (note && e.stage === 'start') note.remove();
       }
       if (e.item === 'all' && e.stage === 'finished') { Agent.toast('Загрузка завершена'); refreshModels(); refreshAI(); }
+    } else if (e.type === 'account') {
+      paintAccount(e.account);
     } else if (e.type === 'settings') {
       Agent.settings = e.settings; fill(e.settings);
       if (document.getElementById('page-ai').classList.contains('active')) refreshAI();
@@ -356,6 +405,7 @@
       fill(Agent.settings);
       loadVoices();
       loadConnection();
+      await loadAccount();
       Agent.connectEvents(onEvent);
       const wanted = new URLSearchParams(location.search).get('section') || Agent.store.get('agent_settings_page') || 'general';
       show(document.getElementById('page-' + wanted) ? wanted : 'general');

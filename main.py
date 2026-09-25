@@ -195,6 +195,8 @@ def main():
         bind_hotkey(settings)
         local_llm = agent.brain.local
         app.extensions['on_settings'] += [voice.apply_settings, bind_hotkey, local_llm.apply_settings]
+        # Подписка: продление и окончание проверяются в фоне, лицензия работает и офлайн.
+        app.extensions['license'].start_background_refresh(app.extensions['account_changed'])
         if settings.get('llm_provider') == 'local':
             local_llm.warmup(settings)  # нейросеть загружается в память заранее
 

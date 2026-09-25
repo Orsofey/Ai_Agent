@@ -16,7 +16,7 @@ class APIv5Tests(unittest.TestCase):
         self.agent.process_command.side_effect = lambda text, settings, owner=None, on_text=None: (on_text and on_text('Ответ '), 'Ответ готов')[1]
         self.speech = Mock()
         self.speech.status.return_value = {'ready': True, 'engine': 'Parakeet v3'}
-        self.app = create_app(self.store, self.speech, self.agent)
+        self.app = create_app(self.store, self.speech, self.agent, license=Mock(is_premium=lambda: True))
         self.client = self.app.test_client()
         self.headers = {'X-Agent-Token': self.store.meta('pairing_token'), 'X-Device-ID': 'desktop'}
 

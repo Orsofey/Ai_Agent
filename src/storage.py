@@ -43,6 +43,8 @@ DEFAULTS = {
     'contact_aliases': '', 'contacts_latin': False,
 }
 LONG_TEXT = {'contact_aliases': 3000}
+# Платные разделы: «Оформление», «Распознавание», «Озвучка». Без подписки действуют значения по умолчанию.
+PREMIUM_KEYS = ('theme', 'animations', 'show_hud', 'stt_engine', 'tts_enabled', 'tts_voice', 'tts_voice_en', 'tts_rate')
 
 CHOICES = {
     'theme': THEMES,
@@ -67,12 +69,17 @@ RANGES = {
 SECRET_NAMES = ('openai_api_key',)
 
 
+class PremiumRequired(PermissionError):
+    pass
+
+
 class Store:
     def __init__(self, root=None):
         self.root = Path(root or data_root())
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / 'agent.sqlite3'
         self.lock = threading.RLock()
+        self.premium = None  # функция «подписка активна?»; None — без ограничений
         with self.connect() as db:
             db.executescript('''
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -126,7 +133,10 @@ class Store:
         return {name: bool(self.secret(name)) for name in SECRET_NAMES}
 
     # ---- настройки ----
-    def settings(self, owner):
+    def is_premium(self):
+        return self.premium is None or bool(self.premium())
+
+    def settings(self, owner, raw=False):
         with self.connect() as db:
             row = db.execute('SELECT value FROM settings WHERE owner=?', (owner,)).fetchone()
         stored = json.loads(row[0]) if row else {}
@@ -138,6 +148,8 @@ class Store:
         # Старое имя по умолчанию из прошлых версий заменяем на новое.
         if value['wake_word'] == 'Орсофей' and 'wake_word_migrated' not in stored:
             value['wake_word'] = DEFAULTS['wake_word']
+        if not raw and not self.is_premium():
+            value.update({key: DEFAULTS[key] for key in PREMIUM_KEYS})
         return value
 
     @staticmethod
@@ -150,7 +162,8 @@ class Store:
 
     def save_settings(self, owner, incoming):
         with self.lock:
-            value = self.settings(owner)
+            value = self.settings(owner, raw=True)
+            premium = self.is_premium()
             for key, item in incoming.items():
                 if key not in DEFAULTS:
                     continue
@@ -162,13 +175,15 @@ class Store:
                         raise ValueError('Слишком длинная настройка')
                 if not self._valid(key, item):
                     raise ValueError('Недопустимое значение настройки: ' + key)
+                if key in PREMIUM_KEYS and not premium and item != DEFAULTS[key]:
+                    raise PremiumRequired('Этот раздел доступен по подписке: 100 ₽ в месяц или 500 ₽ навсегда.')
                 value[key] = item
             if not value['wake_word']:
                 raise ValueError('Имя агента не может быть пустым')
             stored = dict(value, wake_word_migrated=True)
             with self.connect() as db:
                 db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (owner, json.dumps(stored, ensure_ascii=False)))
-            return value
+            return self.settings(owner)
 
     # ---- история ----
     def add(self, owner, role, text):
