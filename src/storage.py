@@ -40,8 +40,9 @@ DEFAULTS = {
     # Характер: «Да, сэр, включаю Telegram».
     'address': 'сэр', 'butler': True,
     # Telegram: как произносите → как записан контакт («Арсений Крэк = Arseny Crack»).
-    'contact_aliases': '',
+    'contact_aliases': '', 'contacts_latin': False,
 }
+LONG_TEXT = {'contact_aliases': 3000}
 
 CHOICES = {
     'theme': THEMES,
@@ -157,7 +158,7 @@ class Store:
                     raise ValueError('Неверный тип настройки: ' + key)
                 if isinstance(item, str):
                     item = item.strip()
-                    if len(item) > 300:
+                    if len(item) > LONG_TEXT.get(key, 300):
                         raise ValueError('Слишком длинная настройка')
                 if not self._valid(key, item):
                     raise ValueError('Недопустимое значение настройки: ' + key)

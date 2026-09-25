@@ -148,6 +148,10 @@
           <div class="control"><select data-setting="type_method"><option value="auto">Авто</option><option value="keys">Печатать по буквам</option><option value="paste">Вставлять через буфер</option></select></div></div>
         <div class="row"><div class="label"><b>Сразу отправлять сообщения</b><small>Для «Напиши Милане в Телеграме …». Иначе агент напишет и попросит сказать «отправь».</small></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="messenger_autosend"><span></span></label></div></div>
+        <div class="row stack"><div class="label"><b>Как называть контакты голосом</b><small>По строке на контакт: «как говорите = как записан в мессенджере». Падежи учитываются: «Напиши Арсению Крэку…» найдёт Arseny Crack.</small></div>
+          <div class="control"><textarea class="field" data-setting="contact_aliases" rows="3" style="width:100%;resize:vertical" maxlength="3000" placeholder="Арсений Крэк = Arseny Crack&#10;Мама = Мамуля ❤️&#10;Работа = Отдел продаж 2025"></textarea></div></div>
+        <div class="row"><div class="label"><b>Контакты записаны латиницей</b><small>Искать «Арсений» как «Arsen…». Удобно, если почти все имена в Telegram на английском.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="contacts_latin"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Видео по умолчанию</b></div>
           <div class="control"><select data-setting="video_source"><option value="youtube">YouTube</option><option value="rutube">Rutube</option></select></div></div>
         <div class="row stack"><div class="label"><b>Примеры команд</b></div>
@@ -155,6 +159,9 @@
             <li><b>«<span class="name-ref">Андрей</span>, напиши текст привет, Милана»</b> — в активном окне</li>
             <li><b>«Напиши и отправь я уже еду»</b> — текст + Enter</li>
             <li><b>«Напиши Милане в Телеграме привет»</b> — найдёт чат сам</li>
+            <li><b>«Открой чат с Арсением Крэком»</b>, <b>«Перейди в группу Семья»</b> — затем <b>«Напиши …»</b> или <b>«Ответь …»</b> пишет в этот чат</li>
+            <li><b>«Запусти ютуб»</b> → <b>«Открой первое видео»</b>, <b>«Следующее видео»</b>, <b>«Перемотай на 30 секунд»</b></li>
+            <li><b>«<span class="name-ref">Андрей</span>, стоп»</b> или кнопка <b>«Пауза»</b> — прервать команду</li>
             <li><b>«Отправь»</b>, <b>«Новая строка»</b>, <b>«Сотри слово»</b></li>
             <li><b>«Выдели всё»</b>, <b>«Скопируй»</b>, <b>«Вставь»</b>, <b>«Отмени»</b></li>
             <li><b>«Сохрани»</b>, <b>«Жирный»</b>, <b>«Курсив»</b> — в Word</li>

@@ -191,6 +191,12 @@ def parse(text):
     request = messengers.parse(raw)
     if request:
         return 'messenger', request
+    request = messengers.parse_open(raw)
+    if request:
+        return 'open_chat', request
+    request = messengers.parse_current(raw)
+    if request:
+        return 'chat_type', request
 
     m = re.match(r'^(?:сочини|придумай|составь|сгенерируй)\s+(.+)$', raw, re.I | re.S)
     if m:
@@ -228,6 +234,7 @@ class DesktopCommands:
         self.browser = browser
         self.root = root
         self.dictation = False
+        self.chat = None  # открытый голосом чат: dict(app, who)
 
     def handle(self, text, settings):
         parsed = parse(text)
@@ -295,7 +302,20 @@ class DesktopCommands:
                 return 'Отправил: ' + args['text']
             return 'Напечатал: ' + args['text']
         if action == 'messenger':
-            return messengers.send_message(d, args, settings.get('messenger_autosend', False), self.root)
+            result = messengers.send_message(d, args, settings.get('messenger_autosend', False), self.root, settings)
+            if not result.startswith('Не удалось'):
+                self.chat = dict(app=args['app'], who=args['who'])
+            return result
+        if action == 'open_chat':
+            error = messengers.open_chat(d, args, settings, self.root)
+            if error:
+                return error
+            self.chat = dict(args)
+            title = messengers.PROFILES[args['app']]['title']
+            return f"Открываю чат «{args['who']}» в {title}. Теперь «напиши …» пишет в этот чат."
+        if action == 'chat_type':
+            app = (self.chat or {}).get('app', 'telegram')
+            return messengers.type_in_chat(d, app, tidy_typed(args['text']), args['send'], self.root)
         if action == 'generate':
             if self.brain is None:
                 return 'Для сочинения текста включите ИИ в настройках.'

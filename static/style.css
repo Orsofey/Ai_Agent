@@ -242,3 +242,4 @@ select option { background: var(--surface-strong); color: var(--text); }
 .pause-btn:hover { box-shadow: 0 0 0 3px var(--ring), 0 0 24px var(--glow); }
 @keyframes pause-pulse { 50% { box-shadow: 0 0 6px var(--glow); } }
 [data-animations="off"] .pause-btn { animation: none; }
+textarea.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
