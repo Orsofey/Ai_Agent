@@ -1,0 +1,13 @@
+# Amvera Cloud: загрузите в проект СОДЕРЖИМОЕ папки server/ (этот файл, Dockerfile, *.py, requirements.txt).
+# Инструкция: docs/AMVERA.md
+meta:
+  environment: docker
+  toolchain:
+    name: docker
+    version: latest
+build:
+  dockerfile: Dockerfile
+  skip: false
+run:
+  persistenceMount: /data
+  containerPort: 80

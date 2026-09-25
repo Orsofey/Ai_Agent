@@ -157,11 +157,17 @@ class ServerAccountTests(unittest.TestCase):
                              license_server.public_key_text(app.extensions['license_server'].key))
 
     def test_amvera_files(self):
-        root = Path(__file__).resolve().parents[1]
-        config = (root / 'amvera.yml').read_text(encoding='utf-8')
-        self.assertIn('dockerfile: server/Dockerfile', config)
+        """Папка server/ самодостаточна: её содержимое загружается в Amvera как есть."""
+        server = Path(__file__).resolve().parents[1] / 'server'
+        config = (server / 'amvera.yml').read_text(encoding='utf-8')
+        self.assertIn('dockerfile: Dockerfile', config)
         self.assertIn('persistenceMount: /data', config)
-        self.assertIn('CMD ["python", "run.py"]', (root / 'server' / 'Dockerfile').read_text(encoding='utf-8'))
+        docker = (server / 'Dockerfile').read_text(encoding='utf-8')
+        self.assertNotIn('server/', docker.split('\n', 2)[-1].replace('папки server/', ''))
+        for line in docker.splitlines():
+            if line.startswith('COPY ') and not line.startswith('COPY . '):
+                self.assertTrue((server / line.split()[1]).exists(), line)
+        self.assertIn('CMD ["python", "run.py"]', docker)
 
     def test_app_promo_endpoint(self):
         with tempfile.TemporaryDirectory() as folder:
