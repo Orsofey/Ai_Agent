@@ -1,353 +1,456 @@
-"""Local AI Agent - локальный Flask-сервер с поддержкой LAN и PWA.
-
-Особенности:
-- Доступ с телефона по локальной сети (host=0.0.0.0)
-- Раздача PWA (manifest.json + service worker)
-- Автозапуск с Windows (через реестр)
-- Корректные импорты platform и winreg
-"""
-from datetime import datetime
-import hashlib
+"""Authenticated local API shared by the Windows UI, the settings window and the Android remote."""
 import json
-import os
-import platform
+import logging
+import queue
+import re
 import secrets
 import socket
-import sys
-import uuid
+import threading
+import time
+from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
-# Делаем корень проекта импортируемым и из исходников, и из PyInstaller.
-PROJECT_ROOT = Path(__file__).resolve().parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+from flask import Flask, Response, request, jsonify, render_template, session, send_file
+from werkzeug.exceptions import HTTPException
+from werkzeug.security import generate_password_hash
 
-from flask import Flask, jsonify, render_template, request, send_from_directory, session
+from src import autostart
+from src.events import EventBus
+from src.local_tts_service import LocalTTSService
+from src.passwords import matches as check_password_hash
+from src.service import AssistantService, Busy
+from src.speech import SpeechService, SpeechError
+from src.storage import Store, SECRET_NAMES
 
-from src.agent import LocalComputerAgent
-from src.app_catalog import catalog
+log = logging.getLogger(__name__)
 
-if getattr(sys, "frozen", False):
-    RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-    DATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path(sys.executable).parent)) / "LocalAIAgent" / "data"
-else:
-    RESOURCE_DIR = PROJECT_ROOT
-    DATA_DIR = PROJECT_ROOT / "data"
-
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-USERS_FILE = DATA_DIR / "users.json"
-CHATS_FILE = DATA_DIR / "chats.json"
-SETTINGS_FILE = DATA_DIR / "settings.json"
-
-app = Flask(
-    __name__,
-    template_folder=str(RESOURCE_DIR / "templates"),
-    static_folder=str(RESOURCE_DIR / "static"),
-)
-app.secret_key = os.environ.get("LOCAL_AI_SECRET", "change-this-local-secret")
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-agent = LocalComputerAgent()
-
-
-def ensure_json(path, default):
-    if not path.exists():
-        path.write_text(json.dumps(default, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def read_json(path, default):
-    ensure_json(path, default)
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        path.write_text(json.dumps(default, ensure_ascii=False, indent=2), encoding="utf-8")
-        return default
-
-
-def write_json(path, value):
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def password_hash(password, salt=None):
-    salt = salt or secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000).hex()
-    return f"{salt}${digest}"
-
-
-def password_matches(password, stored):
-    try:
-        salt, digest = stored.split("$", 1)
-        check = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000).hex()
-        return secrets.compare_digest(check, digest)
-    except ValueError:
-        return False
-
-
-def signed_in():
-    return bool(session.get("storage_key"))
-
-
-def display_name():
-    return session.get("display_name", "Гость")
-
-
-def storage_key():
-    return session.get("storage_key", "")
-
-
-def default_settings():
-    return {
-        "voice_enabled": True,
-        "voice_language": "ru-RU",
-        "theme": "light",
-        "notifications": True,
-        "wake_word": "Орсофей",
-        "microphone": "",
-        "autostart": False,
-    }
+VOICE_IDS = ('irina', 'denis', 'amy')
+VERSION = '5.0'
 
 
 def local_ip():
-    """Определить локальный IP для доступа с телефона."""
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect(("8.8.8.8", 80))
-        ip = sock.getsockname()[0]
-        sock.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(('8.8.8.8', 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return '127.0.0.1'
 
 
-for path in (USERS_FILE, CHATS_FILE, SETTINGS_FILE):
-    ensure_json(path, {})
+def build_agent(store, events=None):
+    """Полный агент: браузер, управление ПК, ИИ."""
+    from src.agent import LocalComputerAgent
+    from src.brain import Brain
+    from src.browser_control import BrowserController
+    from src.desktop import DesktopController, DesktopCommands
+    browser = BrowserController(store.root)
+    brain = Brain(store)
+    desktop = DesktopController()
+    commands = DesktopCommands(desktop, brain=brain, browser=browser, root=store.root)
+    return LocalComputerAgent(browser, brain=brain, desktop_commands=commands)
 
 
-# ============ PWA ============
-@app.get("/manifest.json")
-def manifest():
-    return send_from_directory(str(RESOURCE_DIR / "static"), "manifest.json", mimetype="application/manifest+json")
+def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None):
+    root = Path(__file__).resolve().parent
+    store = store or Store()
+    events = events or EventBus()
+    speech = recognizer or SpeechService(store.root, store.settings('device:desktop'))
+    agent = agent or build_agent(store, events)
+    local_tts = LocalTTSService(store.root)
+    service = AssistantService(store, agent, events, player)
+    app = Flask(__name__, template_folder=str(root / 'templates'), static_folder=str(root / 'static'))
+    app.secret_key = store.meta('session_secret')
+    app.config.update(MAX_CONTENT_LENGTH=12 * 1024 * 1024, SESSION_COOKIE_HTTPONLY=True,
+                      SESSION_COOKIE_SAMESITE='Strict', PERMANENT_SESSION_LIFETIME=timedelta(days=365),
+                      SEND_FILE_MAX_AGE_DEFAULT=0)
+    app.extensions.update(store=store, speech=speech, agent=agent, local_tts=local_tts, events=events,
+                          service=service, player=player, voice=voice, ui=None, on_settings=[])
+    with store.connect() as db:
+        db.execute('CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY, owner TEXT, result TEXT)')
 
+    def owner():
+        device = request.headers.get('X-Device-ID', 'desktop')
+        if not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', device):
+            raise ValueError('Неверный идентификатор устройства')
+        return 'user:' + session['user'] if session.get('user') else 'device:' + device
 
-@app.get("/service-worker.js")
-def service_worker():
-    response = send_from_directory(str(RESOURCE_DIR / "static"), "service-worker.js", mimetype="application/javascript")
-    response.headers["Service-Worker-Allowed"] = "/"
-    return response
+    def is_desktop():
+        return request.headers.get('X-Device-ID', 'desktop') == 'desktop'
 
+    def settings_changed(value):
+        if hasattr(speech, 'configure'):
+            try:
+                speech.configure(value)
+            except Exception:
+                log.exception('Speech reconfigure failed')
+        for callback in app.extensions['on_settings']:
+            try:
+                callback(value)
+            except Exception:
+                log.exception('Settings callback failed')
+        events.emit('settings', settings=value)
 
-# ============ СТРАНИЦЫ ============
-@app.get("/")
-def index():
-    if not signed_in():
-        return render_template("login.html")
-    return render_template(
-        "index.html",
-        username=display_name(),
-        guest=bool(session.get("guest")),
-        server_ip=local_ip(),
-        server_port=request.host.split(":")[-1] if ":" in request.host else "5000",
-    )
+    @app.before_request
+    def authenticate():
+        if request.path.startswith('/api/'):
+            origin = request.headers.get('Origin')
+            if origin and urlparse(origin).netloc != request.host:
+                return jsonify(success=False, message='Чужой Origin запрещён'), 403
+            token = request.headers.get('X-Agent-Token', '')
+            if request.path == '/api/events' and not token:
+                token = request.args.get('token', '')  # EventSource не умеет заголовки
+            if not secrets.compare_digest(token, store.meta('pairing_token')):
+                return jsonify(success=False, message='Нужен код подключения из окна приложения на ПК'), 401
 
+    @app.errorhandler(Exception)
+    def error(exc):
+        if isinstance(exc, HTTPException):
+            return jsonify(success=False, message=exc.description), exc.code
+        if isinstance(exc, SpeechError):
+            return jsonify(success=False, message=str(exc)), exc.code
+        if isinstance(exc, Busy):
+            return jsonify(success=False, message=str(exc)), 429
+        if isinstance(exc, ValueError):
+            return jsonify(success=False, message=str(exc)), 400
+        app.logger.exception('Request failed')
+        return jsonify(success=False, message='Ошибка сервера. Подробности в logs/agent.log на ПК.'), 500
 
-@app.get("/favicon.ico")
-def favicon():
-    return (("", 204))
+    # ---------------- страницы ----------------
+    @app.get('/')
+    def index():
+        return render_template('index.html', version=VERSION)
 
+    @app.get('/settings')
+    def settings_page():
+        return render_template('settings.html', version=VERSION)
 
-@app.get("/health")
-def health():
-    return jsonify(ok=True, application="Local AI Agent", version="3.0", ip=local_ip())
+    @app.get('/health')
+    def health():
+        return jsonify(ok=True, application='Local AI Agent', version=VERSION)
 
+    # ---------------- настройки ----------------
+    @app.get('/api/settings')
+    def get_settings():
+        value = store.settings(owner())
+        value['autostart'] = autostart.enabled() if autostart_supported() else value['autostart']
+        return jsonify(success=True, settings=value, secrets=store.secrets_status())
 
-# ============ АУТЕНТИФИКАЦИЯ ============
-@app.post("/guest")
-def guest():
-    session.clear()
-    session["guest"] = True
-    session["display_name"] = "Гость"
-    session["storage_key"] = "guest_" + uuid.uuid4().hex
-    return jsonify(success=True, message="Продолжено без аккаунта")
+    def autostart_supported():
+        import sys
+        return sys.platform == 'win32'
 
+    @app.post('/api/settings')
+    def save_settings():
+        incoming = request.get_json()
+        if not isinstance(incoming, dict):
+            raise ValueError('Нужен объект настроек')
+        previous = store.settings(owner())
+        value = store.save_settings(owner(), incoming)
+        if 'autostart' in incoming and autostart_supported():
+            try:
+                autostart.configure(value['autostart'])
+            except Exception:
+                store.save_settings(owner(), previous)
+                raise
+        if owner() == 'device:desktop' or is_desktop():
+            settings_changed(value)
+        return jsonify(success=True, settings=value, secrets=store.secrets_status())
 
-@app.post("/register")
-def register():
-    data = request.get_json(silent=True) or {}
-    username = str(data.get("username", "")).strip()
-    password = str(data.get("password", ""))
-    email = str(data.get("email", "")).strip()
-    if not 3 <= len(username) <= 40:
-        return jsonify(success=False, message="Имя пользователя: от 3 до 40 символов")
-    if len(password) < 6:
-        return jsonify(success=False, message="Пароль должен содержать минимум 6 символов")
-    users = read_json(USERS_FILE, {})
-    if username.casefold() in {key.casefold() for key in users}:
-        return jsonify(success=False, message="Пользователь уже существует")
-    users[username] = {
-        "password": password_hash(password),
-        "email": email,
-        "created_at": datetime.now().isoformat(),
-    }
-    write_json(USERS_FILE, users)
-    return jsonify(success=True, message="Регистрация успешна")
+    @app.get('/api/secrets')
+    def get_secrets():
+        return jsonify(success=True, secrets=store.secrets_status())
 
+    @app.post('/api/secrets')
+    def save_secret():
+        data = request.get_json() or {}
+        name = str(data.get('name', ''))
+        if name not in SECRET_NAMES:
+            raise ValueError('Неизвестный ключ')
+        store.set_secret(name, data.get('value', ''))
+        return jsonify(success=True, secrets=store.secrets_status())
 
-@app.post("/login")
-def login():
-    data = request.get_json(silent=True) or {}
-    username = str(data.get("username", "")).strip()
-    password = str(data.get("password", ""))
-    record = read_json(USERS_FILE, {}).get(username)
-    if not record or not password_matches(password, record.get("password", "")):
-        return jsonify(success=False, message="Неверное имя пользователя или пароль")
-    session.clear()
-    session["display_name"] = username
-    session["storage_key"] = username
-    session["guest"] = False
-    return jsonify(success=True, message="Вход выполнен")
+    @app.get('/api/ai/status')
+    def ai_status():
+        brain = getattr(agent, 'brain', None)
+        settings = store.settings(owner())
+        local = brain.local.status(settings) if brain is not None and hasattr(brain, 'local') else None
+        return jsonify(success=True, provider=settings['llm_provider'], local=local)
 
-
-@app.post("/logout")
-def logout():
-    session.clear()
-    return jsonify(success=True)
-
-
-# ============ ЧАТ ============
-@app.post("/chat")
-def chat():
-    if not signed_in():
-        return jsonify(success=False, message="Выберите вход или «Продолжить как гость»"), 401
-    data = request.get_json(silent=True) or {}
-    message = str(data.get("message", "")).strip()
-    if not message:
-        return jsonify(success=False, message="Введите команду")
-
-    # Передаём кастомное имя агента в роутер
-    try:
-        stored = read_json(SETTINGS_FILE, {}).get(storage_key(), {})
-        wake = stored.get("wake_word")
-        if wake:
-            agent.set_wake_word(wake)
-        agent.set_voice_enabled(bool(stored.get("voice_enabled", True)))
-    except Exception:
-        pass
-
-    response = agent.process_command(message)
-    chats = read_json(CHATS_FILE, {})
-    key = storage_key()
-    chats.setdefault(key, []).append({
-        "user": message,
-        "agent": response,
-        "timestamp": datetime.now().isoformat(),
-    })
-    chats[key] = chats[key][-500:]
-    write_json(CHATS_FILE, chats)
-    return jsonify(success=True, response=response)
-
-
-@app.get("/history")
-def history():
-    if not signed_in():
-        return jsonify(success=False, message="Требуется вход или гостевой режим"), 401
-    return jsonify(success=True, history=read_json(CHATS_FILE, {}).get(storage_key(), []))
-
-
-@app.post("/clear_history")
-def clear_history():
-    if not signed_in():
-        return jsonify(success=False, message="Требуется вход или гостевой режим"), 401
-    chats = read_json(CHATS_FILE, {})
-    chats[storage_key()] = []
-    write_json(CHATS_FILE, chats)
-    return jsonify(success=True, message="История очищена")
-
-
-@app.post("/voice")
-def voice():
-    """Озвучить текст (для мобильного клиента, где Web Speech TTS недоступен)."""
-    data = request.get_json(silent=True) or {}
-    text = str(data.get("text", "")).strip()
-    if not text:
-        return jsonify(success=False, message="Пустой текст")
-    try:
-        agent._speak(text)
-        return jsonify(success=True)
-    except Exception as e:
-        return jsonify(success=False, message=str(e))
-
-
-# ============ НАСТРОЙКИ ============
-@app.route("/settings", methods=["GET", "POST"])
-def settings():
-    if not signed_in():
-        return jsonify(success=False, message="Требуется вход или гостевой режим"), 401
-    settings_data = read_json(SETTINGS_FILE, {})
-    key = storage_key()
-    if request.method == "GET":
-        result = default_settings()
-        result.update(settings_data.get(key, {}))
-        return jsonify(success=True, settings=result)
-
-    incoming = request.get_json(silent=True) or {}
-    result = default_settings()
-    result.update({item: incoming[item] for item in result if item in incoming})
-    settings_data[key] = result
-    write_json(SETTINGS_FILE, settings_data)
-
-    # Автозапуск с Windows
-    if platform.system() == "Windows":
+    @app.post('/api/ai/test')
+    def ai_test():
+        brain = getattr(agent, 'brain', None)
+        if brain is None:
+            raise ValueError('ИИ не подключён')
+        settings = store.settings(owner())
+        started = time.monotonic()
+        from src.brain import LLMError
         try:
-            import winreg
-            run_key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                0,
-                winreg.KEY_SET_VALUE,
-            )
-            if result.get("autostart"):
-                exe_path = sys.executable
-                winreg.SetValueEx(run_key, "LocalAIAgent", 0, winreg.REG_SZ, f'"{exe_path}"')
-            else:
-                try:
-                    winreg.DeleteValue(run_key, "LocalAIAgent")
-                except FileNotFoundError:
-                    pass
-            winreg.CloseKey(run_key)
-        except Exception:
-            pass
+            text = brain.complete('Reply with one short friendly Russian sentence.', 'Скажи, что связь работает.', settings)
+        except LLMError as exc:
+            return jsonify(success=False, message=str(exc)), 400
+        if not text:
+            return jsonify(success=False, message='ИИ выключен в настройках.'), 400
+        return jsonify(success=True, response=text, elapsed=round(time.monotonic() - started, 2))
 
-    return jsonify(success=True, message="Настройки сохранены", settings=result)
+    # ---------------- история ----------------
+    @app.get('/api/history')
+    def history():
+        return jsonify(success=True, history=store.history(owner(), limit=300))
 
+    @app.post('/api/history/clear')
+    def clear():
+        store.clear(owner())
+        brain = getattr(agent, 'brain', None)
+        if brain is not None and hasattr(brain, 'forget'):
+            brain.forget(owner())
+        return jsonify(success=True)
 
-# ============ ПРИЛОЖЕНИЯ ============
-@app.get("/apps")
-def apps():
-    if not signed_in():
-        return jsonify(success=False, message="Требуется вход или гостевой режим"), 401
-    return jsonify(success=True, applications=catalog.list_applications(force=True))
+    @app.get('/api/export')
+    def export():
+        response = jsonify(store.export(owner()))
+        response.headers['Content-Disposition'] = 'attachment; filename=LocalAIAgent-data.json'
+        return response
 
+    # ---------------- команды ----------------
+    def validate_command(data):
+        message = str((data or {}).get('message', '')).strip()
+        ident = str((data or {}).get('id', ''))
+        if not 1 <= len(message) <= 2000 or not re.fullmatch(r'[a-zA-Z0-9_-]{8,100}', ident):
+            raise ValueError('Нужны команда (до 2000 символов) и уникальный id')
+        return message, ident
 
-@app.post("/apps/launch")
-def launch_app():
-    if not signed_in():
-        return jsonify(success=False, message="Требуется вход или гостевой режим"), 401
-    data = request.get_json(silent=True) or {}
-    name = str(data.get("name", "")).strip()
-    if not name:
-        return jsonify(success=False, message="Не указано имя приложения")
-    try:
-        catalog.launch_app(name)
-        return jsonify(success=True, response=f"✓ Открыто: {name}")
-    except Exception as e:
-        return jsonify(success=False, message=str(e))
+    def claim(ident, who):
+        """Идемпотентность: повтор того же id не выполняет команду второй раз."""
+        with store.connect() as db:
+            existing = db.execute('SELECT owner,result FROM commands WHERE id=?', (ident,)).fetchone()
+            if not existing:
+                db.execute('INSERT INTO commands VALUES (?,?,NULL)', (ident, who))
+        if existing and existing[0] != who:
+            raise ValueError('Идентификатор уже занят')
+        return existing
 
+    def finish(ident, result):
+        with store.connect() as db:
+            db.execute('UPDATE commands SET result=? WHERE id=?', (result, ident))
 
-# ============ СЕТЬ ============
-@app.get("/network")
-def network():
-    """Инфо для подключения телефона."""
-    if not signed_in():
-        return jsonify(success=False, message="Требуется вход или гостевой режим"), 401
-    port = request.host.split(":")[-1] if ":" in request.host else "5000"
-    return jsonify(success=True, ip=local_ip(), port=port, url=f"http://{local_ip()}:{port}")
+    @app.post('/api/chat')
+    def chat():
+        message, ident = validate_command(request.get_json())
+        who = owner()
+        if service.lock.locked():
+            return jsonify(success=False, message='Выполняется предыдущая команда. Повторите позже.'), 429
+        existing = claim(ident, who)
+        if existing:
+            return jsonify(success=True, response=existing[1] or 'Команда уже принята. После сбоя автоматически не повторяется.', duplicate=True)
+        result, spoken = service.run(message, who, store.settings(who), source='text', speak=is_desktop())
+        finish(ident, result)
+        return jsonify(success=True, response=result, spoken=spoken)
+
+    @app.post('/api/chat/stream')
+    def chat_stream():
+        message, ident = validate_command(request.get_json())
+        who = owner()
+        if service.lock.locked():
+            return jsonify(success=False, message='Выполняется предыдущая команда. Повторите позже.'), 429
+        existing = claim(ident, who)
+        settings = store.settings(who)
+        desktop = is_desktop()
+        channel = queue.Queue()
+
+        def work():
+            try:
+                if existing:
+                    channel.put({'type': 'done', 'response': existing[1] or 'Команда уже принята.', 'duplicate': True})
+                    return
+                result, spoken = service.run(message, who, settings, source='text', speak=desktop,
+                                             on_text=lambda chunk: channel.put({'type': 'delta', 'text': chunk}))
+                finish(ident, result)
+                channel.put({'type': 'done', 'response': result, 'spoken': spoken})
+            except Exception as exc:
+                log.exception('Stream command failed')
+                channel.put({'type': 'error', 'message': str(exc) if isinstance(exc, (Busy, ValueError)) else 'Ошибка выполнения команды.'})
+            finally:
+                channel.put(None)
+
+        threading.Thread(target=work, daemon=True, name='chat-stream').start()
+
+        def generate():
+            while True:
+                item = channel.get()
+                if item is None:
+                    break
+                yield 'data: ' + json.dumps(item, ensure_ascii=False) + '\n\n'
+        return Response(generate(), mimetype='text/event-stream',
+                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+    @app.get('/api/events')
+    def events_stream():
+        return Response(events.stream(), mimetype='text/event-stream',
+                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+    # ---------------- голос ----------------
+    @app.get('/api/voice/status')
+    def voice_status():
+        state = voice.status() if voice is not None else dict(state='off', running=False)
+        return jsonify(success=True, native=voice is not None, voice=state, speech=speech.status(),
+                       speaking=bool(player and player.speaking))
+
+    @app.post('/api/voice/listen')
+    def voice_listen():
+        if voice is None:
+            return jsonify(success=False, native=False, message='Фоновое прослушивание недоступно на этом устройстве.'), 409
+        voice.listen_once()
+        return jsonify(success=True)
+
+    @app.post('/api/voice/stop-speaking')
+    def voice_stop_speaking():
+        if player is not None:
+            player.stop()
+        return jsonify(success=True)
+
+    @app.post('/api/tts/speak')
+    def tts_speak():
+        text = str((request.get_json() or {}).get('text', '')).strip()
+        if not 1 <= len(text) <= 2000:
+            raise ValueError('Текст 1–2000 символов')
+        if player is None or not player.available:
+            return jsonify(success=False, native=False)
+        player.stop()
+        player.say(text, store.settings(owner()))
+        return jsonify(success=True, native=True)
+
+    @app.get('/api/audio/devices')
+    def audio_devices():
+        from src.speech.microphone import list_devices
+        return jsonify(success=True, devices=list_devices())
+
+    @app.get('/api/speech/status')
+    def speech_status():
+        return jsonify(success=True, **speech.status())
+
+    @app.post('/api/speech/load')
+    def speech_load():
+        speech.warmup()
+        return jsonify(success=True, **speech.status())
+
+    @app.post('/api/transcribe')
+    def transcribe():
+        if 'audio' not in request.files:
+            raise ValueError('Нужно multipart-поле audio')
+        data = request.files['audio'].read(12 * 1024 * 1024 + 1)
+        if not data or len(data) > 12 * 1024 * 1024:
+            raise ValueError('Пустой или слишком большой файл')
+        language = request.form.get('language', 'ru')
+        return jsonify(success=True, **speech.transcribe(data, language))
+
+    # ---------------- модели ----------------
+    @app.get('/api/models/status')
+    def models_status():
+        from src.model_downloader import status as model_status
+        return jsonify(success=True, **model_status(store.root))
+
+    @app.post('/api/models/download')
+    def models_download():
+        from src.model_downloader import start_download
+        items = (request.get_json() or {}).get('items') or ['vad', 'parakeet', 'gigaam', 'piper', 'llama:cpu', 'llm:qwen3-4b']
+        if not isinstance(items, list):
+            raise ValueError('items должен быть списком')
+
+        def done():
+            settings = store.settings('device:desktop')
+            speech.configure(settings)
+            brain = getattr(agent, 'brain', None)
+            if brain is not None and hasattr(brain, 'local') and settings['llm_provider'] == 'local':
+                brain.local.warmup(settings)
+        started = start_download(store.root, items, events, on_done=done)
+        return jsonify(success=True, started=started)
+
+    @app.get('/api/licenses')
+    def licenses():
+        from src.licenses import collect
+        return jsonify(success=True, **collect(store.root))
+
+    # ---------------- синтез для телефона ----------------
+    @app.get('/api/ai/voices')
+    def list_voices():
+        return jsonify(success=True, voices=local_tts.available_voices())
+
+    @app.post('/api/ai/synthesize_local')
+    def synthesize_local():
+        data = request.get_json(silent=True) or {}
+        text = str(data.get('text', '')).strip()
+        if not 1 <= len(text) <= 2000:
+            return jsonify(success=False, error='Text 1-2000 chars')
+        voice_id = str(data.get('voice', 'irina'))
+        if voice_id not in VOICE_IDS:
+            voice_id = 'irina'
+        try:
+            audio_path = local_tts.synthesize(text, voice_id)
+        except Exception as exc:
+            return jsonify(success=False, error=str(exc))
+        if not audio_path:
+            return jsonify(success=False, error='Fallback to system')
+        return jsonify(success=True, audio_url='/tts_audio/' + Path(audio_path).name)
+
+    @app.get('/tts_audio/<filename>')
+    def serve_tts_audio(filename):
+        if not re.fullmatch(r'[0-9a-f]{20}\.wav', filename):
+            return 'Not found', 404
+        audio_file = Path(local_tts.cache) / filename
+        if not audio_file.exists():
+            return 'Not found', 404
+        return send_file(str(audio_file), mimetype='audio/wav')
+
+    # ---------------- окна ----------------
+    @app.post('/api/ui/open-settings')
+    def open_settings():
+        ui = app.extensions.get('ui')
+        if ui is None:
+            return jsonify(success=True, opened=False)
+        ui.open_settings()
+        return jsonify(success=True, opened=True)
+
+    @app.post('/api/ui/show-main')
+    def show_main():
+        ui = app.extensions.get('ui')
+        if ui is not None:
+            ui.show_main()
+        return jsonify(success=True, opened=ui is not None)
+
+    # ---------------- подключение и профили ----------------
+    @app.get('/api/connection')
+    def connection():
+        return jsonify(success=True, ip=local_ip(), port=request.host.split(':')[-1],
+                       storage=str(store.root), token=store.meta('pairing_token'), user=session.get('user'))
+
+    @app.post('/api/register')
+    def register():
+        data = request.get_json()
+        name, password = str(data.get('name', '')).strip(), str(data.get('password', ''))
+        if not re.fullmatch(r'[\w -]{3,40}', name) or not 8 <= len(password) <= 200:
+            raise ValueError('Имя: 3–40 символов; пароль: 8–200 символов')
+        with store.connect() as db:
+            if db.execute('SELECT 1 FROM users WHERE lower(name)=lower(?)', (name,)).fetchone():
+                raise ValueError('Имя уже занято')
+            db.execute('INSERT INTO users VALUES (?,?,?)', (name, generate_password_hash(password), str(data.get('email', ''))[:200]))
+        return jsonify(success=True)
+
+    @app.post('/api/login')
+    def login():
+        data = request.get_json()
+        with store.connect() as db:
+            row = db.execute('SELECT name,password FROM users WHERE lower(name)=lower(?)', (str(data.get('name', '')),)).fetchone()
+        if not row or not check_password_hash(row[1], str(data.get('password', ''))):
+            return jsonify(success=False, message='Неверное имя или пароль'), 401
+        session.clear()
+        session['user'] = row[0]
+        session.permanent = True
+        return jsonify(success=True, user=row[0])
+
+    @app.post('/api/logout')
+    def logout():
+        session.clear()
+        return jsonify(success=True)
+
+    return app
