@@ -60,6 +60,39 @@ def load_private_key(text):
     return Ed25519PrivateKey.from_private_bytes(base64.b64decode(text))
 
 
+def private_key_from_disk(folder):
+    """Ключ подписи из постоянного хранилища (на Amvera — /data). Создаётся при первом запуске."""
+    from cryptography.hazmat.primitives import serialization
+    path = Path(folder) / 'license_signing_key'
+    if path.exists():
+        return load_private_key(path.read_text().strip())
+    key = Ed25519PrivateKey.generate()
+    raw = key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(base64.b64encode(raw).decode())
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return key
+
+
+def public_key_text(key):
+    from cryptography.hazmat.primitives import serialization
+    raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return base64.b64encode(raw).decode()
+
+
+def parse_promos(text):
+    """«ANDREY2026, FRIENDS:50» → {'ANDREY2026': 0, 'FRIENDS': 50} (0 — без ограничения числа)."""
+    promos = {}
+    for item in re.split(r'[,;\s]+', str(text or '')):
+        code, _, limit = item.partition(':')
+        if code.strip():
+            promos[code.strip().upper()] = int(limit) if limit.strip().isdigit() else 0
+    return promos
+
+
 class YooKassa:
     """Минимальный клиент API ЮKassa: создание платежа и проверка статуса."""
 
@@ -110,21 +143,41 @@ class TestKassa:
 
 
 class LicenseServer:
-    def __init__(self, db_path, private_key, kassa, public_url=''):
+    def __init__(self, db_path, private_key, kassa, public_url='', owners=(), owner_password='', promo_codes=''):
         self.db_path = str(db_path)
         self.key = private_key
         self.kassa = kassa
         self.public_url = public_url.rstrip('/')
         self.lock = threading.Lock()
         self.attempts = {}
+        # Аккаунты владельца: всегда полный доступ. Зарезервированы — зарегистрировать их чужим нельзя.
+        self.owners = {e.strip().casefold() for e in owners if e.strip()}
+        self.owner_password = owner_password
+        self.promos = parse_promos(promo_codes)
         with self.connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT,
                     plan TEXT, expires TEXT, created TEXT);
                 CREATE TABLE IF NOT EXISTS tokens(hash TEXT PRIMARY KEY, user_id INTEGER, expires REAL);
+                CREATE TABLE IF NOT EXISTS promo_uses(code TEXT, user_id INTEGER, used TEXT, PRIMARY KEY(code, user_id));
                 CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY, user_id INTEGER, plan TEXT,
                     status TEXT, applied INTEGER DEFAULT 0, created TEXT);
             ''')
+        self._ensure_owners()
+
+    def _ensure_owners(self):
+        """Создать или обновить аккаунты владельца паролем из OWNER_PASSWORD."""
+        if not self.owner_password:
+            return
+        with self.connect() as db:
+            for email in self.owners:
+                row = db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+                hashed = generate_password_hash(self.owner_password)
+                if row:
+                    db.execute("UPDATE users SET password=?, plan='lifetime', expires=NULL WHERE id=?", (hashed, row['id']))
+                else:
+                    db.execute('INSERT INTO users(email,password,plan,expires,created) VALUES (?,?,?,?,?)',
+                               (email, hashed, 'lifetime', None, iso(now())))
 
     @contextmanager
     def connect(self):
@@ -152,6 +205,8 @@ class LicenseServer:
             raise ValueError('Введите корректный email')
         if not 8 <= len(password) <= 200:
             raise ValueError('Пароль: от 8 символов')
+        if email in self.owners:
+            raise ValueError('Этот email зарезервирован владельцем. Войдите паролем владельца.')
         with self.lock, self.connect() as db:
             if db.execute('SELECT 1 FROM users WHERE email=?', (email,)).fetchone():
                 raise ValueError('Этот email уже зарегистрирован. Войдите.')
@@ -190,7 +245,7 @@ class LicenseServer:
     # ---- лицензия ----
     def license(self, user):
         expires = parse_iso(user['expires'])
-        plan = user['plan']
+        plan = 'lifetime' if user['email'] in self.owners else user['plan']
         if plan == 'monthly' and (not expires or expires < now()):
             plan = 'free'
         payload = {'email': user['email'], 'plan': plan, 'expires': user['expires'] if plan == 'monthly' else None,
@@ -198,10 +253,30 @@ class LicenseServer:
         signature = base64.b64encode(self.key.sign(canonical(payload))).decode()
         return {'payload': payload, 'signature': signature}
 
+    # ---- промокоды ----
+    def redeem(self, user, code):
+        """Промокод даёт подписку навсегда бесплатно. Один код — один раз на аккаунт."""
+        code = code.strip().upper()
+        if code not in self.promos:
+            raise ValueError('Промокод не найден или больше не действует')
+        if user['plan'] == 'lifetime' or user['email'] in self.owners:
+            raise ValueError('У вас уже подписка навсегда')
+        limit = self.promos[code]
+        with self.lock, self.connect() as db:
+            used = db.execute('SELECT COUNT(*) FROM promo_uses WHERE code=?', (code,)).fetchone()[0]
+            if limit and used >= limit:
+                raise ValueError('Этот промокод уже использован максимальное число раз')
+            if db.execute('SELECT 1 FROM promo_uses WHERE code=? AND user_id=?', (code, user['id'])).fetchone():
+                raise ValueError('Вы уже использовали этот промокод')
+            db.execute('INSERT INTO promo_uses VALUES (?,?,?)', (code, user['id'], iso(now())))
+            db.execute("UPDATE users SET plan='lifetime', expires=NULL WHERE id=?", (user['id'],))
+
     # ---- оплата ----
     def checkout(self, user, plan):
         if plan not in PLANS:
             raise ValueError('Неизвестный тариф')
+        if self.kassa is None:
+            raise ValueError('Оплата пока не подключена. Используйте промокод или напишите владельцу.')
         if user['plan'] == 'lifetime':
             raise ValueError('У вас уже подписка навсегда')
         return_url = (self.public_url or request.host_url.rstrip('/')) + '/paid'
@@ -240,18 +315,22 @@ class LicenseServer:
 
 def create_app(server=None):
     if server is None:
+        # Постоянная папка: на Amvera это /data (persistenceMount), локально — рядом с сервером.
+        data = Path(os.environ.get('DATA_DIR') or ('/data' if Path('/data').is_dir() else '.'))
         key_text = os.environ.get('LICENSE_PRIVATE_KEY')
-        if not key_text:
-            raise SystemExit('Задайте LICENSE_PRIVATE_KEY (python generate_keys.py)')
+        key = load_private_key(key_text) if key_text else private_key_from_disk(data)
         shop, secret = os.environ.get('YOOKASSA_SHOP_ID'), os.environ.get('YOOKASSA_SECRET_KEY')
         if shop and secret:
             kassa = YooKassa(shop, secret)
         elif os.environ.get('LICENSE_TEST_MODE') == '1':
             kassa = TestKassa()  # только для отладки: любая «оплата» проходит сразу
         else:
-            raise SystemExit('Задайте YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY (или LICENSE_TEST_MODE=1 для отладки)')
-        server = LicenseServer(Path(os.environ.get('LICENSE_DB', 'licenses.db')), load_private_key(key_text), kassa,
-                               os.environ.get('PUBLIC_URL', ''))
+            kassa = None  # вход, регистрация и промокоды работают; оплата — после подключения ЮKassa
+        server = LicenseServer(Path(os.environ.get('LICENSE_DB') or data / 'licenses.db'), key, kassa,
+                               os.environ.get('PUBLIC_URL', ''),
+                               owners=os.environ.get('OWNER_EMAILS', 'orsofey@gmail.com').split(','),
+                               owner_password=os.environ.get('OWNER_PASSWORD', ''),
+                               promo_codes=os.environ.get('PROMO_CODES', ''))
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
     app.extensions['license_server'] = server
@@ -265,7 +344,8 @@ def create_app(server=None):
         return str(data.get('email', '')), str(data.get('password', '')), data
 
     def account(user):
-        return {'email': user['email'], 'plan': user['plan'], 'expires': user['expires'],
+        return {'email': user['email'], 'plan': 'lifetime' if user['email'] in server.owners else user['plan'],
+                'expires': user['expires'], 'owner': user['email'] in server.owners,
                 'license': server.license(user), 'plans': {k: v['price'] for k, v in PLANS.items()}}
 
     @app.errorhandler(ValueError)
@@ -278,7 +358,18 @@ def create_app(server=None):
 
     @app.get('/health')
     def health():
-        return jsonify(success=True, test_mode=isinstance(server.kassa, TestKassa))
+        return jsonify(success=True, test_mode=isinstance(server.kassa, TestKassa), payments=server.kassa is not None)
+
+    @app.get('/api/public-key')
+    def public_key():
+        """Открытый ключ проверки лицензий (приложение запоминает его при первом подключении)."""
+        return jsonify(success=True, public_key=public_key_text(server.key))
+
+    @app.post('/api/promo')
+    def promo():
+        user = server.user(token())
+        server.redeem(user, str((request.get_json(silent=True) or {}).get('code', '')))
+        return jsonify(success=True, **account(server.user(token())))
 
     @app.post('/api/register')
     def register():

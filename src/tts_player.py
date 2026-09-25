@@ -41,6 +41,8 @@ class TTSPlayer:
         self.pending = 0
         self.last_end = 0.0
         self.lock = threading.Lock()
+        self.ack_cache = {}       # (текст, голос, скорость) → звук: «Секунду, сэр» звучит без задержки
+        self.ack_playing = False
         self.available = self._check_audio()
         self._sapi = None
         threading.Thread(target=self._synth_loop, daemon=True, name='tts-synth').start()
@@ -66,9 +68,67 @@ class TTSPlayer:
         self.synth_queue.put((self.token if token is None else token, text, dict(settings)))
 
     def new_utterance(self):
-        """Остановить текущую речь и вернуть токен для новой."""
-        self.stop()
+        """Начать новый ответ: старая речь отменяется, но «Секунду, сэр» договаривается до конца."""
+        if not self.ack_playing and not self._ack_queued():
+            self.stop()
+            return self.token
+        with self.lock:
+            self.token += 1
+            self.pending = 0
+        self._drain(self.synth_queue)
+        keep = [item for item in self._drain(self.play_queue) if item[0] is None]
+        for item in keep:
+            self.play_queue.put(item)
         return self.token
+
+    def _ack_queued(self):
+        with self.play_queue.mutex:
+            return any(item[0] is None and item[3] == 'ack' for item in self.play_queue.queue)
+
+    @staticmethod
+    def _drain(q):
+        items = []
+        try:
+            while True:
+                items.append(q.get_nowait())
+        except queue.Empty:
+            return items
+
+    # ---- мгновенные подтверждения ----
+    def _ack_key(self, text, settings):
+        voice = self.tts.pick_voice(text, settings.get('tts_voice', 'irina'), settings.get('tts_voice_en', 'amy'))
+        return text, voice, settings.get('tts_rate', 100), settings.get('voice_preset', 'classic')
+
+    def prewarm(self, texts, settings):
+        """Заранее синтезировать короткие фразы («Секунду, сэр»), чтобы они звучали сразу."""
+        def work():
+            for text in texts:
+                key = self._ack_key(text, settings)
+                if key in self.ack_cache:
+                    continue
+                try:
+                    result = self.tts.synthesize_array(text, key[1], key[2] / 100.0, preset=key[3])
+                except Exception:
+                    result = None
+                if result is not None:
+                    self.ack_cache[key] = result
+        threading.Thread(target=work, daemon=True, name='tts-prewarm').start()
+
+    def acknowledge(self, text, settings):
+        """Сказать короткую фразу немедленно; следующий ответ её не обрывает."""
+        if not settings.get('tts_enabled', True) or not self.available:
+            return
+        cached = self.ack_cache.get(self._ack_key(text, settings))
+        if cached is None:
+            key = self._ack_key(text, settings)
+            try:
+                cached = self.tts.synthesize_array(text, key[1], key[2] / 100.0, preset=key[3])
+            except Exception:
+                cached = None
+            if cached is None:
+                return
+            self.ack_cache[key] = cached
+        self.play_queue.put((None, cached[0], cached[1], 'ack'))
 
     def stop(self):
         with self.lock:
@@ -77,11 +137,7 @@ class TTSPlayer:
             was = self.speaking
             self.speaking = False
         for q in (self.synth_queue, self.play_queue):
-            try:
-                while True:
-                    q.get_nowait()
-            except queue.Empty:
-                pass
+            self._drain(q)
         try:
             import sounddevice as sd
             sd.stop()
@@ -118,7 +174,7 @@ class TTSPlayer:
             voice = self.tts.pick_voice(text, settings.get('tts_voice', 'irina'), settings.get('tts_voice_en', 'amy'))
             rate = settings.get('tts_rate', 100) / 100.0
             try:
-                result = self.tts.synthesize_array(text, voice, rate)
+                result = self.tts.synthesize_array(text, voice, rate, preset=settings.get('voice_preset', 'classic'))
             except Exception:
                 log.exception('TTS synthesis failed')
                 result = None
@@ -137,12 +193,17 @@ class TTSPlayer:
             if token is not None:
                 self._emit(True)
             try:
-                if fallback is not None:
+                if fallback == 'ack':
+                    self.ack_playing = True
+                    self._play(audio, rate, None)
+                elif fallback is not None:
                     self._system_voice(*fallback)
                 elif self.available:
                     self._play(audio, rate, token)
             except Exception:
                 log.exception('Playback failed')
+            finally:
+                self.ack_playing = False
             if token is None:
                 continue
             with self.lock:

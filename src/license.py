@@ -74,7 +74,25 @@ class LicenseClient:
 
     @property
     def configured(self):
-        return bool(self.server_url and self.public_key)
+        return bool(self.server_url)
+
+    def key(self):
+        """Открытый ключ: из сборки, либо запомненный при первом подключении к серверу (по HTTPS)."""
+        if self.public_key:
+            return self.public_key
+        pinned = self.store.meta('license_public_key')
+        if pinned:
+            return pinned
+        if not self.server_url.startswith(('https://', 'http://127.0.0.1', 'http://localhost')):
+            return ''
+        try:
+            response = self.session.request('GET', self.server_url + '/api/public-key', json=None, headers={}, timeout=15)
+            value = response.json().get('public_key', '') if response.ok else ''
+        except Exception:
+            value = ''
+        if value:
+            self.store.set_meta('license_public_key', value)
+        return value
 
     # ---- состояние ----
     def _load(self):
@@ -95,7 +113,11 @@ class LicenseClient:
             self._cache = document or None
 
     def payload(self):
-        return verify(self._load(), self.public_key)
+        document = self._load()
+        if not document:
+            return None
+        key = self.public_key or self.store.meta('license_public_key')
+        return verify(document, key)
 
     def is_premium(self):
         payload = self.payload()
@@ -113,6 +135,7 @@ class LicenseClient:
         email = self.store.meta('account_email')
         plan = payload.get('plan', 'free') if payload.get('email') == email else 'free'
         return {'configured': self.configured, 'logged_in': bool(self.store.meta('account_token')), 'email': email,
+                'owner': bool(self.store.meta('account_owner')),
                 'plan': plan, 'plan_name': PLAN_NAMES.get(plan, plan), 'expires': payload.get('expires'),
                 'premium': self.is_premium(), 'prices': {'monthly': 100, 'lifetime': 500},
                 'pending_payment': self.store.meta('pending_payment')}
@@ -120,7 +143,7 @@ class LicenseClient:
     # ---- сервер ----
     def _request(self, method, path, body=None, auth=True):
         if not self.configured:
-            raise AccountError('Сервер подписки не настроен в этой сборке (см. docs/SUBSCRIPTION.md).', 503)
+            raise AccountError('Сервер подписки не настроен в этой сборке (см. docs/AMVERA.md).', 503)
         headers = {}
         if auth:
             token = self.store.meta('account_token')
@@ -143,9 +166,11 @@ class LicenseClient:
         return data
 
     def _accept(self, data):
-        if data.get('license') and not verify(data['license'], self.public_key):
+        if data.get('license') and not verify(data['license'], self.key()):
             raise AccountError('Сервер вернул лицензию с неверной подписью.', 502)
         self._save(token=data.get('token'), document=data.get('license'), email=data.get('email'))
+        if 'owner' in data:
+            self.store.set_meta('account_owner', '1' if data.get('owner') else None)
         return self.status()
 
     def register(self, email, password):
@@ -163,8 +188,17 @@ class LicenseClient:
             except AccountError:
                 pass
             self._save(token='', document={}, email='')
+            self.store.set_meta('account_owner', None)
             self.store.set_meta('pending_payment', None)
             return self.status()
+
+    def promo(self, code):
+        """Активировать промокод: подписка навсегда бесплатно."""
+        code = str(code or '').strip()
+        if not 3 <= len(code) <= 64:
+            raise AccountError('Введите промокод')
+        with self.lock:
+            return self._accept(self._request('POST', '/api/promo', {'code': code}))
 
     def refresh(self):
         """Обновить лицензию с сервера (продление, окончание месяца)."""

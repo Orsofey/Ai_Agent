@@ -178,35 +178,43 @@ class LocalTTSService:
             return voice_en
         return voice
 
-    def synthesize_array(self, text, voice='irina', rate=1.0):
+    def synthesize_array(self, text, voice='irina', rate=1.0, preset='classic'):
         """Вернуть (numpy int16, sample_rate) или None, если локальных голосов нет."""
         import numpy as np
+        from . import voice_fx
         text = str(text).strip()[:2000]
         if not text:
             return None
-        length_scale = round(1.0 / rate, 3) if rate and rate > 0 else 1.0
+        style = voice_fx.preset(preset)
+        if style['voice'] and PIPER_VOICES.get(voice, {}).get('lang') == 'ru' and voice_files(style['voice'], self.root)[0]:
+            voice = style['voice']  # «Джарвис» — мужской голос, даже если выбрана Ирина
+        # Понижение тона растягивает звук — заранее говорим быстрее, чтобы темп остался прежним.
+        length_scale = round(style['pitch'] / rate, 3) if rate and rate > 0 else style['pitch']
         piper_voice = get_piper_voice(voice, self.root) if voice in PIPER_VOICES else None
         if piper_voice is None:
             piper_voice = get_piper_voice('irina', self.root) or get_piper_voice('denis', self.root)
         if piper_voice is not None:
             try:
                 pcm, sample_rate = _piper_pcm(piper_voice, text, length_scale)
-                return np.frombuffer(pcm, dtype=np.int16), sample_rate
+                audio = np.frombuffer(pcm, dtype=np.int16)
+                if preset and preset != 'classic':
+                    audio = voice_fx.apply(audio, sample_rate, preset)
+                return audio, sample_rate
             except Exception as exc:
                 log.warning('Piper synthesis failed: %s', exc)
         return None  # дальше — системный голос Windows
 
-    def synthesize(self, text, voice='irina', rate=1.0):
+    def synthesize(self, text, voice='irina', rate=1.0, preset='classic'):
         """WAV-файл для удалённых клиентов (телефон). Возвращает путь или None."""
         import wave
         text = str(text).strip()[:2000]
         if not text:
             return None
-        key = hashlib.sha1(f'{voice}|{rate}|{text}'.encode()).hexdigest()[:20]
+        key = hashlib.sha1(f'{voice}|{rate}|{preset}|{text}'.encode()).hexdigest()[:20]
         path = self.cache / f'{key}.wav'
         if path.exists():
             return str(path)
-        result = self.synthesize_array(text, voice, rate)
+        result = self.synthesize_array(text, voice, rate, preset)
         if result is None:
             return None
         audio, sample_rate = result

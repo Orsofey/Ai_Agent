@@ -78,17 +78,20 @@ class DesktopUI:
 
     tray_available = False
 
-    def open_settings(self):
+    def open_settings(self, section=''):
         import webview
+        path = '/settings' + ('?section=' + section if section else '')
         with self.lock:
             if self.settings_window is not None:
                 try:
+                    if section:
+                        self.settings_window.load_url(self.url(path))
                     self.settings_window.show()
                     self.settings_window.restore()
                     return
                 except Exception:
                     self.settings_window = None
-            window = webview.create_window('Настройки — ' + TITLE, self.url('/settings'), width=1020, height=780,
+            window = webview.create_window('Настройки — ' + TITLE, self.url(path), width=1020, height=780,
                                            min_size=(760, 560), background_color='#0b1020')
             window.events.closed += self._settings_closed
             self.settings_window = window
@@ -219,6 +222,7 @@ def main():
                                channel_timeout=300)
         threading.Thread(target=server.run, daemon=True, name='http-server').start()
         voice.start()
+        voice.prewarm()  # «Секунду, сэр» звучит без задержки
 
         # Если модели не встроены в установщик и ещё не скачаны — докачиваем их сами при первом запуске.
         from src.model_downloader import missing_items, start_download

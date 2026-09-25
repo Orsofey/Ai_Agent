@@ -75,6 +75,7 @@ class VoiceAssistant:
 
     def apply_settings(self, settings):
         """Перезапуск захвата при смене микрофона или включения."""
+        self.prewarm(settings)
         want = settings.get('voice_enabled', True)
         if not want:
             self.stop()
@@ -93,6 +94,15 @@ class VoiceAssistant:
         self.events.emit('state', state='listening', reason='once')
         if not (self.capture_thread and self.capture_thread.is_alive()):
             self.start()
+
+    def prewarm(self, settings=None):
+        """Заранее озвучить «Секунду, сэр» и «Хорошо, сэр» текущим голосом."""
+        if not self.player or not hasattr(self.player, 'prewarm'):
+            return
+        from ..dialog import ack_phrases, address_of, stop_reply
+        settings = settings or self.settings()
+        address = address_of(settings)
+        self.player.prewarm(ack_phrases(address) + [stop_reply('one', address), stop_reply('all', address)], settings)
 
     def reset(self):
         """Кнопка «Пауза»: забыть ожидание продолжения и вернуться к прослушиванию имени."""
@@ -249,15 +259,18 @@ class VoiceAssistant:
             return None
         kind = _is_stop(command)
         if kind:
-            # «Андрей, стоп» / «Андрей, останови все команды» — сразу, без очереди.
+            # «Андрей, стоп» / «Андрей, останови все команды» — сразу, без очереди; ответ «Хорошо, сэр».
+            from ..dialog import address_of, stop_reply
             if kind == 'all':
-                reply = self.service.cancel_all()
+                reply = self.service.cancel_all(settings)
                 self.reset()
-                if self.player and getattr(self.player, 'available', False):
-                    self.player.say(reply, settings)
             else:
                 self.service.cancel()
+                reply = stop_reply('one', address_of(settings))
                 self._set_state('idle')
+            if self.player and getattr(self.player, 'available', False):
+                self.player.acknowledge(reply, settings)
+            self.events.emit('voice_reply', text=reply)
             return None
         if background:
             threading.Thread(target=self._execute, args=(command, settings), daemon=True, name='voice-command').start()
@@ -267,6 +280,10 @@ class VoiceAssistant:
     def _execute(self, command, settings):
         if self.player:
             self.player.stop()
+            if settings.get('ack', True) and getattr(self.player, 'available', False):
+                # «Секунду, сэр» — сразу, из заранее синтезированных фраз; ответ прозвучит следом.
+                from ..dialog import ack_phrase, address_of
+                self.player.acknowledge(ack_phrase(address_of(settings)), settings)
         self._set_state('thinking', command=command)
         try:
             answer, spoken = self.service.run(command, self.owner, settings, source='voice')

@@ -31,7 +31,13 @@ def normalize(name):
 
 def resolve(name):
     name = normalize(name)
-    return RU_TO_EN.get(name, name)
+    if name in RU_TO_EN:
+        return RU_TO_EN[name]
+    # Падежи: «закрой эджу», «открой телеграмму», «закрой хрому».
+    for ending in ('ом', 'ой', 'у', 'ю', 'а', 'е', 'и'):
+        if name.endswith(ending) and len(name) - len(ending) >= 2 and name[:-len(ending)] in RU_TO_EN:
+            return RU_TO_EN[name[:-len(ending)]]
+    return name
 
 
 def targets(name):

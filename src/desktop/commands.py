@@ -26,7 +26,7 @@ KEY_PHRASES = {
     ('обнови', 'обнови страницу', 'перезагрузи страницу'): ('f5',),
     ('назад', 'вернись назад', 'страница назад'): ('alt', 'left'),
     ('вперёд', 'вперед', 'страница вперёд'): ('alt', 'right'),
-    ('отправь', 'отправить', 'нажми enter', 'нажми ввод', 'нажми энтер', 'энтер'): ('enter',),
+    ('нажми enter', 'нажми ввод', 'нажми энтер', 'энтер'): ('enter',),
     ('сотри слово', 'удали слово', 'удали последнее слово', 'стереть слово'): ('ctrl', 'backspace'),
     ('сотри', 'сотри букву', 'удали букву', 'удали символ'): ('backspace',),
     ('удали выделенное', 'удали выделенный текст', 'удали текст'): ('delete',),
@@ -43,6 +43,10 @@ KEY_PHRASES = {
     ('закрой вкладку в браузере',): ('ctrl', 'w'),
     ('полный экран', 'во весь экран'): ('f11',),
 }
+# «Отправь сообщение» — отправить уже набранный черновик в открытом чате.
+SEND_DRAFT = {'отправь', 'отправить', 'отправь сообщение', 'отправить сообщение', 'отправь это', 'отправляй',
+              'отправь черновик', 'отправь текст', 'отправь его', 'отправь в чат', 'да отправь', 'отсылай', 'отправь пожалуйста'}
+
 _KEY_MAP = {phrase: keys for phrases, keys in KEY_PHRASES.items() for phrase in phrases}
 
 REPEAT_PHRASES = {
@@ -192,6 +196,17 @@ def parse(text):
     request = messengers.parse(raw)
     if request:
         return 'messenger', request
+    if lower in SEND_DRAFT:
+        return 'send_draft', {}
+    request = messengers.parse_voice_channel(raw)
+    if request is not None:
+        return 'discord_voice', request
+    request = messengers.parse_discord_toggle(raw)
+    if request is not None:
+        return 'discord_toggle', request
+    request = messengers.parse_reaction(raw)
+    if request is not None:
+        return 'reaction', request
     request = messengers.parse_discord(raw)
     if request is not None:
         return 'discord_server', request
@@ -251,6 +266,20 @@ class DesktopCommands:
             if action == 'close_tab':
                 return None  # пусть закроет вкладку браузер агента
             return str(exc)
+
+    def close_browser_tab(self, names):
+        """«Закрой YouTube» в обычном браузере: Ctrl+W, если в заголовке активной вкладки есть название сайта."""
+        from .controller import BROWSER_PROCESSES
+        try:
+            title, process = self.desktop.target_title()
+        except Exception:
+            return None
+        title = (title or '').casefold()
+        name = next((n for n in names if n and n.casefold() in title), None)
+        if process not in BROWSER_PROCESSES or not name:
+            return None
+        self.desktop.hotkey('ctrl', 'w')
+        return 'Закрываю вкладку ' + name + '.'
 
     def execute(self, action, args, settings):
         d = self.desktop
@@ -317,6 +346,19 @@ class DesktopCommands:
             self.chat = dict(args)
             title = messengers.PROFILES[args['app']]['title']
             return f"Открываю чат «{args['who']}» в {title}. Теперь «напиши …» пишет в этот чат."
+        if action == 'send_draft':
+            from .controller import MESSENGER_PROCESSES
+            process = d.target_process()
+            if process not in MESSENGER_PROCESSES and self.chat and d.activate_process({messengers.PROFILES[self.chat['app']]['process']}):
+                time.sleep(0.2)  # черновик остался в последнем открытом чате
+            d.hotkey('enter')
+            return 'Отправил сообщение.'
+        if action == 'discord_voice':
+            return messengers.join_voice_channel(d, args['channel'], settings)
+        if action == 'discord_toggle':
+            return messengers.discord_toggle(d, args['what'])
+        if action == 'reaction':
+            return messengers.react(d, args, self.chat)
         if action == 'discord_server':
             if not args['server']:
                 return 'Скажите, на какой сервер Discord зайти.'

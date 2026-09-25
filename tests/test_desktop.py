@@ -40,7 +40,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(parse('нажми ctrl+shift+t')[1]['keys'], ('ctrl', 'shift', 't'))
         self.assertEqual(parse('нажми контрол си')[1]['keys'], ('ctrl', 'c'))
         self.assertEqual(parse('нажми вниз 3 раза')[1], {'keys': ('down',), 'times': 3})
-        self.assertEqual(parse('Отправь')[1]['keys'], ('enter',))
+        self.assertEqual(parse('Отправь'), ('send_draft', {}))
         self.assertEqual(parse('громче')[1]['times'], 5)
 
     def test_windows_and_selection(self):

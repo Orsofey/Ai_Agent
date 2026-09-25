@@ -43,6 +43,8 @@ class FakePlayer:
         return self.token
     def say(self, text, settings, token=None):
         self.said.append(text)
+    def acknowledge(self, text, settings):
+        self.said.append(text)
 
 
 def assistant(*texts, settings=None, dictation=False):

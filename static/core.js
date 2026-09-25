@@ -16,7 +16,7 @@
   if (fragment.has('token')) {
     store.set('agent_token', fragment.get('token'));
     // На iPhone ссылка с кодом остаётся в адресе, чтобы «На экран Домой» открывал уже подключённое приложение.
-    if (!(iOS && !standalone)) history.replaceState(null, '', location.pathname);
+    if (!(iOS && !standalone)) history.replaceState(null, '', location.pathname + location.search);
     else document.querySelectorAll('link[rel=manifest]').forEach(link => link.remove());
   }
   Agent.token = store.get('agent_token', '');
@@ -116,7 +116,7 @@
 
   Agent.openSettings = async (section = '') => {
     try {
-      const result = await Agent.post('ui/open-settings');
+      const result = await Agent.post('ui/open-settings', { section });
       if (result.opened) return;
     } catch (e) { /* браузер — откроем вкладкой */ }
     window.open('/settings' + (section ? '?section=' + section : '') + '#token=' + encodeURIComponent(Agent.token),

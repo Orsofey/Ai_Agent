@@ -66,6 +66,9 @@ def default_browser(url, agent=None):
     return 'Не удалось открыть браузер.'
 
 
+MUSIC_SERVICES = {'яндекс музыку', 'яндекс музыка', 'spotify', 'спотифай', 'вк музыку', 'вк музыка'}
+
+
 def handle(agent, command, settings):
     text = re.sub(r'\s+', ' ', str(command)).strip().rstrip('.,!?…')
     lower = text.casefold()
@@ -111,5 +114,11 @@ def handle(agent, command, settings):
         # YouTube и Rutube открываются в браузере агента: им можно управлять голосом
         # («открой первое видео», «пауза», «следующее видео»).
         if name in web_services.WEB_SERVICES and name not in ('telegram', 'телеграм', 'youtube', 'ютуб', 'rutube', 'рутуб'):
+            info = web_services.WEB_SERVICES[name]
+            if name in MUSIC_SERVICES and getattr(agent, 'browser', None) is not None:
+                # Музыка открывается в браузере агента: «Включи …» и «Запусти плеер» управляют ею голосом.
+                agent.browser.call('open', info['url'])
+                title = {'Яндекс Музыка': 'Яндекс Музыку', 'VK Музыка': 'VK Музыку'}.get(info['title'], info['title'])
+                return f"Открываю {title}. Скажите «Включи …» — и я найду и включу песню."
             return web_services.open_service(name, agent)
     return None

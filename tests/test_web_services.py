@@ -17,10 +17,10 @@ class WebServiceTests(unittest.TestCase):
         self.agent = Mock()
         self.agent.browser = self.browser
 
-    # --- Открытие сервиса всегда в браузере ---
+    # --- Музыка открывается в браузере агента: ею можно управлять голосом ---
     def test_music_opens_in_browser(self):
         answer = handle(self.agent, 'Открой яндекс музыку', {})
-        self.assertIn('браузере', answer)
+        self.assertIn('Яндекс Музыку', answer)
         self.browser.call.assert_called_once_with('open', 'https://music.yandex.ru')
 
     def test_spotify_opens_in_browser(self):
@@ -53,12 +53,11 @@ class WebServiceTests(unittest.TestCase):
             handle(self.agent, 'Открой Яндекс Музыку', {})
         self.browser.call.assert_called_once_with('open', 'https://music.yandex.ru')
 
-    def test_windows_opens_default_browser_first(self):
+    def test_music_uses_agent_browser_not_system(self):
         with patch.object(web_services, 'system_open', return_value=True) as system:
-            answer = handle(self.agent, 'Открой спотифай', {})
-        system.assert_called_once_with('https://open.spotify.com')
-        self.assertIn('браузере', answer)
-        self.browser.call.assert_not_called()
+            handle(self.agent, 'Открой спотифай', {})
+        system.assert_not_called()
+        self.browser.call.assert_called_once_with('open', 'https://open.spotify.com')
 
     # --- Вспомогательные функции ---
     def test_open_service_unknown_returns_none(self):
