@@ -113,7 +113,7 @@ class ExecuteTests(unittest.TestCase):
     def test_unavailable_on_other_os_is_explained(self):
         from src.desktop import DesktopController
         commands = DesktopCommands(DesktopController())
-        with patch('src.desktop.winapi.IS_WINDOWS', False):
+        with patch('src.desktop.winapi.IS_WINDOWS', False), patch('src.desktop.winapi.IS_MAC', False):
             self.assertIn('Windows', commands.handle('Напиши текст привет', {}))
 
     def test_agent_routes_desktop_first(self):

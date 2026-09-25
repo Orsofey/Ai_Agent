@@ -15,9 +15,6 @@ done
 iconutil -c icns build/icon.iconset -o build/icon.icns
 .venv/bin/python -m PyInstaller --noconfirm --clean LocalAIAgent.spec
 BUNDLE_TARGET="dist/Андрей.app/Contents/Resources/models" .venv/bin/python scripts/bundle_model.py
-# Подпись: без Apple Developer ID — ad-hoc (при первом запуске: правый клик → «Открыть»).
-codesign --force --deep --sign "${MAC_SIGN_IDENTITY:--}" "dist/Андрей.app"
-rm -f dist/Andrey.dmg
-hdiutil create -volname "Андрей" -srcfolder "dist/Андрей.app" -ov -format UDZO dist/Andrey.dmg
-echo "Готово: dist/Andrey.dmg (перетащите «Андрей» в «Программы»)."
-echo "Для раздачи без предупреждений подпишите Developer ID и нотарифицируйте: xcrun notarytool submit dist/Andrey.dmg …"
+# Подпись (ad-hoc или Developer ID) и образ диска со ссылкой на «Программы».
+packaging/macos/package.sh
+echo "Готово: dist/Andrey.dmg — отправьте другу. Инструкция: docs/MAC_FOR_FRIEND.md"

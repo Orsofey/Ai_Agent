@@ -175,6 +175,18 @@ test_llama_mac_asset (test_macos.MacSystemTests.test_llama_mac_asset) ... ok
 test_llama_tar_install_sets_exec_bit (test_macos.MacSystemTests.test_llama_tar_install_sets_exec_bit) ... ok
 test_import_and_no_duplicate (test_migration.MigrationTests.test_import_and_no_duplicate) ... ok
 test_legacy_password (test_migration.MigrationTests.test_legacy_password) ... ok
+test_discord_opens_closed_app_and_asks_for_server (test_requests_v52.CommandTests.test_discord_opens_closed_app_and_asks_for_server) ... ok
+test_discord_parse (test_requests_v52.CommandTests.test_discord_parse) ... ok
+test_fuzzy_alias (test_requests_v52.CommandTests.test_fuzzy_alias) ... ok
+test_select_text (test_requests_v52.CommandTests.test_select_text) ... ok
+test_telegram_misrecognized_forms (test_requests_v52.CommandTests.test_telegram_misrecognized_forms) ... ok
+test_find_by_sound (test_requests_v52.StartMenuTests.test_find_by_sound) ... ok
+test_unity_alias (test_requests_v52.StartMenuTests.test_unity_alias) ... ok
+test_stop_all_cancels_queued_commands_and_dictation (test_requests_v52.StopAllTests.test_stop_all_cancels_queued_commands_and_dictation) ... ok
+test_typed_stop_bypasses_busy_lock (test_requests_v52.StopAllTests.test_typed_stop_bypasses_busy_lock) ... ok
+test_typing_is_interrupted (test_requests_v52.StopAllTests.test_typing_is_interrupted) ... ok
+test_voice_stop_all_speaks (test_requests_v52.StopAllTests.test_voice_stop_all_speaks) ... ok
+test_kinds (test_requests_v52.StopPhraseTests.test_kinds) ... ok
 test_amount_mismatch_rejected (test_subscription.SubscriptionTests.test_amount_mismatch_rejected) ... ok
 test_expired_month_locks_again (test_subscription.SubscriptionTests.test_expired_month_locks_again) ... ok
 test_forged_license_rejected (test_subscription.SubscriptionTests.test_forged_license_rejected) ... ok
@@ -241,6 +253,6 @@ test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_
 test_windows_opens_default_browser_first (test_web_services.WebServiceTests.test_windows_opens_default_browser_first) ... ok
 
 ----------------------------------------------------------------------
-Ran 241 tests in 5.010s
+Ran 253 tests in 5.338s
 
 OK

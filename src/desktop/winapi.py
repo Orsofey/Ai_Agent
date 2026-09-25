@@ -106,6 +106,8 @@ def _key_input(vk=0, scan=0, flags=0):
 def _send(items):
     if not items:
         return
+    from .. import abort
+    abort.check()  # «Андрей, стоп» прерывает печать и макросы
     array = (INPUT * len(items))(*items)
     sent = user32.SendInput(len(items), array, ctypes.sizeof(INPUT))
     if sent != len(items):

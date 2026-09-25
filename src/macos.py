@@ -17,7 +17,7 @@ MAC_APPS = {
     'spotify': 'Spotify', 'steam': 'Steam', 'minecraft': 'Minecraft', 'code': 'Visual Studio Code',
     'cmd': 'Terminal', 'wt': 'Terminal', 'powershell': 'Terminal', 'терминал': 'Terminal',
     'app store': 'App Store', 'facetime': 'FaceTime', 'сообщения': 'Messages', 'messages': 'Messages',
-    'зум': 'zoom.us', 'zoom': 'zoom.us',
+    'зум': 'zoom.us', 'zoom': 'zoom.us', 'unity hub': 'Unity Hub', 'юнити': 'Unity Hub',
 }
 PROTECTED = {'finder', 'dock', 'loginwindow', 'systemuiserver', 'windowserver', 'andrey', 'local ai agent'}
 

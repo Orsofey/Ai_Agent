@@ -72,6 +72,20 @@ def build_channel_order():
     return order
 
 
+def install_chromium():
+    """Скачать встроенный Chromium Playwright (≈150 МБ) — работает и в собранном приложении."""
+    import subprocess
+    try:
+        from playwright._impl._driver import compute_driver_executable, get_driver_env
+        driver = compute_driver_executable()
+        command = list(driver) if isinstance(driver, (tuple, list)) else [str(driver)]
+        flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        return subprocess.run(command + ['install', 'chromium'], env=get_driver_env(), timeout=600,
+                              capture_output=True, creationflags=flags).returncode == 0
+    except Exception:
+        return False
+
+
 class BrowserController:
     def __init__(self, root):
         self.root = root
@@ -155,6 +169,17 @@ class BrowserController:
                 return
             except Exception as exc:
                 errors.append((channel or 'chromium')+': '+str(exc)[:80])
+                if channel is None and 'playwright install' in str(exc) and install_chromium():
+                    # Первый запуск на компьютере без Chrome/Edge: встроенный Chromium скачан — пробуем снова.
+                    try:
+                        self.context = self.pw.chromium.launch_persistent_context(**options)
+                        self.context.set_default_timeout(8000)
+                        self.context.set_default_navigation_timeout(25000)
+                        self.context.on('close', self._closed)
+                        self.channel = None
+                        return
+                    except Exception as retry:
+                        errors.append('chromium: ' + str(retry)[:80])
         self.pw.stop()
         self.pw = None
         raise RuntimeError('Браузер не запустился. Установите Яндекс.Браузер, Chrome или Edge, '

@@ -10,7 +10,8 @@ from .winapi import DesktopUnavailable
 
 # Фраза → сочетание клавиш.
 KEY_PHRASES = {
-    ('выдели всё', 'выдели все', 'выдели весь текст', 'выделить всё', 'выбери всё'): ('ctrl', 'a'),
+    ('выдели всё', 'выдели все', 'выдели весь текст', 'выделить всё', 'выбери всё', 'выдели текст', 'выделить текст',
+     'выдели весь', 'выдели это', 'выдели', 'выдели все текст', 'выделить весь текст', 'выделить все'): ('ctrl', 'a'),
     ('скопируй', 'скопируй текст', 'скопируй выделенное', 'копировать'): ('ctrl', 'c'),
     ('вставь', 'вставь текст', 'вставить'): ('ctrl', 'v'),
     ('вырежи', 'вырежи текст', 'вырезать'): ('ctrl', 'x'),
@@ -191,6 +192,9 @@ def parse(text):
     request = messengers.parse(raw)
     if request:
         return 'messenger', request
+    request = messengers.parse_discord(raw)
+    if request is not None:
+        return 'discord_server', request
     request = messengers.parse_open(raw)
     if request:
         return 'open_chat', request
@@ -313,6 +317,13 @@ class DesktopCommands:
             self.chat = dict(args)
             title = messengers.PROFILES[args['app']]['title']
             return f"Открываю чат «{args['who']}» в {title}. Теперь «напиши …» пишет в этот чат."
+        if action == 'discord_server':
+            if not args['server']:
+                return 'Скажите, на какой сервер Discord зайти.'
+            result = messengers.open_discord_server(d, args['server'], settings, self.root)
+            if result.startswith('Захожу'):
+                self.chat = dict(app='discord', who=args['server'])
+            return result
         if action == 'chat_type':
             app = (self.chat or {}).get('app', 'telegram')
             return messengers.type_in_chat(d, app, tidy_typed(args['text']), args['send'], self.root)

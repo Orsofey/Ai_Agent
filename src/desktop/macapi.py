@@ -39,6 +39,8 @@ def _quartz():
 
 
 def _post(event):
+    from .. import abort
+    abort.check()  # «Андрей, стоп» прерывает печать и макросы
     Q = _quartz()
     Q.CGEventPost(Q.kCGHIDEventTap, event)
 
