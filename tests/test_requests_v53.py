@@ -250,7 +250,9 @@ class MusicTests(unittest.TestCase):
         browser.call.side_effect = lambda method, *args: {'url': 'https://music.yandex.ru/home',
                                                           'music': 'Включаю «Кино» в Яндекс Музыке.'}.get(method)
         agent = LocalComputerAgent(browser)
-        answer = agent.process_command('Андрей, включи Кино', {})
+        # На реальном ПК в меню «Пуск» есть «Кино и ТВ» — это не должно перехватить песню.
+        with patch('src.start_menu.shortcuts', return_value=[('Кино и ТВ', 'C:/menu/Кино и ТВ.lnk')]):
+            answer = agent.process_command('Андрей, включи Кино', {})
         browser.call.assert_called_with('music', 'Кино', None)
         self.assertIn('Кино', answer)
 

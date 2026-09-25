@@ -181,8 +181,11 @@ class LocalComputerAgent:
         if request and request[0] == 'play':
             name = normalize(request[1])
             from . import sites, start_menu
-            if name in RU_TO_EN or sites.find(name) or start_menu.find(name):
-                return None  # «Включи Telegram» — это программа, а не песня
+            # «Включи Telegram» — программа, а не песня. Для меню «Пуск» нужно точное совпадение названия:
+            # иначе группа «Кино» открыла бы приложение «Кино и ТВ».
+            if name in RU_TO_EN or name in {v.casefold() for v in RU_TO_EN.values()} or sites.find(name, threshold=0.92) \
+                    or start_menu.exact(name):
+                return None
         return request
 
     def _media_key(self):
