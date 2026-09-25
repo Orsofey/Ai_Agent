@@ -1,214 +1,94 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="aurora">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Local AI Agent</title>
-
-<!-- PWA -->
-<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-<meta name="theme-color" content="#4f73df">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="AI Agent">
-<link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-
-<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
+<script>
+  // Тема до отрисовки — без вспышки.
+  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'aurora';
+        document.documentElement.dataset.animations = localStorage.getItem('agent_animations') || 'on'; } catch (e) {}
+</script>
+<link rel="icon" href="/static/icon-192.png">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="stylesheet" href="/static/style.css?v={{ version }}">
+<link rel="stylesheet" href="/static/themes.css?v={{ version }}">
+<link rel="stylesheet" href="/static/motion.css?v={{ version }}">
 </head>
 <body>
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><span class="brand-mark small">AI</span><strong>Local Agent</strong></div>
-    <div class="user-card"><span class="avatar">👤</span><div><b>{{ username }}</b><small>{% if guest %}Гостевой режим{% else %}Локальный аккаунт{% endif %}</small></div></div>
-    <nav>
-        <button class="nav-item active" data-page="chat">💬 <span>Чат</span></button>
-        <button class="nav-item" data-page="apps">🧩 <span>Приложения</span></button>
-        <button class="nav-item" data-page="history">📋 <span>История</span></button>
-        <button class="nav-item" data-page="settings">⚙️ <span>Настройки</span></button>
-        <button class="nav-item" data-page="help">❓ <span>Инструкции</span></button>
-    </nav>
-    <button id="logout-btn" class="btn btn-danger logout" type="button">Выйти</button>
-</aside>
-<main class="main-content">
-    <button id="mobile-menu" class="mobile-menu" type="button">☰</button>
+<div class="scene" aria-hidden="true"></div>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/icon-192.png" alt="">
+      <div><div class="brand-name"><span id="agent-name">Андрей</span></div><small>Голосовой ассистент · работает в любом приложении</small></div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill warn" id="download-pill" hidden title="Установка моделей"><span class="dot"></span><span id="download-status"></span></span>
+    <span class="pill" id="engine-pill" title="Распознавание речи"><span class="dot"></span><span id="engine">Загрузка…</span></span>
+    <span class="pill" id="ai-pill" title="Ответы на вопросы"><span class="dot"></span><span id="ai-status">ИИ</span></span>
+    <button class="btn ghost icon-btn" id="open-settings" title="Настройки" aria-label="Настройки">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
 
-    <!-- ЧАТ -->
-    <section class="page active" id="page-chat">
-        <header class="page-header">
-            <div>
-                <h1>Чат и голосовое управление</h1>
-                <p>Введите команду текстом или нажмите 🎤. Для режима «{{ 'Орсофей' }}» нажмите кнопку ниже — агент будет слушать непрерывно.</p>
-            </div>
-            <button id="clear-chat-btn" class="btn btn-secondary" type="button">Очистить</button>
-        </header>
-        <div class="chat-container">
-            <div id="chat-messages" class="chat-messages">
-                <div class="welcome-message">
-                    <h2>Здравствуйте, {{ username }}!</h2>
-                    <p>Попробуйте: «Открой ютуб и запусти песню AC/DC», «Найди фильм Интерстеллар», «Открой калькулятор».</p>
-                </div>
-            </div>
-            <div class="chat-input-container">
-                <textarea id="chat-input" rows="3" placeholder="Введите команду или нажмите микрофон…" aria-label="Поле команды"></textarea>
-                <button id="voice-chat-btn" class="icon-btn" type="button" title="Голосовой ввод" aria-label="Голосовой ввод">🎤</button>
-                <button id="send-btn" class="btn btn-primary send-btn" type="button">Отправить</button>
-            </div>
-            <div class="wake-bar">
-                <button id="wake-btn" class="btn btn-wake" type="button" title="Включить постоянное прослушивание">🎙 Орсофей: выкл</button>
-                <p class="wake-hint">Нажмите кнопку и скажите: <b>«Орсофей, открой ютуб и запусти песню AC/DC»</b>. Слушает непрерывно, пока окно открыто.</p>
-            </div>
-        </div>
-        <div class="quick-commands">
-            <b>Быстрые команды:</b>
-            <div class="quick-command-list">
-                <button class="quick-command" data-command="Помощь" type="button">Помощь</button>
-                <button class="quick-command" data-command="Открой ютуб и запусти песню AC/DC" type="button">Ютуб: AC/DC</button>
-                <button class="quick-command" data-command="Найди фильм Интерстеллар" type="button">Фильм: Интерстеллар</button>
-                <button class="quick-command" data-command="Открой проводник" type="button">Проводник</button>
-                <button class="quick-command" data-command="Информация о системе" type="button">Система</button>
-            </div>
-        </div>
-        <div id="voice-status" class="voice-inline-status" aria-live="polite"></div>
+  <main class="stage">
+    <section class="card voice-panel" id="voice-panel" data-state="off" aria-label="Голос">
+      <div class="orb-wrap">
+        <div class="orb-ring"></div><div class="orb-ring r2"></div>
+        <button class="orb" id="orb" title="Сказать команду" aria-label="Сказать команду"></button>
+      </div>
+      <div class="voice-title" id="voice-title">Скажите «Андрей»</div>
+      <div class="voice-hint" id="voice-hint">и команду — я выполню её в любом открытом приложении.</div>
+      <div class="heard" id="heard" aria-live="polite"></div>
+      <div class="voice-actions">
+        <button class="btn" id="listen-toggle">Слушать: вкл</button>
+        <button class="btn" id="stop-speaking" hidden>Замолчать</button>
+      </div>
+      <div class="hint">Без имени: <span class="kbd" id="hotkey-label">Ctrl+Alt+Space</span> или клик по сфере</div>
     </section>
 
-    <!-- ПРИЛОЖЕНИЯ -->
-    <section class="page" id="page-apps">
-        <header class="page-header">
-            <div>
-                <h1>Приложения на компьютере</h1>
-                <p>Каталог строится по ярлыкам меню «Пуск», EXE в PATH и стандартным каталогам. Нажмите кнопку, чтобы открыть программу.</p>
-            </div>
-            <button id="refresh-apps-btn" class="btn btn-secondary" type="button">Обновить каталог</button>
-        </header>
-        <div class="apps-toolbar"><input id="apps-filter" placeholder="Поиск приложения…"><span id="apps-count" class="muted"></span></div>
-        <div id="apps-grid" class="apps-grid"><p class="muted">Сканирование меню Пуск…</p></div>
-    </section>
-
-    <!-- ИСТОРИЯ -->
-    <section class="page" id="page-history">
-        <header class="page-header">
-            <div><h1>История команд</h1><p>История текущего аккаунта или гостевой сессии.</p></div>
-            <button id="refresh-history-btn" class="btn btn-secondary" type="button">Обновить</button>
-        </header>
-        <div id="history-container" class="panel"><p class="muted">Загрузка…</p></div>
-    </section>
-
-    <!-- НАСТРОЙКИ -->
-    <section class="page" id="page-settings">
-        <header class="page-header">
-            <div>
-                <h1>Настройки</h1>
-                <p>Все данные сохраняются локально на вашем компьютере в %LOCALAPPDATA%\LocalAIAgent\data</p>
-            </div>
-        </header>
-        <div class="panel settings-panel">
-            <label class="check-row"><input id="setting-voice-enabled" type="checkbox"> Включить голосовой ввод</label>
-            <label>Язык голоса
-                <select id="setting-voice-language">
-                    <option value="ru-RU">Русский</option>
-                    <option value="en-US">English</option>
-                </select>
-            </label>
-            <label>Имя Агента (wake word)
-                <input id="setting-wake-word" type="text" placeholder="Орсофей, Андрей, Алиса..." value="Орсофей" maxlength="30">
-            </label>
-            <label>Микрофон
-                <select id="setting-microphone"><option value="">По умолчанию</option></select>
-            </label>
-            <label>Тема
-                <select id="setting-theme">
-                    <option value="light">☀️ Светлая</option>
-                    <option value="dark">🌙 Тёмная</option>
-                    <option value="ocean">🌊 Ocean (Голубая)</option>
-                    <option value="forest">🌲 Forest (Зелёная)</option>
-                    <option value="sunset">🌅 Sunset (Закат)</option>
-                    <option value="cyberpunk">🎮 Cyberpunk (Неон)</option>
-                    <option value="minimal">⚪ Minimal (Минимал)</option>
-                </select>
-            </label>
-            <label class="check-row"><input id="setting-notifications" type="checkbox"> Показывать уведомления</label>
-            <label class="check-row"><input id="setting-autostart" type="checkbox"> Запускать с включением компьютера</label>
-            <button id="save-settings-btn" class="btn btn-primary" type="button">Сохранить</button>
-            <div id="settings-message" class="form-message"></div>
+    <section class="card chat-panel" aria-label="Диалог">
+      <div class="chat-head">
+        <h2>Диалог</h2><div class="spacer"></div>
+        <button class="btn ghost" id="clear">Очистить</button>
+      </div>
+      <div class="messages" id="messages" aria-live="polite"></div>
+      <div>
+        <div class="chips" id="chips">
+          <button class="chip" data-command="Какой курс доллара?">Курс доллара</button>
+          <button class="chip" data-command="Какая погода завтра?">Погода завтра</button>
+          <button class="chip" data-command="Сколько белка нужно в день человеку весом 70 кг?">Белок в день</button>
+          <button class="chip" data-command="Куда лучше вложить 100 тысяч рублей на год?">Куда вложить 100 тысяч</button>
+          <button class="chip" data-command="Сколько будет 15% от 2000?">15% от 2000</button>
+          <button class="chip" data-command="Открой калькулятор">Калькулятор</button>
+          <button class="chip" data-command="Помощь">Все команды</button>
         </div>
-
-        <div class="panel settings-panel" style="margin-top:20px">
-            <h2 style="margin-top:0">📱 Подключить телефон</h2>
-            <p class="muted">Запустите агент на ПК, подключите телефон к той же Wi-Fi сети и откройте адрес ниже. Затем «Установить приложение» в меню браузера.</p>
-            <div class="notice" style="font-size:16px">
-                <b>Адрес для телефона:</b><br>
-                <code id="phone-url">http://{{ server_ip }}:{{ server_port }}</code>
-            </div>
-            <button id="copy-phone-url" class="btn btn-secondary" type="button" style="width:max-content">Скопировать адрес</button>
-            <div id="phone-url-message" class="form-message"></div>
+        <div class="composer">
+          <textarea id="chat-input" rows="1" placeholder="Спросите что угодно или дайте команду…"></textarea>
+          <button class="btn icon-btn mic" id="mic" title="Сказать голосом" aria-label="Сказать голосом">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <button class="btn primary" id="send">Отправить</button>
         </div>
+      </div>
     </section>
+  </main>
+</div>
 
-    <!-- ИНСТРУКЦИИ -->
-    <section class="page" id="page-help">
-        <header class="page-header">
-            <div><h1>Инструкции</h1><p>Полное руководство по всем командам и функциям агента.</p></div>
-        </header>
-        <div class="panel help-panel">
-            <h2>🎤 Голосовое управление</h2>
-            <ul>
-                <li><b>Кнопка 🎤</b> — обычный режим: нажмите, скажите команду. Отправится автоматически.</li>
-                <li><b>Кнопка 🎙 (режим имени)</b> — постоянное прослушивание. Скажите «<b>имя, команда</b>».</li>
-                <li>Пример: «Орсофей, открой ютуб и запусти песню AC/DC».</li>
-                <li>Имя меняется в Настройках → «Имя Агента».</li>
-            </ul>
-            <h2>🔍 Поиск и видео (YouTube)</h2>
-            <ul>
-                <li>«Открой ютуб и запусти видео про космос» — откроет результаты поиска.</li>
-                <li>«Открой ютуб и запусти песню AC/DC» — найдёт и откроет.</li>
-                <li>«Открой ютуб» — просто откроет YouTube.</li>
-            </ul>
-            <h2>🎬 Фильмы на сторонних сайтах</h2>
-            <ul>
-                <li>«Найди фильм Интерстеллар» — поиск по киносайтам.</li>
-                <li>«Где посмотреть фильм Матрица» — выдаст несколько сайтов.</li>
-                <li>«Найди фильм Дюна на HDrezka» — поиск на конкретном сайте.</li>
-            </ul>
-            <h2>📁 Приложения и система</h2>
-            <ul>
-                <li>«Открой проводник» / «Запусти блокнот» / «Включи хром».</li>
-                <li>«Открой калькулятор» / «Открой календарь» — системные приложения.</li>
-                <li>«Информация о системе» — ЦПУ, память, диск.</li>
-                <li>«Меню Пуск» / «Параметры».</li>
-                <li>«Нажми Ctrl+L» — эмуляция клавиш.</li>
-            </ul>
-            <h2>🔤 Формы команд</h2>
-            <ul>
-                <li><b>«Открой», «Открыть», «Запусти», «Запустить», «Включи», «Включить»</b> — равнозначны для приложений.</li>
-            </ul>
-            <h2>📱 Установка на телефон (Android / iPhone)</h2>
-            <ul>
-                <li>Запустите агент на ПК. В консоли будет адрес вида <code>http://192.168.1.5:5000</code>.</li>
-                <li>Подключите телефон к той же Wi-Fi сети.</li>
-                <li>Откройте этот адрес в браузере телефона.</li>
-                <li>Android (Chrome): меню ⋮ → <b>«Установить приложение»</b>.</li>
-                <li>iPhone (Safari): «Поделиться» → <b>«На экран "Домой"</b>».</li>
-                <li>Телефон становится пультом: голосовой ввод с микрофона телефона, команды выполняет ПК.</li>
-            </ul>
-            <h2>⚙️ Настройки</h2>
-            <ul>
-                <li><b>Имя Агента</b> — слово активации (Орсофей, Андрей, Алиса…).</li>
-                <li><b>Микрофон</b> — выбор устройства из системы.</li>
-                <li><b>Тема</b> — 7 оформлений.</li>
-                <li><b>Автозапуск</b> — запуск агента при включении ПК.</li>
-            </ul>
-        </div>
-    </section>
-</main>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-<script>
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/service-worker.js').catch(function () {});
-    });
-}
-</script>
+<div class="pairing" id="pair" hidden>
+  <div class="card">
+    <h2>Подключение к агенту</h2>
+    <p class="hint">Введите код подключения из окна настроек на ПК (раздел «Телефон»).</p>
+    <input id="token" type="password" placeholder="Код подключения" autocomplete="off">
+    <button class="btn primary" id="pair-btn">Подключиться</button>
+  </div>
+</div>
+
+<script src="/static/motion.js?v={{ version }}"></script>
+<script src="/static/core.js?v={{ version }}"></script>
+<script src="/static/voice-output.js?v={{ version }}"></script>
+<script src="/static/speech.js?v={{ version }}"></script>
+<script src="/static/app.js?v={{ version }}"></script>
 </body>
 </html>

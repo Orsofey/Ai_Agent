@@ -181,6 +181,6 @@ test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_
 test_windows_opens_default_browser_first (test_web_services.WebServiceTests.test_windows_opens_default_browser_first) ... ok
 
 ----------------------------------------------------------------------
-Ran 181 tests in 3.548s
+Ran 181 tests in 8.166s
 
 OK

@@ -1,6 +1,0 @@
-# Настройки проекта Android (Flutter)
-# Этот файл — заглушка. Реальные android/ файлы генерируются командой:
-#   flutter create --org com.localaiagent --project-name local_ai_agent .
-#
-# После генерации замените android/app/src/main/AndroidManifest.xml
-# на тот, что лежит в этом архиве (он уже подготовлен).
