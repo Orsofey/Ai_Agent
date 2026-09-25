@@ -76,3 +76,9 @@ def find(spoken, roots=None, threshold=0.78):
         if value >= threshold and key > best_key:
             best, best_key = path, key
     return best
+
+
+def exact(spoken, roots=None):
+    """Ярлык, название которого звучит в точности как сказанное («телеграм» = Telegram), или None."""
+    key = phonetic(spoken)
+    return next((path for name, path in shortcuts(roots) if key and phonetic(name) == key), None)
