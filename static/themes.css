@@ -193,3 +193,11 @@
 .theme-card[data-theme="cyberpunk"] > .scene::after { background-size: 24px 24px; height: 50%; }
 .theme-card[data-theme="sakura"] > .scene::before { width: 220px; height: 150px; right: -50px; top: -40px; opacity: .45; }
 .theme-card[data-theme="aurora"] > .scene::before { filter: blur(18px); }
+
+/* Пауза в стиле каждой темы. */
+[data-theme="aurora"] .pause-btn { border-radius: 999px; }
+[data-theme="cyberpunk"] .pause-btn { border-radius: 2px; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  text-transform: uppercase; letter-spacing: 1px; }
+[data-theme="sakura"] .pause-btn { border-radius: 999px 999px 999px 6px; }
+[data-theme="ocean"] .pause-btn { border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%; }
+[data-theme="luxe"] .pause-btn { border-radius: 4px; outline: 1px solid var(--accent); outline-offset: 3px; text-transform: uppercase; letter-spacing: 2px; }

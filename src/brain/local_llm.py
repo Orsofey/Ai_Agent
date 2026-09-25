@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from ..paths import app_base
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def runtime_dir(root, gpu=False):
 
 
 def _bundled(*parts):
-    base = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2]
+    base = app_base()
     return base.joinpath('models', *parts)
 
 
@@ -160,7 +161,7 @@ class LocalLLMServer:
             installed = [k for k in LOCAL_MODELS if find_model(self.root, k)]
             if not installed:
                 raise RuntimeError('Локальная нейросеть не установлена. Откройте Настройки → ИИ → «Скачать нейросеть» '
-                                   'или запустите SETUP_WINDOWS.bat.')
+                                   'или запустите SETUP_WINDOWS.bat (SETUP_MAC.sh на Mac).')
             key, model = installed[0], find_model(self.root, installed[0])
         binary, flavor = find_binary(self.root, gpu)
         if binary is None:
@@ -169,8 +170,8 @@ class LocalLLMServer:
         threads = max(2, min(8, (os.cpu_count() or 4) - 1))
         args = [str(binary), '-m', str(model), '--host', '127.0.0.1', '--port', str(self.port),
                 '-c', '4096', '-t', str(threads), '--jinja']
-        if gpu and flavor in ('vulkan', 'system'):
-            args += ['-ngl', '99']
+        if (gpu and flavor in ('vulkan', 'system')) or sys.platform == 'darwin':
+            args += ['-ngl', '99']  # на Mac — Metal: общая память, видеокарта есть всегда
         logs = self.root / 'logs'
         logs.mkdir(parents=True, exist_ok=True)
         self._close_log()

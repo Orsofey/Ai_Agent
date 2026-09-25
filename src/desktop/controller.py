@@ -31,7 +31,7 @@ class WindowTracker:
         self._thread = None
 
     def start(self):
-        if not winapi.IS_WINDOWS or self._thread:
+        if not winapi.supported() or self._thread:
             return
         self._thread = threading.Thread(target=self._run, daemon=True, name='window-tracker')
         self._thread.start()
@@ -57,7 +57,7 @@ class DesktopController:
 
     @property
     def available(self):
-        return winapi.IS_WINDOWS
+        return winapi.supported()
 
     def start(self):
         self.tracker.start()
@@ -71,7 +71,7 @@ class DesktopController:
             if not external or not winapi.is_window(external):
                 raise DesktopUnavailable('Не знаю, в какое окно действовать. Переключитесь в нужное приложение и повторите команду голосом.')
             if not winapi.focus(external):
-                raise DesktopUnavailable('Windows не дала переключиться в окно. Переключитесь вручную и повторите.')
+                raise DesktopUnavailable('Система не дала переключиться в окно. Переключитесь вручную и повторите.')
             time.sleep(0.12)
             return external
         return hwnd

@@ -19,6 +19,11 @@ ONCE_SECONDS = 8.0      # после горячей клавиши / кнопк�
 STALE_SECONDS = 20.0    # фразы старше не выполняем
 
 
+def _is_stop(command):
+    from ..service import STOP_PHRASES
+    return command.casefold().strip(' .,!?…') in STOP_PHRASES
+
+
 class VoiceAssistant:
     def __init__(self, speech, service, events, settings_provider, owner='device:desktop',
                  player=None, desktop_commands=None, microphone_factory=None):
@@ -88,6 +93,12 @@ class VoiceAssistant:
         self.events.emit('state', state='listening', reason='once')
         if not (self.capture_thread and self.capture_thread.is_alive()):
             self.start()
+
+    def reset(self):
+        """Кнопка «Пауза»: забыть ожидание продолжения и вернуться к прослушиванию имени."""
+        self.once_until = self.armed_until = self.follow_up_until = 0.0
+        if self.state not in ('off', 'error'):
+            self._set_state('idle')
 
     def status(self):
         return dict(state=self.state, error=self.error, device=self.device, vad=self.vad_engine,
@@ -173,14 +184,14 @@ class VoiceAssistant:
             if time.monotonic() - ended > STALE_SECONDS:
                 continue
             try:
-                self.handle_segment(audio, started)
+                self.handle_segment(audio, started, background=True)
             except Exception:
                 log.exception('Voice segment failed')
             finally:
                 if self.state not in ('off', 'error'):
                     self._set_state('idle')
 
-    def handle_segment(self, audio, started=None):
+    def handle_segment(self, audio, started=None, background=False):
         settings = self.settings()
         started = started if started is not None else time.monotonic()
         now = time.monotonic()
@@ -236,6 +247,14 @@ class VoiceAssistant:
             return None
         if not command:
             return None
+        if _is_stop(command):
+            # «Андрей, стоп» — прервать текущую команду и речь немедленно, без очереди.
+            self.service.cancel()
+            self._set_state('idle')
+            return None
+        if background:
+            threading.Thread(target=self._execute, args=(command, settings), daemon=True, name='voice-command').start()
+            return None
         return self._execute(command, settings)
 
     def _execute(self, command, settings):
@@ -247,11 +266,27 @@ class VoiceAssistant:
         except Exception as exc:
             self.events.emit('voice_error', message=str(exc))
             return None
+        cancelled = getattr(self.service, 'cancel_event', None)
+        if isinstance(cancelled, threading.Event) and cancelled.is_set():
+            return answer  # остановлено — не ждём продолжения
+        agent = getattr(self.service, 'agent', None)
+        if agent is not None and getattr(agent, 'awaiting', None) and agent.awaiting(self.owner) is True:
+            # Агент задал вопрос («Что открыть, сэр?») — ответ можно дать без имени.
+            threading.Thread(target=self._arm_answer, daemon=True).start()
+            return answer
         follow = settings.get('follow_up_seconds', 5)
         if follow:
             # Окно продолжения разговора открывается после того, как агент договорит.
             threading.Thread(target=self._arm_follow_up, args=(follow,), daemon=True).start()
         return answer
+
+    def _arm_answer(self, seconds=ARM_SECONDS + 4):
+        deadline = time.monotonic() + 60
+        time.sleep(0.2)
+        while self.player and self.player.is_busy() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        self.armed_until = time.monotonic() + seconds
+        self._set_state('listening', reason='answer')
 
     def _arm_follow_up(self, seconds):
         deadline = time.monotonic() + 120

@@ -21,12 +21,13 @@ from src.local_tts_service import LocalTTSService
 from src.passwords import matches as check_password_hash
 from src.service import AssistantService, Busy
 from src.speech import SpeechService, SpeechError
-from src.storage import Store, SECRET_NAMES
+from src.license import AccountError, LicenseClient
+from src.storage import PremiumRequired, Store, SECRET_NAMES
 
 log = logging.getLogger(__name__)
 
 VOICE_IDS = ('irina', 'denis', 'amy')
-VERSION = '5.0'
+VERSION = '5.1'
 
 
 def local_ip():
@@ -51,7 +52,7 @@ def build_agent(store, events=None):
     return LocalComputerAgent(browser, brain=brain, desktop_commands=commands)
 
 
-def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None):
+def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None):
     root = Path(__file__).resolve().parent
     store = store or Store()
     events = events or EventBus()
@@ -59,13 +60,16 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     agent = agent or build_agent(store, events)
     local_tts = LocalTTSService(store.root)
     service = AssistantService(store, agent, events, player)
+    license = license or LicenseClient(store)
+    store.premium = license.is_premium
     app = Flask(__name__, template_folder=str(root / 'templates'), static_folder=str(root / 'static'))
     app.secret_key = store.meta('session_secret')
     app.config.update(MAX_CONTENT_LENGTH=12 * 1024 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE='Strict', PERMANENT_SESSION_LIFETIME=timedelta(days=365),
                       SEND_FILE_MAX_AGE_DEFAULT=0)
     app.extensions.update(store=store, speech=speech, agent=agent, local_tts=local_tts, events=events,
-                          service=service, player=player, voice=voice, ui=None, on_settings=[])
+                          service=service, player=player, voice=voice, ui=None, on_settings=[],
+                          license=license)
     with store.connect() as db:
         db.execute('CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY, owner TEXT, result TEXT)')
 
@@ -109,6 +113,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             return jsonify(success=False, message=exc.description), exc.code
         if isinstance(exc, SpeechError):
             return jsonify(success=False, message=str(exc)), exc.code
+        if isinstance(exc, PremiumRequired):
+            return jsonify(success=False, message=str(exc), premium_required=True), 402
+        if isinstance(exc, AccountError):
+            return jsonify(success=False, message=str(exc)), exc.code
         if isinstance(exc, Busy):
             return jsonify(success=False, message=str(exc)), 429
         if isinstance(exc, ValueError):
@@ -134,11 +142,11 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def get_settings():
         value = store.settings(owner())
         value['autostart'] = autostart.enabled() if autostart_supported() else value['autostart']
-        return jsonify(success=True, settings=value, secrets=store.secrets_status())
+        return jsonify(success=True, settings=value, secrets=store.secrets_status(), premium=store.is_premium())
 
     def autostart_supported():
         import sys
-        return sys.platform == 'win32'
+        return sys.platform in ('win32', 'darwin')
 
     @app.post('/api/settings')
     def save_settings():
@@ -303,6 +311,14 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         voice.listen_once()
         return jsonify(success=True)
 
+    @app.post('/api/cancel')
+    def cancel():
+        """Кнопка «Пауза»: прервать текущую команду и замолчать."""
+        was_running = service.cancel()
+        if voice is not None and hasattr(voice, 'reset'):
+            voice.reset()
+        return jsonify(success=True, cancelled=was_running)
+
     @app.post('/api/voice/stop-speaking')
     def voice_stop_speaking():
         if player is not None:
@@ -424,6 +440,32 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         return jsonify(success=True, ip=local_ip(), port=request.host.split(':')[-1],
                        storage=str(store.root), token=store.meta('pairing_token'), user=session.get('user'))
 
+    def phone_link(device='iphone'):
+        port = request.host.split(':')[-1]
+        return f"http://{local_ip()}:{port}/#token={store.meta('pairing_token')}&device={device}"
+
+    @app.get('/api/connection/qr')
+    def connection_qr():
+        """QR-код для телефона: камера iPhone/Android открывает уже подключённое приложение."""
+        import io
+        import segno
+        buffer = io.BytesIO()
+        segno.make(phone_link(), error='m').save(buffer, kind='svg', scale=6, border=2, dark='#0b1020', light='#ffffff')
+        return Response(buffer.getvalue(), mimetype='image/svg+xml', headers={'Cache-Control': 'no-store'})
+
+    @app.post('/api/siri')
+    def siri():
+        """Для «Быстрых команд» iPhone: «Привет, Siri, Андрей» → диктовка → ответ читает Siri."""
+        data = request.get_json(silent=True) or {}
+        text = str(data.get('text') or data.get('message') or '').strip()
+        if not 1 <= len(text) <= 2000:
+            raise ValueError('Нужен текст команды')
+        if service.lock.locked():
+            return jsonify(success=False, response='Секунду, выполняю предыдущую команду.'), 429
+        who = 'device:' + re.sub(r'[^\w-]', '', request.headers.get('X-Device-ID', 'siri'))[:80]
+        result, _ = service.run(text, who, store.settings('device:desktop'), source='phone', speak=False)
+        return jsonify(success=True, response=result)
+
     @app.post('/api/register')
     def register():
         data = request.get_json()
@@ -452,5 +494,55 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def logout():
         session.clear()
         return jsonify(success=True)
+
+    # ---------------- аккаунт и подписка ----------------
+    def account_changed(status):
+        # Подписка включилась или закончилась: платные настройки применяются/сбрасываются сразу.
+        settings_changed(store.settings('device:desktop'))
+        events.emit('account', account=status)
+        return status
+
+    def account_reply(action):
+        before = store.is_premium()
+        status = action()
+        if store.is_premium() != before:
+            account_changed(status)
+        return jsonify(success=True, account=status)
+
+    app.extensions['account_changed'] = account_changed
+
+    @app.get('/api/account')
+    def account():
+        return jsonify(success=True, account=license.status())
+
+    @app.post('/api/account/register')
+    def account_register():
+        data = request.get_json() or {}
+        return account_reply(lambda: license.register(str(data.get('email', '')), str(data.get('password', ''))))
+
+    @app.post('/api/account/login')
+    def account_login():
+        data = request.get_json() or {}
+        return account_reply(lambda: license.login(str(data.get('email', '')), str(data.get('password', ''))))
+
+    @app.post('/api/account/logout')
+    def account_logout():
+        return account_reply(license.logout)
+
+    @app.post('/api/account/check')
+    def account_check():
+        return account_reply(license.check_payment)
+
+    @app.post('/api/account/checkout')
+    def account_checkout():
+        data = license.checkout(str((request.get_json() or {}).get('plan', '')))
+        opened = False
+        if is_desktop():
+            from src.web_services import system_open
+            try:
+                opened = bool(system_open(data['url']))
+            except Exception:
+                log.exception('Cannot open payment page')
+        return jsonify(success=True, url=data['url'], opened=opened)
 
     return app

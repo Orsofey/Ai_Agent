@@ -12,9 +12,9 @@
 import hashlib
 import logging
 import os
-import sys
 import threading
 from pathlib import Path
+from .paths import app_base
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def piper_models_dir(root):
 
 def _search_dirs(root):
     dirs = [piper_models_dir(root)]
-    base = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
+    base = app_base()
     dirs.append(base / 'models' / 'piper')
     return dirs
 

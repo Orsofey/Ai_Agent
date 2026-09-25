@@ -5,6 +5,7 @@
 отвечает только на свои фразы, а остальное передаёт дальше по цепочке.
 """
 import os
+import sys
 import re
 import webbrowser
 from urllib.parse import quote
@@ -58,6 +59,8 @@ def default_browser(url, agent=None):
     if os.name == 'nt':
         os.startfile(url)
         return 'Открываю браузер.'
+    if sys.platform == 'darwin' and web_services.system_open(url):
+        return 'Открываю браузер.'
     if webbrowser.open(url):
         return 'Открываю браузер.'
     return 'Не удалось открыть браузер.'
@@ -105,6 +108,8 @@ def handle(agent, command, settings):
     m = re.match(r'^(?:открой|запусти|включи)\s+(.+)$', lower)
     if m:
         name = normalize_service(m[1])
-        if name in web_services.WEB_SERVICES and name not in ('telegram', 'телеграм'):
+        # YouTube и Rutube открываются в браузере агента: им можно управлять голосом
+        # («открой первое видео», «пауза», «следующее видео»).
+        if name in web_services.WEB_SERVICES and name not in ('telegram', 'телеграм', 'youtube', 'ютуб', 'rutube', 'рутуб'):
             return web_services.open_service(name, agent)
     return None

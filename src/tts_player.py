@@ -5,6 +5,8 @@
 после всего текста.
 """
 import logging
+import subprocess
+import sys
 import queue
 import re
 import threading
@@ -167,7 +169,14 @@ class TTSPlayer:
             time.sleep(0.03)
 
     def _system_voice(self, text, rate):
-        """Системный голос Windows (SAPI), если нейросетевые голоса не установлены."""
+        """Системный голос (Windows SAPI, macOS say), если нейросетевые голоса не установлены."""
+        if sys.platform == 'darwin':
+            try:
+                voice = 'Milena' if re.search('[а-яё]', text, re.I) else 'Samantha'
+                subprocess.run(['say', '-v', voice, '-r', str(int(180 * rate)), text], timeout=120)
+            except Exception as exc:
+                log.info('System voice unavailable: %s', exc)
+            return
         try:
             import pyttsx3
             if self._sapi is None:

@@ -233,3 +233,46 @@ select option { background: var(--surface-strong); color: var(--text); }
   .row { grid-template-columns: 1fr; }
   .row .control { justify-content: flex-start; }
 }
+
+/* Кнопка «Пауза»: прерывает текущую команду; цвет и свечение берутся из темы. */
+.pause-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-fill); color: var(--on-accent);
+  border-color: transparent; box-shadow: 0 0 18px var(--glow); animation: pause-pulse 1.6s ease-in-out infinite; }
+.pause-btn[hidden] { display: none; }
+.pause-btn svg { fill: currentColor; stroke: none; }
+.pause-btn:hover { box-shadow: 0 0 0 3px var(--ring), 0 0 24px var(--glow); }
+@keyframes pause-pulse { 50% { box-shadow: 0 0 6px var(--glow); } }
+[data-animations="off"] .pause-btn { animation: none; }
+textarea.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+
+/* Подписка: замки на платных разделах. */
+.lock-badge { display: none; margin-left: auto; color: var(--accent); }
+.lock-badge svg { width: 15px; height: 15px; }
+body.locked .lock-badge { display: inline-flex; }
+.paywall { display: none; align-items: center; gap: 16px; margin-bottom: 16px; padding: 18px 20px;
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--ring), 0 10px 40px -18px var(--glow); }
+.paywall b { display: block; font-size: 16px; }
+.paywall small { color: var(--muted); }
+.paywall-icon { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 0 20px var(--glow); }
+.paywall-icon svg { width: 24px; height: 24px; }
+.paywall-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+body.locked .paywall { display: flex; }
+body.locked .paywall ~ * { pointer-events: none; user-select: none; opacity: .42; filter: saturate(.4); }
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin: 16px 0; }
+.plan { position: relative; padding: 22px; display: flex; flex-direction: column; gap: 10px; }
+.plan.best { border-color: var(--accent); box-shadow: 0 0 0 1px var(--ring), 0 12px 40px -18px var(--glow); }
+.plan-name { font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
+.plan-price { font-size: 34px; font-weight: 700; font-family: var(--font-display); }
+.plan-price small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.plan ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.7; }
+.plan .btn { margin-top: auto; }
+.plan-tag { position: absolute; top: 14px; right: 14px; padding: 3px 10px; border-radius: 999px; font-size: 12px;
+  background: var(--accent-fill); color: var(--on-accent); }
+@media (max-width: 720px) { .paywall { flex-direction: column; align-items: flex-start; } .paywall-actions { margin-left: 0; } }
+
+/* iPhone: вырез экрана и «Домой»-полоска в режиме приложения с экрана «Домой». */
+@supports (padding: env(safe-area-inset-top)) {
+  .app { height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); box-sizing: border-box; }
+}
+.qr { border-radius: 14px; background: #fff; padding: 6px; box-shadow: 0 0 24px var(--glow); }
+.steps { padding-left: 20px; line-height: 1.8; }

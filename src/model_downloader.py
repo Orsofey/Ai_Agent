@@ -3,6 +3,7 @@ import logging
 import re
 import sys
 import os
+import platform
 import shutil
 import threading
 import time
@@ -94,7 +95,11 @@ GITHUB_DOWNLOAD = 'https://github.com/ggml-org/llama.cpp/releases/download/{tag}
 HF_API = 'https://huggingface.co/api/models/{repo}'
 HF_FILE = 'https://huggingface.co/{repo}/resolve/main/{file}'
 RUNTIME_ASSETS = {'cpu': ('bin-win-cpu-x64.zip', 'bin-win-avx2-x64.zip'), 'vulkan': ('bin-win-vulkan-x64.zip',)}
-USER_AGENT = 'LocalAIAgent/5.0 (+https://github.com/Orsofey/Ai_Agent)'
+# macOS: одна сборка с Metal (видеокарта Apple используется автоматически).
+MAC_ARCH = 'arm64' if platform.machine().casefold() in ('arm64', 'aarch64') else 'x64'
+MAC_ASSETS = (f'bin-macos-{MAC_ARCH}.zip', f'bin-macos-{MAC_ARCH}.tar.gz')
+MAC_DOWNLOAD = 'https://github.com/ggml-org/llama.cpp/releases/download/{tag}/llama-{tag}-bin-macos-' + MAC_ARCH + '.zip'
+USER_AGENT = 'LocalAIAgent/5.1 (+https://github.com/Orsofey/Ai_Agent)'
 
 
 class DownloadError(RuntimeError):
@@ -142,9 +147,10 @@ def http_download(url, destination, session=None, progress=None):
     return destination
 
 
-def pick_asset(assets, flavor):
-    """Выбрать архив llama.cpp для Windows из списка файлов релиза."""
-    for suffix in RUNTIME_ASSETS[flavor]:
+def pick_asset(assets, flavor, system=None):
+    """Выбрать архив llama.cpp для этой системы из списка файлов релиза."""
+    suffixes = MAC_ASSETS if (system or sys.platform) == 'darwin' else RUNTIME_ASSETS[flavor]
+    for suffix in suffixes:
         for asset in assets:
             name = asset.get('name', '')
             if name.endswith(suffix) and name.startswith('llama-'):
@@ -175,7 +181,8 @@ def llama_asset_urls(session, flavor):
         # API ограничен (60 запросов в час) — берём номера сборок со страницы релизов.
         page = session.get(GITHUB_RELEASES_PAGE, timeout=20)
         tags = sorted({int(t) for t in re.findall(r'/releases/tag/b(\d+)', getattr(page, 'text', '') or '')}, reverse=True)
-        urls = [GITHUB_DOWNLOAD.format(tag=f'b{t}', flavor=flavor) for t in tags[:5]]
+        pattern = MAC_DOWNLOAD if sys.platform == 'darwin' else GITHUB_DOWNLOAD
+        urls = [pattern.format(tag=f'b{t}', flavor=flavor) for t in tags[:5]]
     if not urls:
         raise DownloadError('не удалось найти сборку llama.cpp на GitHub. Скачайте вручную архив '
                             f'llama-bXXXX-bin-win-{flavor}-x64.zip со страницы {GITHUB_RELEASES_PAGE} '
@@ -189,15 +196,28 @@ def llama_asset_url(session, flavor):
 
 def install_llama_zip(root, archive, flavor='cpu'):
     """Установить llama.cpp из уже скачанного архива."""
+    import tarfile
     import zipfile
     from .brain.local_llm import runtime_dir, BINARY
     target = runtime_dir(root, flavor == 'vulkan')
     target.mkdir(parents=True, exist_ok=True)
     try:
-        with zipfile.ZipFile(archive) as zf:
-            zf.extractall(target)
-    except zipfile.BadZipFile:
+        if tarfile.is_tarfile(archive):
+            with tarfile.open(archive) as tf:
+                try:
+                    tf.extractall(target, filter='data')
+                except TypeError:  # Python без фильтров распаковки
+                    tf.extractall(target)
+        else:
+            with zipfile.ZipFile(archive) as zf:
+                zf.extractall(target)
+    except (zipfile.BadZipFile, tarfile.TarError):
         raise DownloadError('архив llama.cpp повреждён — скачайте ещё раз')
+    if sys.platform != 'win32':
+        # zip не хранит права на запуск: возвращаем их программам и библиотекам.
+        for item in target.rglob('*'):
+            if item.is_file() and (item.name.startswith('llama-') or item.suffix in ('.dylib', '.so')):
+                item.chmod(item.stat().st_mode | 0o755)
     if not next(iter(target.rglob(BINARY)), None):
         raise DownloadError('в архиве нет ' + BINARY + ' — возможно, файл удалил антивирус. '
                             'Добавьте папку ' + str(target) + ' в исключения и повторите')
@@ -210,9 +230,11 @@ def download_llama_runtime(root, flavor='cpu', session=None, progress=None):
     target = runtime_dir(root, flavor == 'vulkan')
     if target.is_dir() and next(iter(target.rglob(BINARY)), None):
         return target
-    if sys.platform != 'win32':
-        raise DownloadError('автоматическая установка llama.cpp — только для Windows; '
+    if sys.platform not in ('win32', 'darwin'):
+        raise DownloadError('автоматическая установка llama.cpp — для Windows и macOS; '
                            'на других системах установите llama-server и добавьте его в PATH')
+    if sys.platform == 'darwin':
+        flavor = 'cpu'  # сборка для Mac уже с Metal
     session = _session(session)
     errors = []
     for url in llama_asset_urls(session, flavor):
@@ -274,7 +296,7 @@ def missing_items(root, settings):
     if not any(voice_files(name, root)[0] for name in PIPER_DEFAULT):
         items.append('piper')
     if settings.get('llm_provider', 'local') == 'local':
-        gpu = bool(settings.get('llm_gpu'))
+        gpu = bool(settings.get('llm_gpu')) and sys.platform != 'darwin'  # на Mac Metal есть всегда
         if find_binary(root, gpu)[1] not in (('vulkan', 'system') if gpu else ('cpu', 'vulkan', 'system')):
             items.append('llama:' + ('vulkan' if gpu else 'cpu'))
         if not find_llm(root, settings.get('local_model', 'qwen3-4b')):

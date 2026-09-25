@@ -57,6 +57,9 @@
 | [pyttsx3](https://github.com/nateshmbhat/pyttsx3) | © Natesh M Bhat | MPL-2.0 |
 | [requests](https://requests.readthedocs.io) | © Kenneth Reitz | Apache 2.0 |
 | [pyperclip](https://github.com/asweigart/pyperclip) | © Al Sweigart | BSD-3-Clause |
+| [cryptography](https://github.com/pyca/cryptography) — проверка лицензии | © Individual contributors | Apache 2.0 / BSD |
+| [segno](https://github.com/heuer/segno) — QR-код для телефона | © Lars Heuer | BSD-3-Clause |
+| [PyObjC](https://github.com/ronaldoussoren/pyobjc) — только macOS | © Ronald Oussoren и др. | MIT |
 | [huggingface_hub](https://github.com/huggingface/huggingface_hub) | © Hugging Face | Apache 2.0 |
 | [Playwright](https://playwright.dev) | © Microsoft Corporation | Apache 2.0 |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Участники yt-dlp | Unlicense |

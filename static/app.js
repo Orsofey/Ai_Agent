@@ -14,6 +14,7 @@
     error: ['Микрофон недоступен', ''],
   };
   let voiceState = 'off', nativeVoice = false, busy = false, voiceBubble = null, localRequest = false, speaking = false;
+  let controller = null;
 
   // ---------- сообщения ----------
   function scrollDown() { const m = $('messages'); m.scrollTop = m.scrollHeight; }
@@ -60,6 +61,8 @@
     if (!text || busy) return;
     busy = localRequest = true;
     $('send').disabled = true;
+    controller = new AbortController();
+    showPause();
     $('chat-input').value = '';
     autosize();
     bubble(text, 'user');
@@ -71,6 +74,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Agent-Token': Agent.token, 'X-Device-ID': Agent.device },
         body: JSON.stringify({ message: text, id: Agent.uid() }),
+        signal: controller.signal,
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -97,15 +101,33 @@
       }
       if (!spoken) AgentVoice.speak(full);
     } catch (e) {
-      setBubbleText(answer, e.message);
+      setBubbleText(answer, e.name === 'AbortError' ? (full ? full + ' …' : 'Остановлено.') : e.message);
     } finally {
       answer.classList.remove('streaming');
       busy = localRequest = false;
+      controller = null;
       $('send').disabled = false;
+      showPause();
       scrollDown();
     }
   }
   window.sendMessage = send;
+
+  // ---------- пауза ----------
+  function showPause() {
+    const active = busy || speaking || voiceState === 'thinking';
+    $('stop-speaking').hidden = !active;
+    $('pause').hidden = !active;
+    $('send').hidden = active;
+  }
+  function pause() {
+    Agent.post('cancel').catch(() => {});
+    AgentVoice.stop();
+    if (controller) controller.abort();
+    if (voiceBubble) { setBubbleText(voiceBubble, voiceBubble.textContent ? voiceBubble.textContent + ' …' : 'Остановлено.'); voiceBubble.classList.remove('streaming'); voiceBubble = null; }
+    speaking = false;
+    paintVoice(voiceState === 'thinking' ? 'idle' : voiceState);
+  }
 
   // ---------- голосовая сфера ----------
   function paintVoice(state, extra = {}) {
@@ -116,6 +138,7 @@
     $('voice-title').textContent = title.replace('{name}', name);
     $('voice-hint').textContent = (extra.message || hint).replace('{name}', name);
     $('listen-toggle').textContent = 'Слушать: ' + (Agent.settings.voice_enabled ? 'вкл' : 'выкл');
+    showPause();
   }
 
   function onEvent(e) {
@@ -136,7 +159,6 @@
       }
       case 'speaking':
         speaking = e.speaking;
-        $('stop-speaking').hidden = !speaking;
         paintVoice(voiceState);
         break;
       case 'message':
@@ -184,7 +206,7 @@
   async function pollStatus() {
     try {
       const data = await Agent.api('voice/status');
-      nativeVoice = data.native;
+      nativeVoice = data.native && Agent.device === 'desktop';  // на телефоне — свой микрофон
       const sp = data.speech;
       $('engine').textContent = sp.ready ? sp.engine + ' · готов' : (sp.loading ? sp.engine + ' · загрузка…' : (sp.error ? 'Нет модели речи' : sp.engine));
       $('engine-pill').className = 'pill ' + (sp.ready ? 'ok' : sp.loading ? 'warn' : 'bad');
@@ -216,7 +238,10 @@
     try {
       await BrowserRecorder.start(text => { if (text) send(text); else Agent.toast('Речь не распознана'); },
         st => { $('mic').classList.toggle('recording', st === 'recording'); paintVoice(st === 'recording' ? 'listening' : st === 'transcribing' ? 'transcribing' : 'idle'); });
-    } catch (e) { Agent.toast(e.message); }
+    } catch (e) {
+      Agent.toast(e.message, 7000);
+      if (e.dictation) $('chat-input').focus();  // iPhone: диктовка кнопкой 🎤 на клавиатуре
+    }
   }
 
   // ---------- интерфейс ----------
@@ -227,7 +252,8 @@
   $('mic').onclick = listenOnce;
   $('orb').onclick = listenOnce;
   $('open-settings').onclick = () => Agent.openSettings();
-  $('stop-speaking').onclick = () => { Agent.post('voice/stop-speaking').catch(() => {}); AgentVoice.stop(); };
+  $('stop-speaking').onclick = pause;
+  $('pause').onclick = pause;
   $('listen-toggle').onclick = async () => {
     try { await Agent.saveSettings({ voice_enabled: !Agent.settings.voice_enabled }); reflect(); pollStatus(); }
     catch (e) { Agent.toast(e.message); }
@@ -240,7 +266,7 @@
   document.querySelectorAll('[data-command]').forEach(b => b.onclick = () => send(b.dataset.command));
   $('pair-btn').onclick = () => { Agent.setToken($('token').value.trim()); init(); };
   document.addEventListener('agent-unpaired', () => { $('pair').hidden = false; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { Agent.post('voice/stop-speaking').catch(() => {}); AgentVoice.stop(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') pause(); });
 
   Agent.onSettings(settings => { Agent.settings = settings; Agent.applyTheme(settings.theme, settings.animations); reflect(); pollStatus(); });
 

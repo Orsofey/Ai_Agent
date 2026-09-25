@@ -20,14 +20,15 @@
     <div class="brand"><img src="/static/icon-192.png" alt=""><div><div class="brand-name"><span>Настройки</span></div><small>Local AI Agent {{ version }}</small></div></div>
     <button class="nav-item active" data-page="general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Общие</button>
     <button class="nav-item" data-page="voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Голос и микрофон</button>
-    <button class="nav-item" data-page="recognition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>Распознавание</button>
-    <button class="nav-item" data-page="speech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Озвучка</button>
+    <button class="nav-item premium" data-page="recognition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>Распознавание<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
+    <button class="nav-item premium" data-page="speech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Озвучка<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg>ИИ и ответы</button>
     <button class="nav-item" data-page="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Управление ПК</button>
-    <button class="nav-item" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление</button>
+    <button class="nav-item premium" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Телефон</button>
     <button class="nav-item" data-page="licenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Лицензии</button>
-    <button class="nav-item" data-page="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Профиль и данные</button>
+    <button class="nav-item" data-page="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>Аккаунт и подписка</button>
+    <button class="nav-item" data-page="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Данные</button>
   </nav>
 
   <main class="content">
@@ -39,6 +40,10 @@
           <div class="control"><input data-setting="wake_word" maxlength="40" placeholder="Андрей"></div></div>
         <div class="row"><div class="label"><b>Другие варианты имени</b><small>Через запятую: как вас может «услышать» распознавание (например: Андрюша, Andrew).</small></div>
           <div class="control"><input data-setting="wake_aliases" maxlength="200" placeholder="Андрюша, Andrew"></div></div>
+        <div class="row"><div class="label"><b>Обращение к вам</b><small>«Да, сэр, включаю Telegram», «Что открыть, сэр?».</small></div>
+          <div class="control"><select data-setting="address"><option value="сэр">Сэр</option><option value="мадам">Мадам</option><option value="босс">Босс</option><option value="none">Без обращения</option></select></div></div>
+        <div class="row"><div class="label"><b>Отвечать как дворецкий</b><small>Живые, разнообразные подтверждения команд: «Слушаюсь, сэр», «Сию минуту, сэр».</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="butler"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Язык речи</b><small>«Русский + английский» распознаёт оба языка автоматически.</small></div>
           <div class="control"><select data-setting="voice_language"><option value="auto">Русский + английский</option><option value="ru">Только русский (максимальная точность)</option><option value="en">Только английский</option></select></div></div>
         <div class="row"><div class="label"><b>Ваш город</b><small>Для погоды и местного поиска.</small></div>
@@ -72,6 +77,11 @@
     <!-- РАСПОЗНАВАНИЕ -->
     <section class="page" id="page-recognition">
       <h1>Распознавание речи</h1><p class="lead">Локальные нейросети: речь не покидает компьютер. Модели: NVIDIA Parakeet v3 (русский и английский) и Sber GigaAM v3 (лучшая точность для русского).</p>
+      <div class="card paywall">
+        <div class="paywall-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1.2"/></svg></div>
+        <div><b>Раздел доступен по подписке</b><small>Оформление, настройки распознавания и озвучки открываются после оплаты. Команды, ответы и голосовое управление работают бесплатно.</small></div>
+        <div class="paywall-actions"><button class="btn primary" data-buy="monthly">100 ₽ в месяц</button><button class="btn" data-buy="lifetime">500 ₽ навсегда</button></div>
+      </div>
       <div class="card group">
         <div class="row"><div class="label"><b>Движок</b><small id="engine-now">—</small></div>
           <div class="control"><select data-setting="stt_engine"><option value="auto">Автоматически (рекомендуется)</option><option value="parakeet">Parakeet v3 — RU + EN</option><option value="gigaam">GigaAM v3 — русский</option><option value="whisper">Whisper — резерв (видеокарта)</option></select></div></div>
@@ -84,6 +94,11 @@
     <!-- ОЗВУЧКА -->
     <section class="page" id="page-speech">
       <h1>Озвучка ответов</h1><p class="lead">Нейросетевые голоса Piper работают офлайн. Ответ начинает звучать с первой фразы.</p>
+      <div class="card paywall">
+        <div class="paywall-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1.2"/></svg></div>
+        <div><b>Раздел доступен по подписке</b><small>Оформление, настройки распознавания и озвучки открываются после оплаты. Команды, ответы и голосовое управление работают бесплатно.</small></div>
+        <div class="paywall-actions"><button class="btn primary" data-buy="monthly">100 ₽ в месяц</button><button class="btn" data-buy="lifetime">500 ₽ навсегда</button></div>
+      </div>
       <div class="card group">
         <div class="row"><div class="label"><b>Озвучивать ответы</b></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="tts_enabled"><span></span></label></div></div>
@@ -144,6 +159,10 @@
           <div class="control"><select data-setting="type_method"><option value="auto">Авто</option><option value="keys">Печатать по буквам</option><option value="paste">Вставлять через буфер</option></select></div></div>
         <div class="row"><div class="label"><b>Сразу отправлять сообщения</b><small>Для «Напиши Милане в Телеграме …». Иначе агент напишет и попросит сказать «отправь».</small></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="messenger_autosend"><span></span></label></div></div>
+        <div class="row stack"><div class="label"><b>Как называть контакты голосом</b><small>По строке на контакт: «как говорите = как записан в мессенджере». Падежи учитываются: «Напиши Арсению Крэку…» найдёт Arseny Crack.</small></div>
+          <div class="control"><textarea class="field" data-setting="contact_aliases" rows="3" style="width:100%;resize:vertical" maxlength="3000" placeholder="Арсений Крэк = Arseny Crack&#10;Мама = Мамуля ❤️&#10;Работа = Отдел продаж 2025"></textarea></div></div>
+        <div class="row"><div class="label"><b>Контакты записаны латиницей</b><small>Искать «Арсений» как «Arsen…». Удобно, если почти все имена в Telegram на английском.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="contacts_latin"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Видео по умолчанию</b></div>
           <div class="control"><select data-setting="video_source"><option value="youtube">YouTube</option><option value="rutube">Rutube</option></select></div></div>
         <div class="row stack"><div class="label"><b>Примеры команд</b></div>
@@ -151,6 +170,9 @@
             <li><b>«<span class="name-ref">Андрей</span>, напиши текст привет, Милана»</b> — в активном окне</li>
             <li><b>«Напиши и отправь я уже еду»</b> — текст + Enter</li>
             <li><b>«Напиши Милане в Телеграме привет»</b> — найдёт чат сам</li>
+            <li><b>«Открой чат с Арсением Крэком»</b>, <b>«Перейди в группу Семья»</b> — затем <b>«Напиши …»</b> или <b>«Ответь …»</b> пишет в этот чат</li>
+            <li><b>«Запусти ютуб»</b> → <b>«Открой первое видео»</b>, <b>«Следующее видео»</b>, <b>«Перемотай на 30 секунд»</b></li>
+            <li><b>«<span class="name-ref">Андрей</span>, стоп»</b> или кнопка <b>«Пауза»</b> — прервать команду</li>
             <li><b>«Отправь»</b>, <b>«Новая строка»</b>, <b>«Сотри слово»</b></li>
             <li><b>«Выдели всё»</b>, <b>«Скопируй»</b>, <b>«Вставь»</b>, <b>«Отмени»</b></li>
             <li><b>«Сохрани»</b>, <b>«Жирный»</b>, <b>«Курсив»</b> — в Word</li>
@@ -171,6 +193,11 @@
     <!-- ОФОРМЛЕНИЕ -->
     <section class="page" id="page-appearance">
       <h1>Оформление</h1><p class="lead">Пять авторских тем с живым фоном и две классические. Тема применяется сразу во всех окнах.</p>
+      <div class="card paywall">
+        <div class="paywall-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1.2"/></svg></div>
+        <div><b>Раздел доступен по подписке</b><small>Оформление, настройки распознавания и озвучки открываются после оплаты. Команды, ответы и голосовое управление работают бесплатно.</small></div>
+        <div class="paywall-actions"><button class="btn primary" data-buy="monthly">100 ₽ в месяц</button><button class="btn" data-buy="lifetime">500 ₽ навсегда</button></div>
+      </div>
       <div class="themes" id="themes"></div>
       <div class="card group">
         <div class="row"><div class="label"><b>Анимации</b><small>Живой фон, частицы и переходы.</small></div>
@@ -180,12 +207,29 @@
 
     <!-- ТЕЛЕФОН -->
     <section class="page" id="page-phone">
-      <h1>Управление с телефона</h1><p class="lead">ПК и телефон должны быть в одной доверенной сети. Установите Android-клиент (BUILD_ANDROID.bat) или откройте адрес в браузере телефона.</p>
+      <h1>iPhone и Android</h1><p class="lead">Управляйте компьютером с телефона: команды, вопросы, диктовка. Телефон и ПК должны быть в одной сети Wi‑Fi.</p>
       <div class="card group">
-        <div class="row"><div class="label"><b>Адрес ПК</b></div><div class="control"><code id="pc-address">—</code></div></div>
+        <div class="row phone-pair">
+          <div class="label"><b>Наведите камеру телефона на код</b>
+            <small>Откроется «Андрей», уже подключённый к этому ПК. На iPhone: «Поделиться» → «На экран Домой» — появится значок приложения.</small>
+            <small style="margin-top:8px">Адрес вручную: <code id="pc-address">—</code></small></div>
+          <div class="control"><img id="pair-qr" class="qr" alt="QR-код подключения" width="180" height="180"></div></div>
         <div class="row"><div class="label"><b>Код подключения</b><small>Даёт управление ПК — никому не сообщайте.</small></div>
           <div class="control"><input type="password" id="connection-token" readonly><button class="btn" id="show-token">Показать</button></div></div>
         <p class="hint">HTTP в локальной сети не шифруется. Для доступа извне используйте защищённый VPN.</p>
+      </div>
+      <div class="card group">
+        <div class="row stack"><div class="label"><b>«Привет, Siri, Андрей…» на iPhone</b>
+          <small>Голосом с заблокированного iPhone, AirPods или Apple Watch. Один раз создайте быструю команду:</small></div>
+          <ol class="examples steps">
+            <li>Приложение «Быстрые команды» → «+» → назовите команду <b>Андрей</b>.</li>
+            <li>Действие «Диктовать текст» (язык — русский).</li>
+            <li>Действие «Получить содержимое URL»: адрес <code id="siri-url">http://…/api/siri</code>, метод <b>POST</b>,
+              заголовок <b>X-Agent-Token</b> = код подключения, тело JSON: поле <b>text</b> = «Диктованный текст».</li>
+            <li>Действие «Получить значение для ключа» <b>response</b> → «Произнести текст».</li>
+          </ol>
+          <p class="hint">Теперь скажите: «Привет, Siri, Андрей» → «открой ютуб на компьютере» или «какой курс доллара». Команды выполняются на ПК, ответ читает Siri.</p>
+        </div>
       </div>
     </section>
 
@@ -195,13 +239,37 @@
       <div id="licenses"><p class="hint">Загрузка…</p></div>
     </section>
 
+    <!-- АККАУНТ -->
+    <section class="page" id="page-account">
+      <h1>Аккаунт и подписка</h1><p class="lead">Войдите, чтобы открыть оформление, выбор движка распознавания и настройки голоса. Подписка привязана к аккаунту и работает на всех ваших компьютерах.</p>
+      <div class="card group account-card">
+        <div class="row"><div class="label"><b id="account-title">Вы не вошли</b><small id="account-plan">Бесплатный тариф</small></div>
+          <div class="control"><span class="pill" id="account-pill"><span class="dot"></span><span id="account-badge">Бесплатно</span></span></div></div>
+        <div class="row stack" id="account-form">
+          <div class="control" style="flex-direction:column;align-items:stretch;max-width:420px">
+            <input id="account-email" type="email" placeholder="Email" autocomplete="email">
+            <input id="account-password" type="password" placeholder="Пароль (от 8 символов)" autocomplete="current-password">
+          </div>
+          <div class="control"><button class="btn primary" id="account-login">Войти</button><button class="btn" id="account-register">Зарегистрироваться</button></div>
+        </div>
+        <div class="row stack" id="account-actions" hidden><div class="control"><button class="btn" id="account-check">Проверить оплату</button><button class="btn ghost" id="account-logout">Выйти</button></div></div>
+        <p class="hint" id="account-message"></p>
+      </div>
+      <div class="plans">
+        <div class="card plan"><div class="plan-name">На месяц</div><div class="plan-price">100 ₽<small> / 30 дней</small></div>
+          <ul><li>Все 7 тем и анимации</li><li>Выбор движка распознавания</li><li>Голоса и скорость речи</li></ul>
+          <button class="btn" data-buy="monthly">Оплатить 100 ₽</button></div>
+        <div class="card plan best"><div class="plan-tag">Выгодно</div><div class="plan-name">Навсегда</div><div class="plan-price">500 ₽<small> один раз</small></div>
+          <ul><li>Всё из месячной подписки</li><li>Без продлений и списаний</li><li>Все будущие обновления</li></ul>
+          <button class="btn primary" data-buy="lifetime">Оплатить 500 ₽</button></div>
+      </div>
+      <p class="hint">Оплата картой, СБП или SberPay через ЮKassa. Чек придёт на email. Автоматических списаний нет: месячная подписка продлевается новой оплатой.</p>
+    </section>
+
     <!-- ПРОФИЛЬ -->
     <section class="page" id="page-profile">
-      <h1>Профиль и данные</h1><p class="lead" id="profile">Гостевой профиль этого устройства</p>
+      <h1>Данные</h1><p class="lead" id="profile">История и настройки хранятся только на этом компьютере.</p>
       <div class="card group">
-        <div class="row"><div class="label"><b>Вход в профиль</b><small>Профиль хранит отдельные настройки и историю.</small></div>
-          <div class="control" style="flex-direction:column;align-items:stretch"><input id="username" placeholder="Имя"><input id="password" type="password" placeholder="Пароль (от 8 символов)" autocomplete="current-password"></div></div>
-        <div class="row stack"><div class="control"><button class="btn primary" id="login">Войти</button><button class="btn" id="register">Регистрация</button><button class="btn" id="logout">Выйти в гостевой профиль</button><span class="hint" id="account-status"></span></div></div>
         <div class="row stack"><div class="control"><button class="btn" id="export">Экспорт истории и настроек</button><button class="btn danger" id="clear-history">Очистить историю</button></div></div>
         <p class="hint" id="storage"></p>
       </div>

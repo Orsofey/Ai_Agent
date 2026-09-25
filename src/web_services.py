@@ -7,6 +7,7 @@
 страницу загрузки в браузере по умолчанию.
 """
 import os
+import sys
 import webbrowser
 
 # Сервис → (веб-адрес, страница загрузки приложения, имена .exe приложения)
@@ -116,7 +117,10 @@ def find_installed(name):
 
 
 def system_open(url):
-    """Открыть ссылку в браузере Windows по умолчанию. На других системах — False."""
+    """Открыть ссылку в браузере по умолчанию (Windows, macOS). На других системах — False."""
+    if sys.platform == 'darwin':
+        import subprocess
+        return subprocess.run(['open', url], timeout=10).returncode == 0
     if os.name != 'nt':
         return False
     try:

@@ -37,8 +37,13 @@ STYLES = {
 
 
 def system_prompt(settings):
-    return SYSTEM_PROMPT.format(name=settings.get('wake_word') or 'Андрей',
-                                style=STYLES.get(settings.get('answer_style'), STYLES['short']))
+    prompt = SYSTEM_PROMPT.format(name=settings.get('wake_word') or 'Андрей',
+                                  style=STYLES.get(settings.get('answer_style'), STYLES['short']))
+    address = settings.get('address', 'сэр')
+    if address and address != 'none' and settings.get('butler', True):
+        prompt += (f'\n- Ты вежливый дворецкий: иногда (не в каждой фразе) обращайся к пользователю «{address}», '
+                   'например «Сегодня, {address}, около плюс десяти».').replace('{address}', address)
+    return prompt
 
 
 FRESH_HINTS = re.compile(
@@ -108,24 +113,28 @@ class OpenAICompatibleProvider:
             raise LLMError(('Локальная нейросеть не отвечает: ' if self.local else 'Сервер ИИ недоступен: ') + str(exc)[:120])
         if response.status_code >= 400:
             raise LLMError(f'Сервер ИИ вернул ошибку {response.status_code}: {response.text[:160]}')
-        for raw in response.iter_lines(decode_unicode=False):
-            if not raw:
-                continue
-            line = raw.decode('utf-8', 'replace').strip()
-            if not line.startswith('data:'):
-                continue
-            payload = line[5:].strip()
-            if payload == '[DONE]':
-                break
-            try:
-                delta = json.loads(payload)['choices'][0].get('delta', {}).get('content') or ''
-            except (ValueError, KeyError, IndexError):
-                continue
-            if delta:
-                parts.append(delta)
-                visible = think.feed(delta)
-                if visible and on_text:
-                    on_text(visible)
+        try:
+            for raw in response.iter_lines(decode_unicode=False):
+                if not raw:
+                    continue
+                line = raw.decode('utf-8', 'replace').strip()
+                if not line.startswith('data:'):
+                    continue
+                payload = line[5:].strip()
+                if payload == '[DONE]':
+                    break
+                try:
+                    delta = json.loads(payload)['choices'][0].get('delta', {}).get('content') or ''
+                except (ValueError, KeyError, IndexError):
+                    continue
+                if delta:
+                    parts.append(delta)
+                    visible = think.feed(delta)
+                    if visible and on_text:
+                        on_text(visible)  # может бросить Cancelled — тогда соединение закрывается ниже
+        finally:
+            # Закрытое соединение останавливает генерацию на сервере (кнопка «Пауза»).
+            getattr(response, 'close', lambda: None)()
         text = ''.join(parts)
         # Локальные «думающие» модели иногда присылают размышления в тегах.
         return re.sub(r'<think>.*?</think>', '', text, flags=re.S).strip()
