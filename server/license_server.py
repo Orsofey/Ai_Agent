@@ -22,6 +22,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -125,10 +126,16 @@ class LicenseServer:
                     status TEXT, applied INTEGER DEFAULT 0, created TEXT);
             ''')
 
+    @contextmanager
     def connect(self):
+        """Транзакция с гарантированным закрытием соединения (иначе Windows держит файл базы)."""
         db = sqlite3.connect(self.db_path, timeout=10)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     # ---- аккаунты ----
     def throttle(self, key):
