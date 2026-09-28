@@ -183,7 +183,7 @@ def main():
         player = TTSPlayer(LocalTTSService(store.root), events)
         voice_ref = {}
         app = create_app(store, speech, agent, events=events, player=player,
-                         voice=_LazyVoice(voice_ref))
+                         voice=_LazyVoice(voice_ref), background=True)
         service = app.extensions['service']
         voice = VoiceAssistant(speech, service, events, lambda: store.settings(OWNER), OWNER,
                                player=player, desktop_commands=agent.desktop_commands,

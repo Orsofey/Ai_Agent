@@ -149,5 +149,18 @@ class NdkTests(unittest.TestCase):
             self.assertEqual(build_android.ensure_ndk('flutter'), '27.0.12077973')
 
 
+class BackgroundThreadsTests(unittest.TestCase):
+    def test_app_in_tests_starts_no_reminder_thread(self):
+        """На Windows поток держал agent.sqlite3 открытым, и временную папку теста нельзя было удалить."""
+        from app import create_app
+        from src.storage import Store
+        with tempfile.TemporaryDirectory() as folder:
+            agent = Mock()
+            create_app(Store(folder), Mock(status=Mock(return_value={})), agent, license=Mock(is_premium=lambda: True))
+            self.assertIsNone(agent.reminders.thread)
+            agent.reminders.add('тест', {'kind': 'once', 'at': time.time() + 60})
+            self.assertIsNone(agent.reminders.thread)  # и после добавления напоминания тоже
+
+
 if __name__ == '__main__':
     unittest.main()

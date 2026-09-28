@@ -68,7 +68,8 @@ def build_agent(store, events=None):
     return LocalComputerAgent(browser, brain=brain, desktop_commands=commands, integrations=Integrations(store.root))
 
 
-def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None):
+def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None,
+               background=False):
     root = Path(__file__).resolve().parent
     store = store or Store()
     events = events or EventBus()
@@ -111,7 +112,7 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             player.say(text, settings)
 
     from src.reminders import Reminders
-    reminders = Reminders(store, notify=notify, speak=speak)
+    reminders = Reminders(store, notify=notify, speak=speak, background=background)
     agent.reminders = reminders
     reminders.ensure_thread()
 

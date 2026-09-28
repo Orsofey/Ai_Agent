@@ -309,8 +309,9 @@ def plan_from_answers(answers):
 
 # ---------------- менеджер ----------------
 class Reminders:
-    def __init__(self, store, notify=None, speak=None, clock=time.time, idle=idle_seconds):
+    def __init__(self, store, notify=None, speak=None, clock=time.time, idle=idle_seconds, background=False):
         self.store = store
+        self.background = background  # фоновая проверка по времени — только в запущенной программе, не в тестах
         self.notify = notify
         self.speak = speak
         self.clock = clock
@@ -449,7 +450,7 @@ class Reminders:
         return fired
 
     def ensure_thread(self):
-        if self.thread is not None and self.thread.is_alive():
+        if not self.background or (self.thread is not None and self.thread.is_alive()):
             return
         self.thread = threading.Thread(target=self._run, daemon=True, name='reminders')
         self.thread.start()
