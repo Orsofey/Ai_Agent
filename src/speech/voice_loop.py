@@ -6,6 +6,7 @@ Telegram. Схема задержки после конца фразы:
 """
 import logging
 import queue
+import re
 import threading
 import time
 
@@ -17,6 +18,8 @@ log = logging.getLogger(__name__)
 ARM_SECONDS = 8.0       # после «Андрей» без команды ждём команду столько секунд
 ONCE_SECONDS = 8.0      # после горячей клавиши / кнопки микрофона
 STALE_SECONDS = 20.0    # фразы старше не выполняем
+ENROLL_SAMPLES = 3
+ENROLL_PHRASE = re.compile(r'^(?:запомни|выучи|запиши|узнай)\s+(?:мой\s+)?голос')
 
 
 def _is_stop(command):
@@ -26,7 +29,11 @@ def _is_stop(command):
 
 class VoiceAssistant:
     def __init__(self, speech, service, events, settings_provider, owner='device:desktop',
-                 player=None, desktop_commands=None, microphone_factory=None):
+                 player=None, desktop_commands=None, microphone_factory=None, gate=None):
+        self.gate = gate            # SpeakerGate: слушать только знакомые голоса
+        self.enroll = None          # запоминание голоса: {'name', 'vectors', 'until'}
+        self.stranger = None        # незнакомый голос ждёт пароль: {'vectors', 'command', 'until', 'fails'}
+        self.verified_until = 0.0
         self.speech = speech
         self.service = service
         self.events = events
@@ -99,10 +106,11 @@ class VoiceAssistant:
         """Заранее озвучить «Секунду, сэр» и «Хорошо, сэр» текущим голосом."""
         if not self.player or not hasattr(self.player, 'prewarm'):
             return
-        from ..dialog import ack_phrases, address_of, stop_reply
+        from ..dialog import ack_phrases, address_of, filler_phrases, stop_reply
         settings = settings or self.settings()
         address = address_of(settings)
-        self.player.prewarm(ack_phrases(address) + [stop_reply('one', address), stop_reply('all', address)], settings)
+        self.player.prewarm(ack_phrases(address) + filler_phrases(address) +
+                            [stop_reply('one', address), stop_reply('all', address)], settings)
 
     def reset(self):
         """Кнопка «Пауза»: забыть ожидание продолжения и вернуться к прослушиванию имени."""
@@ -217,7 +225,18 @@ class VoiceAssistant:
             return None
         self.events.emit('transcript', text=text, elapsed=result.get('elapsed'), engine=result.get('engine'))
 
+        # Запоминание голоса и знакомство по паролю — фразы без имени ассистента.
+        if self.enroll is not None and not during_speech:
+            return self._enroll_sample(audio, settings)
+        if self.stranger is not None and not during_speech:
+            if now < self.stranger['until']:
+                return self._stranger_answer(audio, text, settings)
+            self.stranger = None
+
         matched, rest = wake.match(text, settings.get('wake_word', 'Андрей'), settings.get('wake_aliases', ''))
+        agent = getattr(self.service, 'agent', None)
+        if matched and hasattr(agent, 'prepare'):
+            agent.prepare(settings)  # нейросеть выгружена после простоя — начинаем загрузку, пока звучит команда
 
         # Режим диктовки: всё сказанное печатается в активное окно.
         if self.desktop_commands and self.desktop_commands.dictation and not during_speech:
@@ -272,6 +291,19 @@ class VoiceAssistant:
                 self.player.acknowledge(reply, settings)
             self.events.emit('voice_reply', text=reply)
             return None
+        wants_enroll = bool(ENROLL_PHRASE.match(command.casefold().strip(' .!?')))
+        if self.gate is not None and self.gate.active(settings):
+            # Слушаем только знакомые голоса. «Стоп» выше работает для всех — это безопасно.
+            vector = self.gate.embed(audio)
+            profile, score = self.gate.identify(vector, settings)
+            if profile is None and not (vector is None and now < self.verified_until):
+                log.info('Unknown voice (similarity %.2f): %s', score, command)
+                return self._stranger(vector, command, settings)
+            self.verified_until = time.monotonic() + 15
+        if wants_enroll:
+            name = 'Владелец' if self.gate is None or not self.gate.profiles() else f'Голос {len(self.gate.profiles()) + 1}'
+            self._say(self.start_enroll(name), settings)
+            return None
         if background:
             threading.Thread(target=self._execute, args=(command, settings), daemon=True, name='voice-command').start()
             return None
@@ -303,6 +335,92 @@ class VoiceAssistant:
             # Окно продолжения разговора открывается после того, как агент договорит.
             threading.Thread(target=self._arm_follow_up, args=(follow,), daemon=True).start()
         return answer
+
+    # ---- узнавание голоса ----
+    def _say(self, text, settings=None):
+        settings = settings or self.settings()
+        if self.player and getattr(self.player, 'available', False):
+            self.player.say(text, settings)
+        self.events.emit('message', role='agent', text=text, source='system', owner=self.owner, spoken=True)
+
+    def start_enroll(self, name='Владелец'):
+        """Запомнить голос: следующие три фразы (без имени ассистента)."""
+        if self.gate is None:
+            return 'Узнавание голоса недоступно.'
+        if not self.gate.model_installed():
+            return 'Сначала скачайте модель: Настройки → Голос и микрофон → «Узнавание голоса».'
+        self.stranger = None
+        self.enroll = {'name': name, 'vectors': [], 'until': time.monotonic() + 90}
+        self.events.emit('voiceid', stage='start', count=0, total=ENROLL_SAMPLES)
+        if not (self.capture_thread and self.capture_thread.is_alive()):
+            self.start()
+        return ('Запоминаю ваш голос. Скажите три любые фразы, по одной, например: «Какая завтра погода», '
+                '«Открой календарь», «Сегодня отличный день».')
+
+    def _enroll_sample(self, audio, settings):
+        state = self.enroll
+        if time.monotonic() > state['until']:
+            self.enroll = None
+            self.events.emit('voiceid', stage='timeout')
+            self._say('Время вышло — голос не запомнил. Попробуйте ещё раз.', settings)
+            return None
+        vector = self.gate.embed(audio)
+        if vector is None:
+            self._say('Фраза слишком короткая. Скажите подлиннее.', settings)
+            return None
+        state['vectors'].append(vector)
+        count = len(state['vectors'])
+        self.events.emit('voiceid', stage='sample', count=count, total=ENROLL_SAMPLES)
+        if count < ENROLL_SAMPLES:
+            if self.player:
+                self.player.beep('listen')
+            return None
+        profile = self.gate.add_profile(state['name'], state['vectors'])
+        self.enroll = None
+        self.verified_until = time.monotonic() + 15
+        self.events.emit('voiceid', stage='done', name=profile['name'])
+        self._say('Готово, запомнил ваш голос. Теперь я слушаю только знакомые голоса.' if settings.get('voice_id')
+                  else 'Готово, запомнил ваш голос. Включите «Слушать только знакомые голоса» в настройках.', settings)
+        return None
+
+    def _stranger(self, vector, command, settings):
+        if not self.gate.has_password():
+            self._say('Я не узнаю ваш голос. Владелец может добавить вас в настройках голоса.', settings)
+            return None
+        self.stranger = {'vectors': [vector] if vector is not None else [], 'command': command,
+                         'until': time.monotonic() + 20, 'fails': 0}
+        self._say('Я не узнаю ваш голос. Чтобы познакомиться, назовите голосовой пароль.', settings)
+        return None
+
+    def _stranger_answer(self, audio, text, settings):
+        state = self.stranger
+        if self.gate.check_password(text):
+            vector = self.gate.embed(audio)
+            vectors = state['vectors'] + ([vector] if vector is not None else [])
+            self.stranger = None
+            if not vectors:
+                self._say('Пароль верный, но фраза слишком короткая, чтобы запомнить голос. Скажите «запомни мой голос».',
+                          settings)
+                return None
+            self.gate.add_profile(f'Голос {len(self.gate.profiles()) + 1}', vectors)
+            self.verified_until = time.monotonic() + 15
+            self._say('Приятно познакомиться! Запомнил ваш голос.', settings)
+            if state['command']:
+                threading.Thread(target=self._execute, args=(state['command'], settings), daemon=True,
+                                 name='voice-command').start()
+            return None
+        state['fails'] += 1
+        if state['fails'] >= 3:
+            self.stranger = None
+            self._say('Пароль неверный. Команды незнакомого голоса не выполняю.', settings)
+        else:
+            state['until'] = time.monotonic() + 20
+            self._say('Пароль неверный. Попробуйте ещё раз.', settings)
+        return None
+
+    def expect_answer(self):
+        """Вопрос задан из окна или по кнопке — следующую фразу слушать без имени, когда ассистент договорит."""
+        threading.Thread(target=self._arm_answer, daemon=True).start()
 
     def _arm_answer(self, seconds=ARM_SECONDS + 4):
         deadline = time.monotonic() + 60

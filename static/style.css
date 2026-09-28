@@ -131,11 +131,24 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* Прогресс долгих задач: «проштудируй папку загрузки» */
+.task-progress {
+  position: fixed; right: 20px; bottom: 20px; z-index: 45; width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-strong); border: 1px solid var(--border);
+  box-shadow: var(--shadow); opacity: 0; transform: translateY(12px); transition: .25s ease; pointer-events: none;
+}
+.task-progress.show { opacity: 1; transform: none; }
+.task-progress .tp-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.task-progress .tp-pct { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.task-progress .tp-bar { height: 6px; margin: 9px 0 6px; border-radius: 99px; background: var(--chip); overflow: hidden; }
+.task-progress .tp-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .2s linear; }
+.task-progress .tp-current { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1em; }
+
 .pairing { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(8px); }
 .pairing .card { width: min(420px, 92vw); padding: 26px; display: grid; gap: 12px; }
 .pairing h2 { margin: 0; font-family: var(--font-display); }
 
-input[type=text], input[type=password], input[type=number], input:not([type]), select, textarea.field {
+input[type=text], input[type=password], input[type=number], input[type=time], input[type=datetime-local], input:not([type]), select, textarea.field {
   width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--input); color: var(--text);
 }
@@ -158,6 +171,7 @@ select option { background: var(--surface-strong); color: var(--text); }
 .page.active { display: block; }
 .page > h1 { font: 700 26px/1.2 var(--font-display); margin: 0 0 4px; letter-spacing: var(--display-spacing, 0); }
 .page > p.lead { color: var(--muted); margin: 0 0 22px; }
+.page > h2.section-title { font: 650 17px var(--font-display); margin: 26px 0 10px; letter-spacing: var(--display-spacing, 0); }
 .group { padding: 6px 20px; margin-bottom: 18px; }
 .group > h3 { margin: 16px 0 4px; font: 650 15px var(--font-display); color: var(--accent); letter-spacing: var(--display-spacing, 0); }
 .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 300px); gap: 18px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
@@ -416,7 +430,7 @@ body.locked .paywall ~ * { pointer-events: none; user-select: none; opacity: .42
 [data-animations="off"] .dd-list, [data-animations="off"] .dd-chevron { transition: none; }
 
 /* ---------- Поля ввода: одинаково аккуратные во всех темах ---------- */
-input[type=text], input[type=password], input[type=number], input[type=email], input:not([type]), textarea.field {
+input[type=text], input[type=password], input[type=number], input[type=email], input[type=time], input[type=datetime-local], input:not([type]), textarea.field {
   padding: 11px 14px; font-size: 14px; transition: border-color .2s, box-shadow .2s, background .2s; }
 input[type=text]:hover, input[type=password]:hover, input[type=number]:hover, input[type=email]:hover, input:not([type]):hover,
 textarea.field:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
@@ -433,3 +447,15 @@ input[readonly] { opacity: .8; cursor: default; }
 .range input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: var(--accent);
   border: 2px solid var(--on-accent); box-shadow: 0 0 0 3px var(--ring); }
 .range input[type=range]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+
+/* Напоминания: выбор дней недели */
+.control.days { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+.day-chip { position: relative; cursor: pointer; }
+.day-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.day-chip span { display: inline-block; min-width: 38px; padding: 6px 8px; text-align: center; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--chip); color: var(--muted); font-size: 13px; transition: .15s ease; }
+.day-chip input:checked + span { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.day-chip input:focus-visible + span { box-shadow: 0 0 0 3px var(--ring); }
+input[type=time], input[type=datetime-local] { color-scheme: dark; }
+:root[data-theme=light] input[type=time], :root[data-theme=light] input[type=datetime-local],
+:root[data-theme=sakura] input[type=time], :root[data-theme=sakura] input[type=datetime-local] { color-scheme: light; }

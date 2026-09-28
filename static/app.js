@@ -166,6 +166,8 @@
           if (e.role === 'user') { bubble(e.text, 'user', '🎙 голосом'); voiceBubble = bubble('', 'agent'); voiceBubble.classList.add('streaming'); }
           else if (voiceBubble) { setBubbleText(voiceBubble, e.text); voiceBubble.classList.remove('streaming'); voiceBubble = null; }
           else bubble(e.text, 'agent');
+        } else if (e.source === 'system') {
+          bubble(e.text, 'agent', '🔔');  // напоминание, сценарий, результат изучения файлов
         } else if (!localRequest && e.owner && e.owner.startsWith('device:') && e.owner !== 'device:desktop') {
           bubble(e.text, e.role, '📱 с телефона');
         }
@@ -185,6 +187,9 @@
         else if (e.stage === 'error') Agent.toast(`Не удалось скачать ${what}: ${e.detail}`, 8000);
         break;
       }
+      case 'progress':
+        showProgress(e);
+        break;
       case 'voice_error':
         Agent.toast(e.message);
         break;
@@ -197,6 +202,29 @@
         reflect();
         break;
     }
+  }
+
+  // Полоса прогресса долгих задач («проштудируй папку загрузки»).
+  function showProgress(e) {
+    let box = document.getElementById('task-progress');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'task-progress';
+      box.className = 'task-progress';
+      box.setAttribute('role', 'progressbar');
+      box.innerHTML = '<div class="tp-head"><b class="tp-title"></b><span class="tp-pct"></span></div>' +
+        '<div class="tp-bar"><i></i></div><small class="tp-current"></small>';
+      document.body.appendChild(box);
+    }
+    const pct = e.total ? Math.round(100 * e.done / e.total) : 0;
+    box.querySelector('.tp-title').textContent = e.title || 'Работаю…';
+    box.querySelector('.tp-pct').textContent = e.finished ? 'готово' : `${e.done} / ${e.total} · ${pct}%`;
+    box.querySelector('.tp-bar i').style.width = (e.finished ? 100 : pct) + '%';
+    box.querySelector('.tp-current').textContent = e.finished ? '' : (e.current || '');
+    box.setAttribute('aria-valuenow', String(pct));
+    box.classList.add('show');
+    clearTimeout(box._hide);
+    if (e.finished) box._hide = setTimeout(() => box.classList.remove('show'), 2500);
   }
 
   function reflect() {

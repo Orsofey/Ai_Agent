@@ -4,7 +4,7 @@ import threading
 import time
 from collections import deque
 
-from .llm import LLMError, OpenAICompatibleProvider
+from .llm import LLMError, OpenAICompatibleProvider, system_prompt
 from .local_llm import LocalLLMServer
 from .quick import QuickAnswers, now_context
 from .tools import DataTools
@@ -26,6 +26,9 @@ class Brain:
         self.memory = {}
         self.lock = threading.Lock()
         self._providers = {}
+        self._warming = False
+        self._primed = None
+        self.last_timing = None
 
     # ---- провайдеры ----
     def provider(self, settings):
@@ -65,8 +68,8 @@ class Brain:
     def quick_answer(self, question, settings):
         return self.quick.answer(question, settings)
 
-    def answer(self, question, settings, owner='default', on_text=None):
-        """Ответ на вопрос. on_text получает фрагменты текста по мере генерации."""
+    def answer(self, question, settings, owner='default', on_text=None, mode='normal'):
+        """Ответ на вопрос. on_text получает фрагменты текста по мере генерации. mode='chat' — «поболтать»."""
         quick = self.quick_answer(question, settings)
         if quick:
             self._remember(owner, question, quick)
@@ -76,15 +79,54 @@ class Brain:
             return None
         entry = self._history(owner)
         history = []
-        for user_text, agent_text in entry['turns']:
+        turns = list(entry['turns'])[-3:] if mode == 'chat' else entry['turns']  # короче контекст — быстрее ответ
+        for user_text, agent_text in turns:
             history += [{'role': 'user', 'content': user_text}, {'role': 'assistant', 'content': agent_text}]
         context = f'[Сейчас {now_context()}. Город пользователя: {settings.get("city") or "не указан"}.]\n'
         history.append({'role': 'user', 'content': context + question})
-        text = provider.stream(history, settings, on_text=on_text,
-                               max_tokens=900 if settings.get('answer_style') == 'detailed' else 400)
+        if mode == 'chat':
+            limit = 120
+        else:
+            limit = 900 if settings.get('answer_style') == 'detailed' else 300
+        started = time.monotonic()
+        first = []
+
+        def timed(chunk):
+            if not first:
+                first.append(time.monotonic() - started)
+            if on_text:
+                on_text(chunk)
+        text = provider.stream(history, settings, on_text=timed, max_tokens=limit,
+                               system=system_prompt(settings, mode))
+        self.last_timing = {'first_token': round(first[0], 2) if first else None,
+                            'total': round(time.monotonic() - started, 2), 'mode': mode}
+        log.info('LLM answer: first words %.2fs, total %.2fs (%s)', first[0] if first else -1,
+                 self.last_timing['total'], mode)
         text = text or 'Не нашёл, что ответить. Переформулируйте вопрос.'
         self._remember(owner, question, text)
         return text
+
+    def warm(self, settings):
+        """Подготовить нейросеть заранее (при запуске и когда услышали имя): запустить сервер, если его
+        выгрузили, и посчитать системный промпт, чтобы первый ответ начинался быстрее."""
+        if settings.get('llm_provider', 'local') != 'local' or self._warming:
+            return
+        if self.local.running() and self._primed == self.local.port:
+            return
+        self._warming = True
+
+        def run():
+            try:
+                provider = self.provider(settings)
+                if provider is not None:
+                    provider.stream([{'role': 'user', 'content': 'Привет'}], settings, max_tokens=1,
+                                    with_tools=False, system=system_prompt(settings))
+                    self._primed = self.local.port
+            except Exception as exc:
+                log.info('LLM warm-up skipped: %s', exc)
+            finally:
+                self._warming = False
+        threading.Thread(target=run, daemon=True, name='llm-prime').start()
 
     def _remember(self, owner, question, answer):
         entry = self._history(owner)

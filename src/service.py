@@ -8,6 +8,9 @@ from .tts_player import SentenceSpeaker
 log = logging.getLogger(__name__)
 
 
+FILLER_AFTER = 3.5  # секунд до «Думаю, сэр», если ответ ещё не зазвучал
+
+
 class Busy(RuntimeError):
     pass
 
@@ -86,6 +89,15 @@ class AssistantService:
             return stop_reply('one', address_of(settings))
         return None
 
+    def _filler(self, worker, speaker, settings):
+        """Ответ не начал звучать через FILLER_AFTER секунд — «Думаю, сэр», чтобы не было долгой тишины."""
+        worker.join(FILLER_AFTER)
+        if worker.is_alive() and not speaker.spoken and not self.cancel_event.is_set() \
+                and getattr(self.player, 'available', False):
+            import random
+            from .dialog import address_of, filler_phrases
+            self.player.acknowledge(random.choice(filler_phrases(address_of(settings))), settings)
+
     def run(self, text, owner, settings=None, source='text', on_text=None, speak=True):
         settings = settings or self.store.settings(owner)
         generation = self.stop_generation
@@ -127,6 +139,9 @@ class AssistantService:
             self.running = True
             worker = threading.Thread(target=work, daemon=True, name='command')
             worker.start()
+            if speaker is not None:
+                threading.Thread(target=self._filler, args=(worker, speaker, settings), daemon=True,
+                                 name='filler').start()
             while worker.is_alive() and not self.cancel_event.is_set():
                 worker.join(0.05)
             self.running = False

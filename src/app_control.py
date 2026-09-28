@@ -180,6 +180,43 @@ def activate_running(name):
         return False
 
 
+def _app_pids(name):
+    names = set(targets(name))
+    if not names or names & PROTECTED:
+        return set()
+    me = os.getpid()
+    pids = set()
+    for process in psutil.process_iter(['pid', 'name']):
+        try:
+            if process.pid != me and (process.info['name'] or '').casefold() in names:
+                pids.add(process.pid)
+        except psutil.Error:
+            pass
+    return pids
+
+
+def minimize_application(name):
+    """«Сверни Telegram»: свернуть все окна приложения на панель задач (программа продолжает работать)."""
+    if sys.platform == 'darwin':
+        from . import macos
+        return macos.minimize_application(name)
+    if sys.platform != 'win32':
+        return 'Сворачивание окон поддерживается на Windows и macOS.'
+    if not targets(name):
+        return 'Не понял, какое приложение свернуть.'
+    pids = _app_pids(name)
+    if not pids:
+        return f'{name} не запущено.'
+    windows = _find_windows(pids)
+    if not windows:
+        return f'У {name} нет открытых окон.'
+    user32 = ctypes.WinDLL('user32', use_last_error=True)
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    for hwnd in windows:
+        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+    return 'Сворачиваю ' + name
+
+
 def close_application(name):
     if sys.platform == 'darwin':
         from . import macos

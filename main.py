@@ -186,7 +186,8 @@ def main():
                          voice=_LazyVoice(voice_ref))
         service = app.extensions['service']
         voice = VoiceAssistant(speech, service, events, lambda: store.settings(OWNER), OWNER,
-                               player=player, desktop_commands=agent.desktop_commands)
+                               player=player, desktop_commands=agent.desktop_commands,
+                               gate=app.extensions['voice_gate'])
         voice_ref['voice'] = voice
         agent.desktop_commands.desktop.start()  # запоминание последнего активного окна
 
@@ -210,7 +211,7 @@ def main():
         # Подписка: продление и окончание проверяются в фоне, лицензия работает и офлайн.
         app.extensions['license'].start_background_refresh(app.extensions['account_changed'])
         if settings.get('llm_provider') == 'local':
-            local_llm.warmup(settings)  # нейросеть загружается в память заранее
+            agent.brain.warm(settings)  # нейросеть загружается заранее, системная подсказка уже посчитана
 
         if sys.platform == 'win32' and (store.meta('startup_initialized') is None or autostart.enabled()):
             autostart.configure(settings.get('autostart', True))
@@ -232,7 +233,7 @@ def main():
                 current = store.settings(OWNER)
                 speech.configure(current)
                 if current.get('llm_provider') == 'local':
-                    local_llm.warmup(current)
+                    agent.brain.warm(current)
             logging.info('First run: downloading %s', missing)
             start_download(store.root, missing, events, on_done=models_ready)
 

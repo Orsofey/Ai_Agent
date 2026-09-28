@@ -1,5 +1,6 @@
 """Command router: desktop control → apps/browser → small talk → quick facts → LLM."""
 import re
+import time
 from urllib.parse import quote
 
 import psutil
@@ -48,6 +49,13 @@ def normalize_command(text):
     value = re.sub(r'^пожалуйста[,\s]+', '', value, flags=re.I)
     return re.sub(r'[,\s]+пожалуйста$', '', value, flags=re.I)
 
+
+CHAT_ON = {'давай поболтаем', 'поболтаем', 'давай поговорим', 'поговори со мной', 'поболтай со мной',
+           'режим болтовни', 'включи режим болтовни', 'давай просто поболтаем', 'давай просто поговорим',
+           'хочу поболтать', 'режим поболтать', 'включи режим поболтать'}
+CHAT_OFF = {'хватит болтать', 'закончим разговор', 'выключи режим болтовни', 'выйди из режима болтовни',
+            'конец болтовни', 'хватит болтовни', 'закончим болтать', 'стоп болтовня', 'пока поболтали'}
+CHAT_IDLE = 180  # секунд тишины — и беседа заканчивается сама
 
 QUESTION_WORDS = ('как', 'что', 'кто', 'где', 'когда', 'почему', 'зачем', 'сколько', 'какой', 'какая', 'какое',
                   'какие', 'куда', 'откуда', 'чем', 'можно', 'нужно', 'стоит', 'посоветуй', 'расскажи', 'объясни',
@@ -125,11 +133,44 @@ class LocalComputerAgent:
         self.integrations = integrations
         self.scenarios = None  # ScenarioManager: подключает app.py
         self.tracker = None    # TrackerClient: подключает app.py
+        self.reminders = None  # Reminders: подключает app.py
+        self.macros = None     # Macros: подключает app.py
+        self.files = None      # FileStudy: подключает app.py
         self.dialog = Dialog()
+        self.chat_until = {}
 
     def awaiting(self, owner='default'):
-        """Агент задал вопрос и ждёт ответа (голос слушает без имени)."""
-        return self.dialog.awaiting(owner)
+        """Агент задал вопрос или идёт беседа — голос слушает следующую фразу без имени."""
+        return self.dialog.awaiting(owner) is True or self.chatting(owner) \
+            or bool(self.reminders is not None and self.reminders.awaiting(owner))
+
+    # ---- режим «поболтать» ----
+    def chatting(self, owner='default'):
+        return self.chat_until.get(owner, 0) > time.monotonic()
+
+    def prepare(self, settings):
+        """Услышали имя — пока человек договаривает команду, готовим нейросеть (если её выгрузили)."""
+        warm = getattr(self.brain, 'warm', None)
+        if warm is not None:
+            try:
+                warm(settings)
+            except Exception:
+                pass
+
+    def _chat_toggle(self, text, owner, address):
+        lower = re.sub(r'[.!?,]+', '', text.casefold().replace('ё', 'е')).strip()
+        if lower in CHAT_ON:
+            if self.brain is None:
+                return 'Для разговора включите нейросеть в Настройки → ИИ.'
+            self.chat_until[owner] = time.monotonic() + CHAT_IDLE
+            return (f'С удовольствием, {address}. О чём поговорим?' if address else 'С удовольствием. О чём поговорим?')
+        if lower in CHAT_OFF and self.chatting(owner):
+            self.chat_until.pop(owner, None)
+            return f'Хорошо, {address}. Было приятно поболтать.' if address else 'Хорошо. Было приятно поболтать.'
+        return None
+
+    def _is_command(self, text, settings):
+        return self._is_known_command(text) or parse_command(text, settings)[0] not in ('unknown', 'search')
 
     def process_command(self, command, settings=None, owner='default', on_text=None):
         settings = settings or {}
@@ -139,6 +180,32 @@ class LocalComputerAgent:
         text = normalize_command(text).strip(' ,.')
         if not text:
             return f'Слушаю, {address}.' if address else 'Слушаю.'
+
+        toggled = self._chat_toggle(text, owner, address)
+        if toggled is not None:
+            return toggled
+        if self.chatting(owner) and not self._is_command(text, settings):
+            # Беседа: сразу в нейросеть, без разбора команд и уточняющих вопросов — быстро и коротко.
+            self.chat_until[owner] = time.monotonic() + CHAT_IDLE
+            try:
+                return self.brain.answer(text, settings, owner=owner, on_text=on_text, mode='chat')
+            except Exception as exc:
+                return str(exc) or 'Не получилось ответить.'
+
+        if self.reminders is not None:
+            reply = self.reminders.handle(text, owner, settings)
+            if reply is not None:
+                return reply
+        if self.macros is not None:
+            reply = self.macros.handle(text, owner, settings)
+            if reply is not None:
+                return reply
+            if self.macros.recording(owner):
+                self.macros.record(owner, text)  # запись макроса: команда выполняется и запоминается
+        if self.files is not None:
+            reply = self.files.handle(text, owner, settings)
+            if reply is not None:
+                return reply
 
         # Ответ на уточняющий вопрос агента: «Что открыть, сэр?» → «Телеграм».
         kind, value = self.dialog.resolve(owner, text, COMMAND_VERBS)

@@ -25,6 +25,8 @@
     <button class="nav-item" data-page="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg>ИИ и ответы</button>
     <button class="nav-item" data-page="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Управление ПК</button>
     <button class="nav-item" data-page="scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Сценарии</button>
+    <button class="nav-item" data-page="reminders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Напоминания</button>
+    <button class="nav-item" data-page="macros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 4l14 8-14 8z"/></svg>Макросы</button>
     <button class="nav-item" data-page="tracker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Трекер</button>
     <button class="nav-item premium" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Телефон</button>
@@ -75,6 +77,18 @@
           <div class="control"><div class="range"><input type="range" min="0" max="15" step="1" data-setting="follow_up_seconds" data-unit="с"><output data-for="follow_up_seconds"></output></div></div></div>
         <div class="row"><div class="label"><b>Горячая клавиша</b><small>Работает в любом приложении: нажмите и сразу говорите команду без имени.</small></div>
           <div class="control"><input class="hotkey-input" id="hotkey" readonly data-setting="hotkey" title="Нажмите, затем сочетание клавиш"></div></div>
+      </div>
+      <h2 class="section-title">Узнавание голоса</h2>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Слушать только знакомые голоса</b><small id="vid-state">Незнакомый голос попросят назвать пароль. Фраза «стоп» работает для всех.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="voice_id"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Строгость</b><small>Выше — надёжнее отсекает чужих, но иногда может не узнать вас (простуда, другой микрофон).</small></div>
+          <div class="control"><div class="range"><input type="range" min="30" max="80" step="5" data-setting="voice_id_strictness" data-unit="%"><output data-for="voice_id_strictness"></output></div></div></div>
+        <div class="row stack"><div class="label"><b>Знакомые голоса</b><small>Модель голосовых отпечатков (≈28 МБ) работает офлайн; голос никуда не отправляется.</small></div>
+          <ul class="examples" id="vid-list"></ul>
+          <div class="control"><button class="btn" id="vid-download" hidden>Скачать модель</button><button class="btn primary" id="vid-enroll">Запомнить мой голос</button><span class="hint" id="vid-hint"></span></div></div>
+        <div class="row"><div class="label"><b>Голосовой пароль</b><small id="vid-pass-state">Чтобы познакомиться, незнакомец произносит пароль — после этого его голос запоминается. Пароль хранится зашифрованным.</small></div>
+          <div class="control"><input id="vid-password" type="password" autocomplete="new-password" placeholder="например: синий кит"><button class="btn" id="vid-password-save">Сохранить</button></div></div>
       </div>
     </section>
 
@@ -211,6 +225,11 @@
             <li><b>«Перейди в ютуб»</b>, <b>«Открой ютуб»</b> — переключусь на уже открытую вкладку YouTube</li>
             <li><b>«Перейди на страницу 10»</b>, <b>«Перейди на страницу, где есть слово каша»</b>, <b>«Найди дальше»</b> — в Word</li>
             <li><b>«Включи чёрно-белый режим»</b>, <b>«Верни цвета»</b> — экран в оттенках серого</li>
+            <li><b>«Сверни Telegram»</b>, <b>«Разверни Telegram»</b> — окна приложения по названию</li>
+            <li><b>«Давай поболтаем»</b> … <b>«Хватит болтать»</b> — быстрый разговор без имени</li>
+            <li><b>«Проштудируй папку загрузки»</b>, <b>«Изучи pdf в документах за неделю»</b> — справка с прогрессом</li>
+            <li><b>«Посчитай сумму в таблицах в папке Отчёты»</b>, <b>«Найди в файлах слово договор»</b></li>
+            <li><b>«Найди файл отчёт»</b>, <b>«Открой последний скачанный файл»</b>, <b>«Открой папку загрузки»</b>, <b>«Открой справку»</b></li>
           </ul></div>
       </div>
     </section>
@@ -234,6 +253,44 @@
             <li><b>«Разблокируй ютуб»</b>, <b>«Разблокируй всё»</b></li>
           </ul></div>
         <div class="row stack"><div class="label"><b>Как работает блокировка</b><small>Сайты надёжнее всего блокирует расширение «Андрей» (раздел «Управление ПК»): вкладка сменяется страницей «Сайт заблокирован». Без расширения я закрываю вкладку с заблокированным сайтом, как только она становится активной. Приложения закрываются штатно, как крестиком; несохранённые данные программа предложит сохранить.</small></div></div>
+      </div>
+    </section>
+
+    <!-- НАПОМИНАНИЯ -->
+    <section class="page" id="page-reminders">
+      <h1>Напоминания</h1><p class="lead">Звучат голосом и появляются в окне ассистента. «<span class="name-ref">Андрей</span>, напомни через 20 минут позвонить маме», «…каждый день в 21:00 план на завтра». Или ассистент задаст вопросы и подберёт напоминания сам.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Персональная подборка</b><small>Семь коротких вопросов: подъём, сон, работа, вода, лекарства, тренировки. Ответить можно голосом или текстом в главном окне.</small></div>
+          <div class="control"><button class="btn primary" id="rm-interview">Подобрать напоминания</button></div></div>
+        <div class="row"><div class="label"><b>Все напоминания</b><small>Временно выключить всё, не удаляя.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" id="rm-on"><span></span></label></div></div>
+      </div>
+      <div id="rm-list"></div>
+      <div class="card group">
+        <div class="row stack"><div class="control"><button class="btn" id="rm-add">+ Новое напоминание</button><button class="btn primary" id="rm-save">Сохранить</button><span class="hint" id="rm-hint"></span></div></div>
+        <div class="row stack"><div class="label"><b>Голосом</b></div>
+          <ul class="examples">
+            <li><b>«Напомни через полчаса проверить духовку»</b>, <b>«Создай напоминание завтра в 9 утра купить хлеб»</b></li>
+            <li><b>«Напомни по будням в 8 утра зарядка»</b>, <b>«Напоминай каждые 2 часа пить воду»</b></li>
+            <li><b>«Какие у меня напоминания?»</b>, <b>«Удали напоминание про хлеб»</b>, <b>«Отключи напоминание размяться»</b></li>
+            <li><b>«Отложи на 10 минут»</b> — после напоминания; <b>«Выключи напоминания»</b> — все сразу</li>
+          </ul></div>
+      </div>
+    </section>
+
+    <!-- МАКРОСЫ -->
+    <section class="page" id="page-macros">
+      <h1>Макросы</h1><p class="lead">Несколько команд одной фразой. Шаги — обычные команды ассистента, по одной на строке; «подожди 5 секунд» — пауза между шагами.</p>
+      <div id="mc-list"></div>
+      <div class="card group">
+        <div class="row stack"><div class="control"><button class="btn" id="mc-add">+ Новый макрос</button><button class="btn primary" id="mc-save">Сохранить</button><span class="hint" id="mc-hint"></span></div></div>
+        <div class="row stack"><div class="label"><b>Голосом</b></div>
+          <ul class="examples">
+            <li><b>«Создай макрос утро: открой почту, затем открой ютуб, потом включи музыку»</b></li>
+            <li><b>«Запиши макрос работа»</b> … команды … <b>«Сохрани макрос»</b> — я запомню, что вы делали</li>
+            <li><b>«Запусти макрос утро»</b> или своя фраза запуска, например <b>«Доброе утро»</b></li>
+            <li><b>«Мои макросы»</b>, <b>«Удали макрос утро»</b>, <b>«Стоп»</b> — прервать выполнение</li>
+          </ul></div>
       </div>
     </section>
 
@@ -385,5 +442,6 @@
 <script src="/static/select.js?v={{ version }}"></script>
 <script src="/static/settings.js?v={{ version }}"></script>
 <script src="/static/scenarios.js?v={{ version }}"></script>
+<script src="/static/tools.js?v={{ version }}"></script>
 </body>
 </html>

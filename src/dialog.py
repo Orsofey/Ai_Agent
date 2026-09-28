@@ -178,6 +178,15 @@ def ack_phrase(address='сэр', rng=random):
     return rng.choice(ack_phrases(address))
 
 
+FILLERS = ('Думаю, {a}.', 'Ещё мгновение, {a}.', 'Уже почти, {a}.')
+FILLERS_PLAIN = ('Думаю.', 'Ещё мгновение.', 'Уже почти.')
+
+
+def filler_phrases(address='сэр'):
+    """Если ответ ещё не начался через несколько секунд — короткая фраза, чтобы не было тишины."""
+    return [p.format(a=address) for p in FILLERS] if address else list(FILLERS_PLAIN)
+
+
 def stop_reply(kind, address='сэр'):
     """«Андрей, стоп» → «Хорошо, сэр.»; «останови все команды» → «Хорошо, сэр, все команды остановлены.»"""
     tail = ', все команды остановлены.' if kind == 'all' else '.'
