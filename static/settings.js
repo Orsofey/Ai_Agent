@@ -344,9 +344,26 @@
       fetch('/api/connection/qr', { headers: { 'X-Agent-Token': Agent.token, 'X-Device-ID': Agent.device } })
         .then(r => r.ok ? r.blob() : null).then(b => { if (b) $('pair-qr').src = URL.createObjectURL(b); });
       $('connection-token').value = c.token;
+      $('health-url').textContent = `http://${c.ip}:${c.port}/health`;
+      $('pc-ips').replaceChildren(...(c.ips || [c.ip]).map(ip => {
+        const li = document.createElement('li'); li.textContent = `http://${ip}:${c.port}`; return li;
+      }));
+      $('firewall-row').hidden = c.firewall === null || c.firewall === undefined;
+      if (c.firewall) $('firewall-state').textContent = 'Правило добавлено. Если телефон всё равно не подключается, включите «Доступ через интернет».';
+      const r = c.relay || {};
+      $('relay-state').textContent = !r.server ? 'Сначала укажите адрес сервера аккаунтов: раздел «Аккаунт и подписка».'
+        : !r.enabled ? 'Телефон управляет ПК из любой сети. Связь идёт через ваш сервер аккаунтов (HTTPS), порты открывать не нужно. После включения отсканируйте QR-код заново.'
+        : r.online ? `✓ Подключено к ${r.server}. Отсканируйте QR-код на телефоне заново, если ещё не сделали.`
+        : 'Подключаюсь к ' + r.server + (r.error ? ' — ' + r.error : '…');
       $('storage').textContent = 'Данные хранятся на ПК: ' + c.storage;
     } catch (e) { /* */ }
   }
+  // Включили «Доступ через интернет» — QR-код теперь содержит мост: обновляем его.
+  document.querySelector('[data-setting="remote_access"]').addEventListener('change', () => setTimeout(loadConnection, 1500));
+  $('firewall-allow').onclick = async () => {
+    try { Agent.toast((await Agent.post('connection/firewall')).message, 6000); loadConnection(); }
+    catch (e) { Agent.toast(e.message, 6000); }
+  };
   $('show-token').onclick = () => { const t = $('connection-token'); t.type = t.type === 'password' ? 'text' : 'password'; $('show-token').textContent = t.type === 'password' ? 'Показать' : 'Скрыть'; };
   $('export').onclick = async () => {
     try {

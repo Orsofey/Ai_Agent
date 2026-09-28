@@ -19,6 +19,7 @@
    | `Dockerfile` | как собрать сервер |
    | `requirements.txt` | библиотеки Python |
    | `license_server.py` | сам сервер |
+   | `relay.py` | мост «телефон ↔ ПК через интернет» (с версии 5.8) |
    | `run.py` | запуск |
    | `generate_keys.py` | не обязателен |
 

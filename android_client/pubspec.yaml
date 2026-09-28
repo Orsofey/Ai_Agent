@@ -13,7 +13,7 @@ dependencies:
   http: ^1.2.2
   shared_preferences: ^2.3.0
   record: ^7.0.0
-  flutter_tts: ^4.2.0
+  crypto: ^3.0.3
   mobile_scanner: ^7.0.0
   path_provider: ^2.1.4
 
