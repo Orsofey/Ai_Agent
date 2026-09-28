@@ -1,6 +1,6 @@
 """Источники данных, разрешающие коммерческое использование: ЦБ РФ, MET Norway, Nominatim, Википедия."""
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 from src.brain.tools import DataTools, parse_cbr_xml, summarize_met, met_condition, USER_AGENT
 
@@ -12,8 +12,12 @@ CBR_TODAY = '''<?xml version="1.0" encoding="windows-1251"?>
 CBR_PREV = CBR_TODAY.replace(b'24.09.2026', b'23.09.2026').replace(b'81,5234</Value>', b'81,2000</Value>')
 
 
-def met_payload():
+def met_payload(start=date(2026, 9, 24)):
+    """Прогноз на два дня, начиная с start (для «живого» теста — с сегодняшнего дня)."""
+    day1, day2 = start.isoformat(), (start + timedelta(days=1)).isoformat()
+
     def entry(time, temp, symbol=None, rain=None, wind=2.0):
+        time = time.replace('2026-09-24', day1).replace('2026-09-25', day2)
         data = {'instant': {'details': {'air_temperature': temp, 'wind_speed': wind, 'relative_humidity': 60}}}
         if symbol:
             data['next_1_hours'] = {'summary': {'symbol_code': symbol}}
@@ -81,7 +85,7 @@ class WeatherTests(unittest.TestCase):
     def test_forecast_uses_nominatim_and_met(self):
         session = FakeSession({
             'https://nominatim.openstreetmap.org/': lambda p: [{'name': 'Казань', 'lat': '55.7887', 'lon': '49.1221'}],
-            'https://api.met.no/': lambda p: met_payload(),
+            'https://api.met.no/': lambda p: met_payload(date.today()),
         })
         name, data = DataTools(session=session).forecast('Казань')
         self.assertEqual(name, 'Казань')

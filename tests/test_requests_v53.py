@@ -99,9 +99,34 @@ class ServerAccountTests(unittest.TestCase):
     def test_owner_email_cannot_be_taken(self):
         with self.assertRaises(Exception) as ctx:
             self.client('thief').register('orsofey@gmail.com', 'hacker123')
-        self.assertIn('зарезервирован', str(ctx.exception))
+        self.assertIn('принадлежит владельцу', str(ctx.exception))
         with self.assertRaises(Exception):
             self.client('thief2').login('orsofey@gmail.com', 'wrong-pass')
+
+    def test_owner_register_tab_with_owner_password_logs_in(self):
+        status = self.client('owner2', self.public).register('orsofey@gmail.com', 'owner-pass-1')
+        self.assertTrue(status['owner'])
+        self.assertTrue(status['premium'])
+
+    def test_server_home_page(self):
+        page = self.api.get('/')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('работает', page.get_data(as_text=True))
+
+    def test_server_address_entered_in_app(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = Store(folder)
+            client = LicenseClient(store, None, None, ServerSession(self.api))
+            with patch('src.license.license_config.SERVER_URL', ''):
+                client.server_url = ''
+                self.assertFalse(client.status()['configured'])
+                with self.assertRaises(Exception):
+                    client.set_server('not a url at all')
+                status = client.set_server('license.test/health')
+            self.assertEqual(status['server_url'], 'https://license.test')
+            again = LicenseClient(Store(folder), None, None, ServerSession(self.api))
+            self.assertEqual(again.server_url, 'https://license.test')
+            self.assertTrue(again.login('orsofey@gmail.com', 'owner-pass-1')['premium'])
 
     def test_promo_gives_lifetime(self):
         client = self.client('user', self.public)

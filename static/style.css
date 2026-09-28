@@ -347,3 +347,16 @@ body.locked .paywall ~ * { pointer-events: none; user-select: none; opacity: .42
 .account-chip.premium { border-color: var(--accent); }
 .avatar.mini { width: 28px; height: 28px; font-size: 13px; box-shadow: none; }
 @media (max-width: 720px) { #chip-text { display: none; } .account-chip { padding: 4px; } }
+.server-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-bottom: 16px; flex-wrap: wrap;
+  border-color: var(--warn); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.server-card.connected { border-color: var(--border); box-shadow: none; }
+.server-card[hidden] { display: none; }
+.server-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--chip); color: var(--warn); }
+.server-card.connected .server-icon { color: var(--ok); }
+.server-icon svg { width: 24px; height: 24px; }
+.server-text { display: flex; flex-direction: column; flex: 1; min-width: 200px; }
+.server-text small { color: var(--muted); word-break: break-all; }
+.server-form { display: flex; gap: 8px; flex: 1 1 360px; }
+.server-form input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--input); color: var(--text); }
+.server-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }

@@ -537,6 +537,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def account_logout():
         return account_reply(license.logout)
 
+    @app.post('/api/account/server')
+    def account_server():
+        return account_reply(lambda: license.set_server((request.get_json() or {}).get('url', '')))
+
     @app.post('/api/account/promo')
     def account_promo():
         return account_reply(lambda: license.promo((request.get_json() or {}).get('code', '')))

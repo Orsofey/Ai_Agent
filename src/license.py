@@ -11,6 +11,7 @@ import base64
 import json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -68,6 +69,8 @@ class LicenseClient:
             config.update(json.loads((self.store.root / 'license.json').read_text(encoding='utf-8')))
         except (OSError, ValueError):
             pass
+        # Адрес, введённый в приложении (Настройки → Аккаунт → «Адрес сервера»), важнее встроенного.
+        config['server_url'] = self.store.meta('license_server_url') or config['server_url']
         config['server_url'] = os.environ.get('AGENT_LICENSE_SERVER', config['server_url'])
         config['public_key'] = os.environ.get('AGENT_LICENSE_PUBLIC_KEY', config['public_key'])
         return config
@@ -134,7 +137,8 @@ class LicenseClient:
         payload = self.payload() or {}
         email = self.store.meta('account_email')
         plan = payload.get('plan', 'free') if payload.get('email') == email else 'free'
-        return {'configured': self.configured, 'logged_in': bool(self.store.meta('account_token')), 'email': email,
+        return {'configured': self.configured, 'server_url': self.server_url,
+                'logged_in': bool(self.store.meta('account_token')), 'email': email,
                 'owner': bool(self.store.meta('account_owner')),
                 'plan': plan, 'plan_name': PLAN_NAMES.get(plan, plan), 'expires': payload.get('expires'),
                 'premium': self.is_premium(), 'prices': {'monthly': 100, 'lifetime': 500},
@@ -143,7 +147,7 @@ class LicenseClient:
     # ---- сервер ----
     def _request(self, method, path, body=None, auth=True):
         if not self.configured:
-            raise AccountError('Сервер подписки не настроен в этой сборке (см. docs/AMVERA.md).', 503)
+            raise AccountError('Сначала укажите адрес сервера аккаунтов ниже — «Адрес сервера».', 503)
         headers = {}
         if auth:
             token = self.store.meta('account_token')
@@ -191,6 +195,29 @@ class LicenseClient:
             self.store.set_meta('account_owner', None)
             self.store.set_meta('pending_payment', None)
             return self.status()
+
+    def set_server(self, url):
+        """Подключить сервер аккаунтов по адресу (например, https://andrey-orsofey.amvera.io)."""
+        url = str(url or '').strip().rstrip('/')
+        url = re.sub(r'/(?:health|api/public-key)$', '', url)
+        if url and not re.match(r'^https?://', url):
+            url = 'https://' + url
+        if not re.fullmatch(r'https://[\w.-]+(?::\d+)?(?:/[\w./-]*)?|http://(?:127\.0\.0\.1|localhost)(?::\d+)?', url):
+            raise AccountError('Введите адрес вида https://имя-проекта.amvera.io')
+        try:
+            response = self.session.request('GET', url + '/health', json=None, headers={}, timeout=15)
+            ok = response.ok and response.json().get('success')
+        except Exception:
+            ok = False
+        if not ok:
+            raise AccountError('По этому адресу сервер аккаунтов не отвечает. Проверьте адрес и что проект в Amvera запущен.', 502)
+        with self.lock:
+            if url != self.server_url:
+                self._save(token='', document={}, email='')
+                self.store.set_meta('license_public_key', None)  # ключ нового сервера запомним при входе
+            self.store.set_meta('license_server_url', url)
+            self.server_url = url
+        return self.status()
 
     def promo(self, code):
         """Активировать промокод: подписка навсегда бесплатно."""

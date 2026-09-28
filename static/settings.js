@@ -360,7 +360,12 @@
       badge.className = 'plan-badge ' + (a.premium ? 'premium' : '');
       $('account-check').hidden = a.plan === 'lifetime';
     }
-    if (!a.configured && !a.logged_in) message('Сервер аккаунтов ещё не подключён в этой сборке. Разработчику: docs/AMVERA.md.', 'bad');
+    const box = $('server-box');
+    box.classList.toggle('connected', !!a.configured);
+    box.hidden = a.logged_in && a.configured;
+    $('server-state').textContent = a.configured ? 'Подключён: ' + a.server_url : 'Сервер ещё не подключён — вставьте адрес проекта Amvera.';
+    if (a.configured && document.activeElement !== $('server-url')) $('server-url').value = a.server_url || '';
+    $('server-save').textContent = a.configured ? 'Изменить' : 'Подключить';
   }
   async function loadAccount() {
     try { paintAccount((await Agent.api('account')).account); } catch (e) { /* */ }
@@ -398,6 +403,13 @@
     const a = await accountAction('account/promo', { code }, $('promo-apply'));
     if (a && a.premium) { $('promo-code').value = ''; Agent.toast('Промокод активирован: подписка навсегда!', 6000); }
   };
+  $('server-save').onclick = async () => {
+    const url = $('server-url').value.trim();
+    if (!url) { $('server-url').focus(); return; }
+    const a = await accountAction('account/server', { url }, $('server-save'));
+    if (a) { message('Сервер подключён. Теперь войдите или зарегистрируйтесь.', 'ok'); Agent.toast('Сервер аккаунтов подключён', 3000); }
+  };
+  $('server-url').addEventListener('keydown', e => { if (e.key === 'Enter') $('server-save').click(); });
   $('promo-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('promo-apply').click(); });
 
   async function buy(plan) {

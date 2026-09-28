@@ -206,7 +206,10 @@ class LicenseServer:
         if not 8 <= len(password) <= 200:
             raise ValueError('Пароль: от 8 символов')
         if email in self.owners:
-            raise ValueError('Этот email зарезервирован владельцем. Войдите паролем владельца.')
+            # Владелец нажал «Регистрация» вместо «Вход»: с верным паролем владельца просто входим.
+            if self.owner_password and password == self.owner_password:
+                return self.login(email, password)
+            raise ValueError('Этот email принадлежит владельцу. Войдите на вкладке «Вход» паролем из OWNER_PASSWORD.')
         with self.lock, self.connect() as db:
             if db.execute('SELECT 1 FROM users WHERE email=?', (email,)).fetchone():
                 raise ValueError('Этот email уже зарегистрирован. Войдите.')
@@ -415,6 +418,19 @@ def create_app(server=None):
         if re.fullmatch(r'[\w-]{8,64}', payment_id):
             server.apply(payment_id)
         return '', 200
+
+    @app.get('/')
+    def home():
+        """Главная страница сервера — чтобы по адресу проекта было видно, что всё работает."""
+        payments = 'подключена' if server.kassa is not None else 'не подключена (вход и промокоды работают)'
+        return ('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+                '<title>Андрей — сервер аккаунтов</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;'
+                'font-family:system-ui;background:linear-gradient(135deg,#0b1020,#16243f);color:#eaf2ff">'
+                '<div style="max-width:520px;padding:32px;border-radius:20px;background:rgba(255,255,255,.06);'
+                'border:1px solid rgba(150,200,255,.2)"><h1 style="margin-top:0">✅ Сервер аккаунтов «Андрей» работает</h1>'
+                f'<p>Оплата: {payments}.</p><p>Вставьте адрес этой страницы в приложении: Настройки → '
+                '«Аккаунт и подписка» → «Адрес сервера».</p><p style="opacity:.7">Проверка: <a style="color:#5ef2c2" '
+                'href="/health">/health</a></p></div></body></html>')
 
     @app.get('/paid')
     def paid():
