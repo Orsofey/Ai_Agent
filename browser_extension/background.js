@@ -184,6 +184,19 @@ const ACTIONS = {
     await waitLoaded(target.id);
     return true;
   },
+  async tab({ index }) {
+    const win = await chrome.windows.getLastFocused();
+    const tabs = await chrome.tabs.query({ windowId: win.id });
+    const active = tabs.find(t => t.active) || tabs[0];
+    const target = index === 'last' ? tabs[tabs.length - 1]
+      : index === 'next' ? tabs[(active.index + 1) % tabs.length]
+      : index === 'prev' ? tabs[(active.index - 1 + tabs.length) % tabs.length]
+      : tabs[index - 1];
+    if (!target) return null;
+    await focus(target);
+    return { index: target.index + 1 };
+  },
+  async block({ domains }) { await blockedReady; blocked = domains || []; await chrome.storage.local.set({ blocked }); await sweep(); return blocked.length; },
   async url() { const tab = await activeTab(); return tab ? tab.url : ''; },
   async tabs() { return (await chrome.tabs.query({})).map(t => ({ title: t.title, url: t.url })); },
   async close_tab() { const tab = await activeTab(); if (tab) await chrome.tabs.remove(tab.id); return true; },
@@ -236,6 +249,32 @@ const ACTIONS = {
     return false;
   },
 };
+
+// ---------- блокировка сайтов (сценарии «Работа», «Учёба» и «заблокируй ютуб на час») ----------
+let blocked = [];
+// Список переживает перезапуск фонового воркера; команда «block» ждёт загрузки, чтобы её не затёрло старое значение.
+const blockedReady = chrome.storage.local.get('blocked').then(v => { blocked = v.blocked || []; sweep(); });
+
+function isBlocked(url) {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return blocked.some(d => host === d || host.endsWith('.' + d));
+  } catch (e) { return false; }
+}
+
+async function stop(tab) {
+  const page = chrome.runtime.getURL('blocked.html') + '#' + encodeURIComponent(new URL(tab.url).hostname);
+  await chrome.tabs.update(tab.id, { url: page }).catch(() => {});
+}
+
+async function sweep() {
+  if (!blocked.length) return;
+  for (const tab of await chrome.tabs.query({})) if (isBlocked(tab.url || '')) await stop(tab);
+}
+
+chrome.tabs.onUpdated.addListener((id, info, tab) => {
+  if (info.url && isBlocked(info.url)) stop({ id, url: info.url });
+});
 
 // ---------- запуск ----------
 chrome.runtime.onStartup.addListener(loop);

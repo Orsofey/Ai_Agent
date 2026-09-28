@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '5.4'
+VERSION = '5.5'
 
 
 def local_ip():
@@ -88,6 +88,19 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
                           license=license)
     with store.connect() as db:
         db.execute('CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY, owner TEXT, result TEXT)')
+
+    def notify(text):
+        """Сообщение ассистента без команды пользователя (сценарий закончился, вкладка заблокирована)."""
+        store.add('device:desktop', 'agent', text)
+        events.emit('message', role='agent', text=text, source='scenario', owner='device:desktop', spoken=False)
+
+    from src.scenarios import ScenarioManager
+    from src.tracker import TrackerClient
+    scenarios = ScenarioManager(store, browser=getattr(agent, 'browser', None), notify=notify)
+    tracker = TrackerClient(store)
+    agent.scenarios = scenarios
+    agent.tracker = tracker
+    scenarios.ensure_thread()  # блокировки, начатые до перезапуска, продолжают действовать
 
     def owner():
         device = request.headers.get('X-Device-ID', 'desktop')
@@ -651,5 +664,61 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             except Exception:
                 log.exception('Cannot open payment page')
         return jsonify(success=True, url=data['url'], opened=opened)
+
+    # ---------------- сценарии и блокировки ----------------
+    @app.get('/api/scenarios')
+    def scenarios_list():
+        return jsonify(success=True, scenarios=scenarios.scenarios(), state=scenarios.summary())
+
+    @app.post('/api/scenarios')
+    def scenarios_save():
+        saved = scenarios.save((request.get_json() or {}).get('scenarios'))
+        return jsonify(success=True, scenarios=saved, state=scenarios.summary())
+
+    @app.post('/api/scenarios/start')
+    def scenarios_start():
+        data = request.get_json() or {}
+        minutes = data.get('minutes')
+        minutes = int(minutes) if str(minutes or '').isdigit() else None
+        message = scenarios.start(str(data.get('name', '')), minutes)
+        return jsonify(success=True, message=message, state=scenarios.summary())
+
+    @app.post('/api/scenarios/stop')
+    def scenarios_stop():
+        data = request.get_json(silent=True) or {}
+        message = scenarios.unblock(str(data.get('value', ''))) if data.get('unblock') else scenarios.stop()
+        return jsonify(success=True, message=message, state=scenarios.summary())
+
+    # ---------------- Трекер ----------------
+    @app.get('/api/tracker')
+    def tracker_status():
+        return jsonify(success=True, **tracker.status())
+
+    @app.post('/api/tracker/login')
+    def tracker_login():
+        from src.tracker import TrackerError
+        data = request.get_json() or {}
+        try:
+            if data.get('token'):
+                value = tracker.use_token(data.get('url', ''), data['token'])
+            else:
+                value = tracker.login(data.get('url', ''), data.get('email', ''), data.get('password', ''))
+        except TrackerError as exc:
+            raise ValueError(str(exc))
+        return jsonify(success=True, **value)
+
+    @app.post('/api/tracker/logout')
+    def tracker_logout():
+        return jsonify(success=True, **tracker.logout())
+
+    @app.post('/api/tracker/test')
+    def tracker_test():
+        from datetime import date
+        from src.tracker import TrackerError
+        try:
+            items = tracker.tasks(date.today())
+        except TrackerError as exc:
+            raise ValueError(str(exc))
+        return jsonify(success=True, message=f'Связь есть. Задач на сегодня: {len(items)}.')
 
     return app
