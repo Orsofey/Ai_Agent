@@ -190,11 +190,18 @@ class BrowserController:
     def _focus_or_open(self, url):
         """«Открой YouTube»: если сайт уже открыт во вкладке — переключиться на неё, а не открывать заново."""
         self.valid_url(url)
-        self._ensure()
+        if self.context is None:
+            return self._open(url)  # браузер ещё не запущен — открывать нечего, _open его запустит
         target = urlparse(url)
         host = (target.hostname or '').removeprefix('www.')
         path = target.path.rstrip('/')
-        for page in [p for p in self.context.pages if not p.is_closed()]:
+        try:
+            pages = [p for p in self.context.pages if not p.is_closed()]
+        except Exception as exc:
+            if self._is_closed_error(exc):
+                raise  # окно закрыто пользователем — _run перезапустит браузер
+            pages = []
+        for page in pages:
             current = urlparse(page.url)
             if (current.hostname or '').removeprefix('www.') == host and (not path or current.path.startswith(path)):
                 page.bring_to_front()
