@@ -380,3 +380,56 @@ body.locked .paywall ~ * { pointer-events: none; user-select: none; opacity: .42
 .voice-card .voice-wave i:nth-child(4) { animation-delay: .45s; }
 @keyframes wave { 0%, 100% { height: 30%; } 50% { height: 100%; } }
 [data-animations="off"] .voice-wave i { animation: none !important; height: 60%; }
+
+/* ---------- Выпадающие списки (static/select.js) ---------- */
+.dd { position: relative; width: 100%; min-width: 180px; }
+.dd-native { position: absolute !important; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.dd-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--input); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color .2s, box-shadow .2s, background .2s; }
+.dd-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.dd-btn:focus-visible, .dd.open .dd-btn { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.dd-btn:disabled { opacity: .55; cursor: not-allowed; }
+.dd-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-chevron { display: grid; place-items: center; color: var(--muted); transition: transform .25s cubic-bezier(.3,.7,.2,1), color .2s; }
+.dd-chevron svg { width: 18px; height: 18px; }
+.dd.open .dd-chevron { transform: rotate(180deg); color: var(--accent); }
+.dd-list { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40; margin: 0; padding: 6px; list-style: none;
+  max-height: 280px; overflow-y: auto; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface-strong, var(--surface)); backdrop-filter: blur(var(--blur)); -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: 0 18px 50px -18px rgba(0,0,0,.6), 0 0 0 1px var(--ring);
+  opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.98); transform-origin: top center;
+  transition: opacity .18s ease, transform .22s cubic-bezier(.3,.7,.2,1), visibility 0s linear .22s; }
+.dd.up .dd-list { top: auto; bottom: calc(100% + 6px); transform-origin: bottom center; transform: translateY(6px) scale(.98); }
+.dd.open .dd-list { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease, transform .22s cubic-bezier(.3,.7,.2,1); }
+.dd-list li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: calc(var(--radius-sm) - 4px);
+  cursor: pointer; color: var(--text); transition: background .15s, color .15s; }
+.dd-list li span { flex: 1; }
+.dd-list li i { display: grid; place-items: center; width: 18px; height: 18px; color: var(--accent); opacity: 0; transform: scale(.6);
+  transition: opacity .15s, transform .2s; }
+.dd-list li i svg { width: 16px; height: 16px; }
+.dd-list li:hover, .dd-list li.active { background: var(--chip); }
+.dd-list li[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.dd-list li[aria-selected="true"] i { opacity: 1; transform: none; }
+.dd-list li[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.dd-list::-webkit-scrollbar { width: 8px; } .dd-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+[data-animations="off"] .dd-list, [data-animations="off"] .dd-chevron { transition: none; }
+
+/* ---------- Поля ввода: одинаково аккуратные во всех темах ---------- */
+input[type=text], input[type=password], input[type=number], input[type=email], input:not([type]), textarea.field {
+  padding: 11px 14px; font-size: 14px; transition: border-color .2s, box-shadow .2s, background .2s; }
+input[type=text]:hover, input[type=password]:hover, input[type=number]:hover, input[type=email]:hover, input:not([type]):hover,
+textarea.field:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
+textarea.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+input[readonly] { opacity: .8; cursor: default; }
+/* Ползунки */
+.range input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 6px; background: var(--chip);
+  border: 1px solid var(--border); padding: 0; }
+.range input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  background: var(--accent-fill); border: 2px solid var(--on-accent); box-shadow: 0 0 0 3px var(--ring), 0 2px 10px var(--glow);
+  transition: transform .15s; }
+.range input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.range input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: var(--accent);
+  border: 2px solid var(--on-accent); box-shadow: 0 0 0 3px var(--ring); }
+.range input[type=range]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }

@@ -584,14 +584,17 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
 
     @app.get('/api/ext/status')
     def ext_status():
+        from src.browser_bridge import ExtensionBridge
         found = getattr(getattr(agent, 'browser', None), 'bridge', None)
-        return jsonify(success=True, **(found.status() if found else {'connected': False}))
+        return jsonify(success=True, **(found.status() if isinstance(found, ExtensionBridge) else {'connected': False}))
 
     # ---------------- интеграции ----------------
     @app.get('/api/integrations')
     def integrations_status():
+        from src.integrations import Integrations
         found = getattr(agent, 'integrations', None)
-        return jsonify(success=True, **(found.status() if found is not None else {'items': [], 'errors': [], 'folder': ''}))
+        return jsonify(success=True, **(found.status() if isinstance(found, Integrations)
+                                        else {'items': [], 'errors': [], 'folder': ''}))
 
     @app.post('/api/integrations/open-folder')
     def integrations_folder():
