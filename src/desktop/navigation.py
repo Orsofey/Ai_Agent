@@ -384,3 +384,35 @@ class TabNavigator:
             if result.returncode == 0 and result.stdout.strip():
                 return 'Переключаюсь на ' + result.stdout.strip()[:60] + '.'
         return None
+
+
+# ---------------- свернуть сайт ----------------
+def mac_minimize_script(app, kind, host):
+    host = host.replace('"', '')
+    prop = 'miniaturized' if kind == 'safari' else 'minimized'
+    return (f'tell application "{app}"\nset n to 0\nrepeat with w in windows\nrepeat with t in tabs of w\n'
+            f'if URL of t contains "{host}" then\nset {prop} of w to true\nset n to n + 1\nexit repeat\nend if\n'
+            'end repeat\nend repeat\nreturn n\nend tell')
+
+
+def minimize_site(url, names=(), bridge=None):
+    """«Сверни ютуб»: свернуть окно браузера, где открыт сайт. Вернуть число свёрнутых окон или None, если не умеем."""
+    if bridge is not None and getattr(bridge, 'connected', False) is True:
+        return int(bridge.send('minimize', url=url) or 0)
+    host = re.sub(r'^https?://(?:www\.)?', '', url).split('/')[0]
+    if sys.platform == 'darwin':
+        from .. import macos
+        count = 0
+        for app, kind in MAC_BROWSER_APPS.items():
+            if macos.is_running(app):
+                out = subprocess.run(['osascript', '-e', mac_minimize_script(app, kind, host)], capture_output=True,
+                                     text=True, timeout=10).stdout.strip()
+                count += int(out) if out.isdigit() else 0
+        return count
+    if sys.platform != 'win32':
+        return None
+    from ..app_control import _pids_by_names, minimize_windows, window_titles
+    from .controller import BROWSER_PROCESSES
+    markers = title_markers(url, names)
+    windows = [hwnd for hwnd, title in window_titles(_pids_by_names(BROWSER_PROCESSES)) if title_matches(title, markers)]
+    return minimize_windows(windows)

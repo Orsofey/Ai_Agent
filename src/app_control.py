@@ -180,10 +180,14 @@ def activate_running(name):
         return False
 
 
-def _app_pids(name):
-    names = set(targets(name))
-    if not names or names & PROTECTED:
-        return set()
+SELF_NAMES = {'себя', 'андрея', 'ассистента', 'агента', 'помощника', 'окно ассистента', 'окно андрея', 'свое окно',
+              'своё окно'}
+# Свернуть — безопасное действие, поэтому здесь разрешены и «защищённые» от закрытия программы (Проводник).
+MINIMIZE_ALIASES = {'проводник': {'explorer.exe'}, 'папку': {'explorer.exe'}, 'папки': {'explorer.exe'},
+                    'все папки': {'explorer.exe'}, 'проводники': {'explorer.exe'}}
+
+
+def _pids_by_names(names):
     me = os.getpid()
     pids = set()
     for process in psutil.process_iter(['pid', 'name']):
@@ -195,25 +199,59 @@ def _app_pids(name):
     return pids
 
 
+def minimize_windows(windows):
+    """Свернуть окна (HWND) на панель задач. Вернуть, сколько свёрнуто."""
+    user32 = ctypes.WinDLL('user32', use_last_error=True)
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    for hwnd in windows:
+        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+    return len(windows)
+
+
+def window_titles(pids):
+    """[(hwnd, заголовок)] видимых окон процессов."""
+    user32 = ctypes.WinDLL('user32', use_last_error=True)
+    result = []
+    for hwnd in _find_windows(pids):
+        length = user32.GetWindowTextLengthW(hwnd)
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buffer, length + 1)
+        if buffer.value:
+            result.append((hwnd, buffer.value))
+    return result
+
+
+def minimize_self():
+    """«Сверни себя»: окно ассистента — в трей/на панель задач."""
+    if sys.platform == 'darwin':
+        from . import macos
+        macos._osascript(f'tell application "System Events" to set visible of (first process whose unix id is {os.getpid()}) to false')
+        return 'Сворачиваюсь.'
+    if sys.platform != 'win32':
+        return 'Сворачивание окон поддерживается на Windows и macOS.'
+    return 'Сворачиваюсь.' if minimize_windows(_find_windows({os.getpid()})) else 'Моё окно уже свёрнуто.'
+
+
 def minimize_application(name):
     """«Сверни Telegram»: свернуть все окна приложения на панель задач (программа продолжает работать)."""
+    key = normalize(name)
+    if key in SELF_NAMES:
+        return minimize_self()
     if sys.platform == 'darwin':
         from . import macos
         return macos.minimize_application(name)
     if sys.platform != 'win32':
         return 'Сворачивание окон поддерживается на Windows и macOS.'
-    if not targets(name):
+    names = MINIMIZE_ALIASES.get(key) or set(targets(name))
+    if not names:
         return 'Не понял, какое приложение свернуть.'
-    pids = _app_pids(name)
+    pids = _pids_by_names(names)
     if not pids:
         return f'{name} не запущено.'
     windows = _find_windows(pids)
     if not windows:
         return f'У {name} нет открытых окон.'
-    user32 = ctypes.WinDLL('user32', use_last_error=True)
-    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-    for hwnd in windows:
-        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+    minimize_windows(windows)
     return 'Сворачиваю ' + name
 
 

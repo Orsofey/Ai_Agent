@@ -196,6 +196,12 @@ const ACTIONS = {
     await focus(target);
     return { index: target.index + 1 };
   },
+  async minimize({ url }) {
+    const tabs = (await chrome.tabs.query({})).filter(t => sameSite(t.url || '', url));
+    const windows = [...new Set(tabs.map(t => t.windowId))];
+    for (const id of windows) await chrome.windows.update(id, { state: 'minimized' });
+    return windows.length;
+  },
   async block({ domains }) { await blockedReady; blocked = domains || []; await chrome.storage.local.set({ blocked }); await sweep(); return blocked.length; },
   async url() { const tab = await activeTab(); return tab ? tab.url : ''; },
   async tabs() { return (await chrome.tabs.query({})).map(t => ({ title: t.title, url: t.url })); },

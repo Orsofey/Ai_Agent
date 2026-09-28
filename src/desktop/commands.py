@@ -3,6 +3,7 @@
 parse() — чистая функция (тестируется без Windows), execute() — выполнение.
 """
 import re
+import sys
 import time
 
 from . import messengers, navigation
@@ -292,6 +293,50 @@ class DesktopCommands:
                 return None  # пусть закроет вкладку браузер агента / команда не для Word
             return str(exc)
 
+    BROWSER_WORDS = ('браузер', 'браузера', 'браузеры', 'все браузеры', 'окно браузера', 'интернет')
+
+    def minimize(self, name):
+        """«Сверни Telegram / ютуб / вкладку / браузер / проводник / себя»."""
+        from ..app_control import minimize_application
+        from .. import sites
+        from .controller import BROWSER_PROCESSES
+        key = re.sub(r'^(?:эту\s+|текущую\s+|открытую\s+)?(?:вкладку|вкладка|вкладки|сайт|страницу)\b\s*', '', name).strip()
+        tab = key != name.strip()
+        d = self.desktop
+        if tab and not key:
+            # «Сверни вкладку» — вкладку отдельно не свернуть, сворачиваем окно браузера с ней.
+            if getattr(d, 'available', False) and d.target_process() in BROWSER_PROCESSES:
+                d.window('minimize')
+                return 'Свернул окно браузера.'
+            return 'Переключитесь в окно браузера — я сверну его.'
+        if key in self.BROWSER_WORDS:
+            if sys.platform == 'darwin':
+                from .navigation import MAC_BROWSER_APPS
+                from .. import macos
+                hidden = [app for app in MAC_BROWSER_APPS if macos.is_running(app)]
+                for app in hidden:
+                    macos.minimize_application(app)
+                return 'Сворачиваю браузер.' if hidden else 'Браузер не запущен.'
+            if sys.platform == 'win32':
+                from ..app_control import _find_windows, _pids_by_names, minimize_windows
+                count = minimize_windows(_find_windows(_pids_by_names(BROWSER_PROCESSES)))
+                return 'Сворачиваю браузер.' if count else 'Браузер не запущен.'
+        result = None if tab else minimize_application(key)
+        if result and not result.endswith(('не запущено.', 'нет открытых окон.')) and not result.startswith('Не понял'):
+            return result
+        url = sites.find(key, threshold=0.85)
+        if url and 'duckduckgo' not in url:
+            from .navigation import minimize_site
+            try:
+                count = minimize_site(url, [key], getattr(self.browser, 'bridge', None))
+            except Exception:
+                count = None
+            if count:
+                return 'Сворачиваю ' + key + '.'
+            if count == 0:
+                return f'Не нашёл открытое окно с {key}. Без расширения «Андрей» я вижу только активные вкладки окон.'
+        return result or f'Не понял, что свернуть: {name}.'
+
     def close_browser_tab(self, names):
         """«Закрой YouTube» в обычном браузере: Ctrl+W, если в заголовке активной вкладки есть название сайта."""
         from .controller import BROWSER_PROCESSES
@@ -309,8 +354,7 @@ class DesktopCommands:
     def execute(self, action, args, settings):
         d = self.desktop
         if action == 'minimize_app':
-            from ..app_control import minimize_application
-            return minimize_application(args['name'])
+            return self.minimize(args['name'])
         if action == 'restore_app':
             from ..app_control import activate_running
             return ('Разворачиваю ' + args['name']) if activate_running(args['name']) else f"{args['name']} не запущено."
