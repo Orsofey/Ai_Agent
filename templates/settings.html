@@ -123,6 +123,8 @@
         <div data-provider="local">
           <div class="row"><div class="label"><b>Модель</b><small>Чем больше модель, тем точнее ответы, но тем медленнее и больше памяти.</small></div>
             <div class="control"><select data-setting="local_model"><option value="qwen3-4b">Qwen3 4B — быстрая (рекомендуется)</option><option value="qwen2.5-7b">Qwen2.5 7B — точнее, 12+ ГБ ОЗУ</option><option value="qwen3-1.7b">Qwen3 1.7B — для слабых ПК</option></select></div></div>
+          <div class="row"><div class="label"><b>Режим памяти</b><small id="memory-info">Сколько ОЗУ отдать нейросети. «Авто» выбирает по объёму памяти компьютера.</small></div>
+            <div class="control"><select data-setting="memory_mode"><option value="auto">Авто (рекомендуется)</option><option value="economy">Экономный — минимум ОЗУ</option><option value="balanced">Сбалансированный</option><option value="max">Максимум — длинные разговоры</option></select></div></div>
           <div class="row"><div class="label"><b>Ускорение видеокартой</b><small>Vulkan: NVIDIA, AMD и Intel. Ответы в 3–10 раз быстрее. Нужна отдельная загрузка (≈50 МБ).</small></div>
             <div class="control"><label class="switch"><input type="checkbox" data-setting="llm_gpu"><span></span></label></div></div>
           <div class="row stack"><div class="control"><button class="btn primary" id="download-ai" hidden>Скачать нейросеть (≈2,5 ГБ, один раз)</button><div class="models" id="llm-models"></div></div></div>

@@ -64,6 +64,8 @@ def onnx_options():
     options = rt.SessionOptions()
     options.intra_op_num_threads = max(1, min(8, os.cpu_count() or 4))
     options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
+    # Без «арены» ONNX Runtime не держит про запас сотни МБ после первой фразы; на скорость почти не влияет.
+    options.enable_cpu_mem_arena = False
     providers = ['CPUExecutionProvider']
     if 'CUDAExecutionProvider' in rt.get_available_providers():
         providers.insert(0, 'CUDAExecutionProvider')

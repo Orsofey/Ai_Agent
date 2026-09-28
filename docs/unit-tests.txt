@@ -40,6 +40,17 @@ test_rate (test_brain.QuickTests.test_rate) ... ok
 test_safe_eval_blocks_code (test_brain.QuickTests.test_safe_eval_blocks_code) ... ok
 test_weather_now_default_city (test_brain.QuickTests.test_weather_now_default_city) ... ok
 test_weather_tomorrow_inflected_city (test_brain.QuickTests.test_weather_tomorrow_inflected_city) ... ok
+test_browser_controller_prefers_extension (test_browser_extension.BridgeUnitTests.test_browser_controller_prefers_extension) ... ok
+test_extension_origin_allowed_only_for_bridge (test_browser_extension.BridgeUnitTests.test_extension_origin_allowed_only_for_bridge) ... ok
+test_round_trip (test_browser_extension.BridgeUnitTests.test_round_trip) ... ok
+test_extension_end_to_end (test_browser_extension.ExtensionInChromiumTests.test_extension_end_to_end) ... 127.0.0.1 - - [28/Sep/2026 07:24:15] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [28/Sep/2026 07:24:15] code 404, message File not found
+127.0.0.1 - - [28/Sep/2026 07:24:15] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [28/Sep/2026 07:24:15] "GET /video.html HTTP/1.1" 200 -
+/usr/lib/python3.11/unittest/case.py:579: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 55363)>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
 test_agent_replies_to_casual_without_browser (test_conversation.ConversationTests.test_agent_replies_to_casual_without_browser) ... ok
 test_agent_still_runs_commands (test_conversation.ConversationTests.test_agent_still_runs_commands) ... ok
 test_commands_not_hijacked (test_conversation.ConversationTests.test_commands_not_hijacked) ... ok
@@ -153,6 +164,18 @@ test_missing_items_on_first_run (test_fixes.DownloadTests.test_missing_items_on_
 test_nothing_missing_when_ai_off_and_models_present (test_fixes.DownloadTests.test_nothing_missing_when_ai_off_and_models_present) ... ok
 test_resume_and_progress (test_fixes.DownloadTests.test_resume_and_progress) ... ok
 test_runtime_tries_previous_build_when_newest_missing (test_fixes.DownloadTests.test_runtime_tries_previous_build_when_newest_missing) ... ok
+test_action_in_app (test_integrations.IntegrationTests.test_action_in_app) ... ok
+test_agent_uses_integrations (test_integrations.IntegrationTests.test_agent_uses_integrations) ... ok
+test_broken_file_reported (test_integrations.IntegrationTests.test_broken_file_reported) ... Integration skipped: bad.json: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ok
+test_context_for_llm (test_integrations.IntegrationTests.test_context_for_llm) ... ok
+test_not_ours (test_integrations.IntegrationTests.test_not_ours) ... ok
+test_only_http_urls (test_integrations.IntegrationTests.test_only_http_urls) ... Integration evil failed: поддерживаются только адреса http(s)
+ok
+test_open_folder_creates_example (test_integrations.IntegrationTests.test_open_folder_creates_example) ... ok
+test_python_plugin_and_hot_reload (test_integrations.IntegrationTests.test_python_plugin_and_hot_reload) ... ok
+test_read_data_by_voice (test_integrations.IntegrationTests.test_read_data_by_voice) ... ok
+test_say_template (test_integrations.IntegrationTests.test_say_template) ... ok
 test_brain_answers_through_local_server (test_local_llm.LocalServerTests.test_brain_answers_through_local_server) ... ok
 test_files_found (test_local_llm.LocalServerTests.test_files_found) ... ok
 test_missing_model_falls_back_to_installed_one (test_local_llm.LocalServerTests.test_missing_model_falls_back_to_installed_one) ... ok
@@ -173,6 +196,14 @@ test_autostart_launch_agent (test_macos.MacSystemTests.test_autostart_launch_age
 test_data_folder (test_macos.MacSystemTests.test_data_folder) ... ok
 test_llama_mac_asset (test_macos.MacSystemTests.test_llama_mac_asset) ... ok
 test_llama_tar_install_sets_exec_bit (test_macos.MacSystemTests.test_llama_tar_install_sets_exec_bit) ... ok
+test_auto_by_ram (test_memory.ProfileTests.test_auto_by_ram) ... ok
+test_estimates_shrink (test_memory.ProfileTests.test_estimates_shrink) ... ok
+test_setting_validated (test_memory.ProfileTests.test_setting_validated) ... ok
+test_balanced_flags (test_memory.ServerFlagsTests.test_balanced_flags) ... ok
+test_economy_flags_and_restart_on_mode_change (test_memory.ServerFlagsTests.test_economy_flags_and_restart_on_mode_change) ... ok
+test_idle_unload_in_economy (test_memory.ServerFlagsTests.test_idle_unload_in_economy) ... ok
+test_old_build_retries_without_new_flags (test_memory.ServerFlagsTests.test_old_build_retries_without_new_flags) ... llama-server exited, retrying without memory flags
+ok
 test_import_and_no_duplicate (test_migration.MigrationTests.test_import_and_no_duplicate) ... ok
 test_legacy_password (test_migration.MigrationTests.test_legacy_password) ... ok
 test_discord_opens_closed_app_and_asks_for_server (test_requests_v52.CommandTests.test_discord_opens_closed_app_and_asks_for_server) ... ok
@@ -200,14 +231,18 @@ test_player_falls_back_to_media_key (test_requests_v53.MusicTests.test_player_fa
 test_send_draft (test_requests_v53.SendDraftTests.test_send_draft) ... ok
 test_send_draft_returns_to_chat (test_requests_v53.SendDraftTests.test_send_draft_returns_to_chat) ... ok
 test_amvera_env_config (test_requests_v53.ServerAccountTests.test_amvera_env_config) ... ok
-test_amvera_files (test_requests_v53.ServerAccountTests.test_amvera_files) ... ok
+test_amvera_files (test_requests_v53.ServerAccountTests.test_amvera_files)
+Папка server/ самодостаточна: её содержимое загружается в Amvera как есть. ... ok
 test_app_promo_endpoint (test_requests_v53.ServerAccountTests.test_app_promo_endpoint) ... ok
 test_owner_email_cannot_be_taken (test_requests_v53.ServerAccountTests.test_owner_email_cannot_be_taken) ... ok
 test_owner_has_everything (test_requests_v53.ServerAccountTests.test_owner_has_everything) ... ok
+test_owner_register_tab_with_owner_password_logs_in (test_requests_v53.ServerAccountTests.test_owner_register_tab_with_owner_password_logs_in) ... ok
 test_payments_disabled_without_yookassa (test_requests_v53.ServerAccountTests.test_payments_disabled_without_yookassa) ... ok
 test_promo_gives_lifetime (test_requests_v53.ServerAccountTests.test_promo_gives_lifetime) ... ok
 test_promo_rules (test_requests_v53.ServerAccountTests.test_promo_rules) ... ok
 test_public_key_pinned_on_first_contact (test_requests_v53.ServerAccountTests.test_public_key_pinned_on_first_contact) ... ok
+test_server_address_entered_in_app (test_requests_v53.ServerAccountTests.test_server_address_entered_in_app) ... ok
+test_server_home_page (test_requests_v53.ServerAccountTests.test_server_home_page) ... ok
 test_agent_opens_in_named_browser (test_requests_v53.SitesTests.test_agent_opens_in_named_browser) ... ok
 test_app_name_cases (test_requests_v53.SitesTests.test_app_name_cases) ... ok
 test_close_site_tab (test_requests_v53.SitesTests.test_close_site_tab) ... ok
@@ -232,6 +267,11 @@ test_register_pay_monthly_unlocks (test_subscription.SubscriptionTests.test_regi
 test_server_validation (test_subscription.SubscriptionTests.test_server_validation) ... ok
 test_unpaid_payment_changes_nothing (test_subscription.SubscriptionTests.test_unpaid_payment_changes_nothing) ... ok
 test_webhook_is_verified_and_applied_once (test_subscription.SubscriptionTests.test_webhook_is_verified_and_applied_once) ... ok
+test_amount_is_checked (test_tbank.TBankTests.test_amount_is_checked) ... ok
+test_checkout_then_notification_unlocks (test_tbank.TBankTests.test_checkout_then_notification_unlocks) ... ok
+test_env_selects_tbank (test_tbank.TBankTests.test_env_selects_tbank) ... ok
+test_forged_notification_rejected (test_tbank.TBankTests.test_forged_notification_rejected) ... ok
+test_token_algorithm (test_tbank.TBankTests.test_token_algorithm) ... ok
 test_message_remembers_chat (test_telegram.ExecuteTests.test_message_remembers_chat) ... ok
 test_messenger_not_running (test_telegram.ExecuteTests.test_messenger_not_running) ... ok
 test_open_chat_then_write (test_telegram.ExecuteTests.test_open_chat_then_write) ... ok
@@ -287,6 +327,6 @@ test_spotify_opens_in_browser (test_web_services.WebServiceTests.test_spotify_op
 test_vk_music_opens_in_browser (test_web_services.WebServiceTests.test_vk_music_opens_in_browser) ... ok
 
 ----------------------------------------------------------------------
-Ran 287 tests in 9.482s
+Ran 316 tests in 17.567s
 
 OK

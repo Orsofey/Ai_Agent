@@ -70,6 +70,42 @@ def find_model(root, key):
     return None
 
 
+# Режимы памяти. Кеш диалога (KV) в 8 бит почти не влияет на качество и скорость, но вдвое меньше.
+MEMORY_PROFILES = {
+    'economy': {'ctx': 2048, 'kv': 'q8_0', 'ubatch': 256, 'idle_minutes': 10,
+                'title': 'Экономный — меньше всего памяти, нейросеть выгружается после 10 минут простоя'},
+    'balanced': {'ctx': 4096, 'kv': 'q8_0', 'ubatch': 512, 'idle_minutes': 0,
+                 'title': 'Сбалансированный — рекомендуется'},
+    'max': {'ctx': 8192, 'kv': 'f16', 'ubatch': 512, 'idle_minutes': 0,
+            'title': 'Максимум — длинные разговоры, больше памяти'},
+}
+
+
+def total_ram_gb():
+    try:
+        import psutil
+        return psutil.virtual_memory().total / 2 ** 30
+    except Exception:
+        return 16.0
+
+
+def memory_profile(settings):
+    """Профиль памяти из настроек; «auto» — по объёму ОЗУ компьютера."""
+    mode = (settings or {}).get('memory_mode', 'auto')
+    if mode not in MEMORY_PROFILES:
+        mode = 'economy' if total_ram_gb() < 9 else 'balanced'
+    return dict(MEMORY_PROFILES[mode], mode=mode)
+
+
+def estimate_ram_mb(key, settings):
+    """Примерная память нейросети: веса модели + кеш диалога + рабочие буферы."""
+    info = LOCAL_MODELS.get(key, LOCAL_MODELS[DEFAULT_MODEL])
+    profile = memory_profile(settings)
+    kv_per_1k = {'qwen3-1.7b': 112, 'qwen3-4b': 144, 'qwen2.5-7b': 56}.get(key, 144)  # МБ на 1024 токена в f16
+    kv = kv_per_1k * profile['ctx'] / 1024 * (0.53 if profile['kv'] == 'q8_0' else 1.0)
+    return int(info['size_mb'] + kv + (150 if profile['ubatch'] <= 256 else 300))
+
+
 def free_port():
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
@@ -87,6 +123,10 @@ class LocalLLMServer:
         self.starting = False
         self.lock = threading.RLock()
         self._session = session
+        self.profile = None
+        self.safe_mode = False   # старая сборка llama.cpp не знает новых флагов — запуск без них
+        self.last_used = time.monotonic()
+        threading.Thread(target=self._idle_watch, daemon=True, name='llm-idle').start()
 
     @property
     def session(self):
@@ -119,24 +159,48 @@ class LocalLLMServer:
                     model_installed=find_model(self.root, key) is not None,
                     runtime_installed=binary is not None, runtime=flavor,
                     running=self.running(), ready=self.healthy(), starting=self.starting, error=self.error,
-                    installed_models=[k for k in LOCAL_MODELS if find_model(self.root, k)])
+                    installed_models=[k for k in LOCAL_MODELS if find_model(self.root, k)],
+                    memory=self.memory(settings))
+
+    def memory(self, settings=None):
+        """Сколько памяти занимают ассистент и нейросеть сейчас (МБ) и оценка для выбранного режима."""
+        profile = memory_profile(settings or {})
+        info = {'mode': profile['mode'], 'mode_title': profile['title'], 'total_ram_gb': round(total_ram_gb(), 1),
+                'estimate_mb': estimate_ram_mb((settings or {}).get('local_model', DEFAULT_MODEL), settings or {})}
+        try:
+            import psutil
+            info['agent_mb'] = int(psutil.Process().memory_info().rss / 2 ** 20)
+            info['llm_mb'] = int(psutil.Process(self.process.pid).memory_info().rss / 2 ** 20) if self.running() else 0
+        except Exception:
+            pass
+        return info
 
     def ensure(self, settings, wait=120.0):
         """Запустить сервер (если нужно) и вернуть его адрес. Бросает RuntimeError с понятным текстом."""
         key = settings.get('local_model', DEFAULT_MODEL)
         gpu = bool(settings.get('llm_gpu', False))
+        profile = memory_profile(settings)
+        self.last_used = time.monotonic()
         with self.lock:
-            if self.running() and (self.key, self.gpu) == (key, gpu):
+            if self.running() and (self.key, self.gpu, self.profile) == (key, gpu, profile['mode']):
                 pass
             else:
                 self.stop()
-                self._start(key, gpu)
+                self._start(key, gpu, profile)
         deadline = time.monotonic() + wait
         while time.monotonic() < deadline:
             if self.healthy():
                 self.error = None
+                self.last_used = time.monotonic()
                 return self.base_url
             if not self.running():
+                if not self.safe_mode:
+                    # Возможно, сборка llama.cpp старая и не знает флагов экономии памяти — пробуем без них.
+                    log.warning('llama-server exited, retrying without memory flags')
+                    self.safe_mode = True
+                    with self.lock:
+                        self._start(key, gpu, profile)
+                    continue
                 self.error = 'Локальная нейросеть завершилась при запуске. Подробности: logs/llama-server.log'
                 raise RuntimeError(self.error)
             time.sleep(0.3)
@@ -155,7 +219,22 @@ class LocalLLMServer:
                 self.starting = False
         threading.Thread(target=run, daemon=True, name='llm-warmup').start()
 
-    def _start(self, key, gpu):
+    def _idle_watch(self):
+        """Экономный режим: выгрузить нейросеть из памяти после простоя (следующий вопрос запустит её снова)."""
+        while True:
+            time.sleep(30)
+            self.unload_if_idle()
+
+    def unload_if_idle(self):
+        minutes = (MEMORY_PROFILES.get(self.profile) or {}).get('idle_minutes', 0)
+        if minutes and self.running() and time.monotonic() - self.last_used > minutes * 60:
+            log.info('Local LLM unloaded after %s idle minutes', minutes)
+            self.stop()
+            return True
+        return False
+
+    def _start(self, key, gpu, profile=None):
+        profile = profile or memory_profile({})
         model = find_model(self.root, key)
         if model is None:
             installed = [k for k in LOCAL_MODELS if find_model(self.root, k)]
@@ -169,7 +248,12 @@ class LocalLLMServer:
         self.port = free_port()
         threads = max(2, min(8, (os.cpu_count() or 4) - 1))
         args = [str(binary), '-m', str(model), '--host', '127.0.0.1', '--port', str(self.port),
-                '-c', '4096', '-t', str(threads), '--jinja']
+                '-c', str(profile['ctx']), '-t', str(threads), '--jinja']
+        if not self.safe_mode:
+            # Один слот: весь контекст — одному разговору (по умолчанию llama.cpp делит его на 4 слота).
+            args += ['-np', '1', '-ub', str(profile['ubatch'])]
+            if profile['kv'] != 'f16':
+                args += ['-fa', 'on', '--cache-type-k', profile['kv'], '--cache-type-v', profile['kv']]
         if (gpu and flavor in ('vulkan', 'system')) or sys.platform == 'darwin':
             args += ['-ngl', '99']  # на Mac — Metal: общая память, видеокарта есть всегда
         logs = self.root / 'logs'
@@ -179,8 +263,8 @@ class LocalLLMServer:
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         self.process = subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                         cwd=str(binary.parent), creationflags=flags)
-        self.key, self.gpu = key, gpu
-        log.info('llama-server started: %s (%s) port %s', model.name, flavor, self.port)
+        self.key, self.gpu, self.profile = key, gpu, profile['mode']
+        log.info('llama-server started: %s (%s, %s) port %s', model.name, flavor, profile['mode'], self.port)
 
     def stop(self):
         with self.lock:
@@ -204,6 +288,6 @@ class LocalLLMServer:
             self.stop()
             return
         key, gpu = settings.get('local_model', DEFAULT_MODEL), bool(settings.get('llm_gpu', False))
-        if self.running() and (self.key, self.gpu) != (key, gpu):
+        if self.running() and (self.key, self.gpu, self.profile) != (key, gpu, memory_profile(settings)['mode']):
             self.stop()
             self.warmup(settings)

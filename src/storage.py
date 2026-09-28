@@ -41,7 +41,7 @@ DEFAULTS = {
     'type_method': 'auto', 'messenger_autosend': False, 'autostart': True,
     'minimize_to_tray': True, 'video_source': 'youtube',
     # Характер: «Да, сэр, включаю Telegram».
-    'address': 'сэр', 'butler': True, 'ack': True, 'voice_preset': 'jarvis',
+    'address': 'сэр', 'butler': True, 'ack': True, 'voice_preset': 'jarvis', 'memory_mode': 'auto',
     # Telegram: как произносите → как записан контакт («Арсений Крэк = Arseny Crack»).
     'contact_aliases': '', 'contacts_latin': False,
 }
@@ -62,7 +62,8 @@ CHOICES = {
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
     'address': ('сэр', 'мадам', 'босс', 'none'),
-    'voice_preset': ('jarvis', 'friday'),  # плюс свои голоса «custom:<имя>» (см. _valid)
+    'voice_preset': ('jarvis', 'friday'),
+    'memory_mode': ('auto', 'economy', 'balanced', 'max'),  # плюс свои голоса «custom:<имя>» (см. _valid)
 }
 
 RANGES = {

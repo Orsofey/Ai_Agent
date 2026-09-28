@@ -146,6 +146,11 @@
         local.ready ? '✓ Работает на этом ПК' + (local.runtime === 'vulkan' ? ' · видеокарта' : ' · процессор') :
         local.starting ? 'Загружается в память…' :
         !local.runtime_installed || !local.model_installed ? 'Не установлена — нажмите «Скачать» ниже' : (local.error || 'Запустится при первом вопросе');
+      const mem = local.memory || {};
+      if (mem.mode) {
+        const now = mem.llm_mb ? ` Сейчас: ассистент ${mem.agent_mb} МБ + нейросеть ${mem.llm_mb} МБ.` : mem.agent_mb ? ` Сейчас ассистент занимает ${mem.agent_mb} МБ.` : '';
+        $('memory-info').textContent = `${mem.mode_title}. Нейросеть ≈ ${(mem.estimate_mb / 1024).toFixed(1)} ГБ, в компьютере ${mem.total_ram_gb} ГБ.${now}`;
+      }
       const list = $('llm-models');
       list.replaceChildren();
       const rows = [['llama:cpu', { title: 'Движок llama.cpp (процессор)', size_mb: 30, installed: models.llama.cpu.installed }]];

@@ -1,4 +1,4 @@
-# Local AI Agent 5.3 — голосовой ассистент «Андрей» для Windows, macOS и iPhone
+# Local AI Agent 5.4 — голосовой ассистент «Андрей» для Windows, macOS и iPhone
 
 Ассистент постоянно слушает микрофон в фоне и реагирует на своё имя: **«Андрей, …»**.
 Команды выполняются в **любом открытом приложении**: Word, Telegram, браузере, Блокноте,
@@ -33,6 +33,9 @@ Discord и других. Можно спросить что угодно, от �
 **macOS:** `./SETUP_MAC.sh`, затем `./START_MAC.command`; готовый `.dmg` — `./BUILD_MAC.sh`.
 **iPhone:** Настройки → «iPhone и Android» → QR-код; голосом — «Привет, Siri, Андрей».
 Подробно: [docs/MAC_IPHONE.md](docs/MAC_IPHONE.md).
+**Расширение для браузера** (Chrome, Edge, Яндекс Браузер, Opera): ассистент работает в вашем открытом браузере —
+Настройки → Управление ПК → «Расширение „Андрей“». **Интеграции** с другими приложениями — [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+**Голоса** «Джарвис» и «Пятница», свой голос — [docs/VOICES.md](docs/VOICES.md). **Оплата через Т-Банк** — [docs/TBANK.md](docs/TBANK.md).
 **Отправить другу на Mac, имея только Windows:** сборку делает GitHub — [docs/MAC_FOR_FRIEND.md](docs/MAC_FOR_FRIEND.md).
 
 ## Установщик «всё в одном» для пользователей
