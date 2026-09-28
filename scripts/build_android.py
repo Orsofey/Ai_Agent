@@ -1,6 +1,13 @@
-"""Generate Android platform files with installed Flutter; keep a stable signing key."""
+"""Build the Android client: APK (RuStore, direct install) and AAB (Google Play, RuStore); keep a stable signing key.
+
+    BUILD_ANDROID.bat          — APK and AAB
+    BUILD_ANDROID.bat aab      — only AAB
+    BUILD_ANDROID.bat apk      — only APK
+"""
 import json
 import os
+import re
+import time
 from pathlib import Path
 import secrets
 import shutil
@@ -21,6 +28,13 @@ def run(args, cwd=None, env=None):
 
 
 def tool(name):
+    if os.name == 'nt':
+        # В папке flutter\bin рядом лежат bash-скрипт «flutter» и «flutter.bat». Python 3.12 может вернуть
+        # первый, и Windows не запустит его: «[WinError 193] %1 is not a valid Win32 application».
+        for ext in ('.bat', '.cmd', '.exe'):
+            found = shutil.which(name + ext)
+            if found:
+                return found
     found = shutil.which(name)
     if found:
         return found
@@ -61,25 +75,39 @@ def signing():
     return value
 
 
+def app_version():
+    """Версия для магазинов: имя — из app.py (5.4), номер сборки растёт с каждой сборкой (требование Play и RuStore)."""
+    match = re.search(r"^VERSION = '([\d.]+)'", (ROOT/'app.py').read_text(encoding='utf-8'), re.M)
+    name = match.group(1) if match else '1.0'
+    if name.count('.') == 1:
+        name += '.0'
+    code = os.getenv('LOCAL_AI_ANDROID_BUILD_NUMBER') or str(int(time.time() // 60) - 29_000_000)
+    return name, code
+
+
 def main():
+    targets = [a.lower() for a in sys.argv[1:]] or ['apk', 'aab']
+    if not set(targets) <= {'apk', 'aab'}:
+        raise SystemExit('Usage: BUILD_ANDROID.bat [apk] [aab]')
     flutter = tool('flutter')
+    dart = Path(flutter).with_name('dart.bat' if os.name == 'nt' else 'dart')
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     # Generated build tree only; original android_client/lib and keys are never removed.
     if TARGET.exists():
         shutil.rmtree(TARGET)
     run([flutter, 'create', '--platforms=android', '--org=com.localaiagent', '--project-name=local_ai_agent', '--no-pub', TARGET])
-    for name in ('lib', 'assets'):
+    if (TARGET/'test').exists():
+        shutil.rmtree(TARGET/'test')  # Generated counter-app test refers to MyApp, not AgentApp.
+    for name in ('lib', 'assets', 'test'):
         shutil.copytree(ROOT/'android_client'/name, TARGET/name, dirs_exist_ok=True)
     shutil.copy2(ROOT/'android_client/pubspec.yaml', TARGET/'pubspec.yaml')
     lockfile = ROOT/'android_client/pubspec.lock'
     if lockfile.exists():
         shutil.copy2(lockfile, TARGET/'pubspec.lock')
-    if (TARGET/'test').exists():
-        shutil.rmtree(TARGET/'test')  # Generated counter-app test refers to MyApp, not AgentApp.
     manifest = TARGET/'android/app/src/main/AndroidManifest.xml'
-    text = manifest.read_text()
+    text = manifest.read_text(encoding='utf-8')
     text = text.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application android:usesCleartextTraffic="true" android:allowBackup="false"', 1)
-    text = text.replace('android:label="local_ai_agent"', 'android:label="Local AI Agent"')
+    text = text.replace('android:label="local_ai_agent"', 'android:label="Андрей"')
     manifest.write_text(text, encoding='utf-8')
     value = signing()
     props = TARGET/'android/key.properties'
@@ -88,7 +116,7 @@ def main():
     gradle = TARGET/'android/app/build.gradle.kts'
     if not gradle.exists():
         raise RuntimeError('This script requires current Flutter with Kotlin Gradle DSL. Update Flutter stable.')
-    text = gradle.read_text()
+    text = gradle.read_text(encoding='utf-8')
     header = 'import java.util.Properties\n\n'
     signing_block = '''android {
     val keyProperties = Properties().apply {
@@ -110,15 +138,29 @@ def main():
     text = text.replace('minSdk = flutter.minSdkVersion', 'minSdk = maxOf(flutter.minSdkVersion, 23)')
     gradle.write_text(text, encoding='utf-8')
     run([flutter, 'pub', 'get'], TARGET)
-    run([flutter, 'pub', 'run', 'flutter_launcher_icons'], TARGET)
+    run([dart if dart.exists() else flutter, *([] if dart.exists() else ['pub']), 'run', 'flutter_launcher_icons'], TARGET)
     run([flutter, 'analyze', '--no-fatal-infos'], TARGET)
-    run([flutter, 'build', 'apk', '--release'], TARGET)
+    run([flutter, 'test'], TARGET)
+    name, code = app_version()
+    version = ['--build-name', name, '--build-number', code]
     output = ROOT/'release'
     output.mkdir(exist_ok=True)
-    shutil.copy2(TARGET/'build/app/outputs/flutter-apk/app-release.apk', output/'LocalAIAgent.apk')
-    # Do not leave a second plaintext password file in the generated build tree.
-    props.unlink(missing_ok=True)
-    print('Ready: '+str(output/'LocalAIAgent.apk'))
+    ready = []
+    try:
+        if 'apk' in targets:
+            run([flutter, 'build', 'apk', '--release', *version], TARGET)
+            shutil.copy2(TARGET/'build/app/outputs/flutter-apk/app-release.apk', output/'LocalAIAgent.apk')
+            ready.append(output/'LocalAIAgent.apk')
+        if 'aab' in targets:
+            run([flutter, 'build', 'appbundle', '--release', *version], TARGET)
+            shutil.copy2(TARGET/'build/app/outputs/bundle/release/app-release.aab', output/'LocalAIAgent.aab')
+            ready.append(output/'LocalAIAgent.aab')
+    finally:
+        # Do not leave a second plaintext password file in the generated build tree.
+        props.unlink(missing_ok=True)
+    print(f'Version {name} (build {code})')
+    for path in ready:
+        print('Ready: '+str(path))
 
 
 if __name__ == '__main__':

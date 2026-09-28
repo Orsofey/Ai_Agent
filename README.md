@@ -33,6 +33,8 @@ Discord и других. Можно спросить что угодно, от �
 **macOS:** `./SETUP_MAC.sh`, затем `./START_MAC.command`; готовый `.dmg` — `./BUILD_MAC.sh`.
 **iPhone:** Настройки → «iPhone и Android» → QR-код; голосом — «Привет, Siri, Андрей».
 Подробно: [docs/MAC_IPHONE.md](docs/MAC_IPHONE.md).
+
+**Android:** `BUILD_ANDROID.bat` собирает `release\LocalAIAgent.apk` и `release\LocalAIAgent.aab` для Google Play и RuStore — см. [docs/ANDROID_STORES.md](docs/ANDROID_STORES.md).
 **Расширение для браузера** (Chrome, Edge, Яндекс Браузер, Opera): ассистент работает в вашем открытом браузере —
 Настройки → Управление ПК → «Расширение „Андрей“». **Интеграции** с другими приложениями — [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 **Голоса** «Джарвис» и «Пятница», свой голос — [docs/VOICES.md](docs/VOICES.md). **Оплата через Т-Банк** — [docs/TBANK.md](docs/TBANK.md).

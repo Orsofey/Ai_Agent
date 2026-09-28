@@ -1,0 +1,33 @@
+name: local_ai_agent
+description: "Андрей — голосовой пульт для ИИ-агента на вашем ПК (локальная сеть)."
+publish_to: 'none'
+# Версию и номер сборки для магазинов подставляет scripts/build_android.py (--build-name / --build-number).
+version: 5.4.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  shared_preferences: ^2.3.0
+  record: ^7.0.0
+  flutter_tts: ^4.2.0
+  mobile_scanner: ^7.0.0
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon.png
+  min_sdk_android: 23
