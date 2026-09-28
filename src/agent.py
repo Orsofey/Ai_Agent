@@ -236,6 +236,10 @@ class LocalComputerAgent:
         # 4. «Открой в браузере Claude Code», «открой в Яндекс Браузере YouTube».
         request = sites.parse(text)
         if request:
+            bridge = getattr(self.browser, 'bridge', None)
+            if bridge is not None and getattr(bridge, 'connected', False) is True and bridge.matches(request['browser']):
+                # Браузер пользователя уже открыт и подключён: открываем там (или переключаемся на вкладку).
+                return self.browser.call('open', sites.resolve(request['site'])), 'action'
             return sites.open_site(request['site'], request['browser']), 'action'
 
         # 5. Сервисы и браузер.

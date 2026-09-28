@@ -45,7 +45,9 @@ def build_agent(store, events=None):
     from src.brain import Brain
     from src.browser_control import BrowserController
     from src.desktop import DesktopController, DesktopCommands
+    from src.browser_bridge import ExtensionBridge
     browser = BrowserController(store.root)
+    browser.bridge = ExtensionBridge()  # расширение «Андрей» в браузере пользователя
     brain = Brain(store)
     desktop = DesktopController()
     commands = DesktopCommands(desktop, brain=brain, browser=browser, root=store.root)
@@ -99,7 +101,8 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def authenticate():
         if request.path.startswith('/api/'):
             origin = request.headers.get('Origin')
-            if origin and urlparse(origin).netloc != request.host:
+            extension = request.path.startswith('/api/ext/') and str(origin).startswith(('chrome-extension://', 'moz-extension://'))
+            if origin and not extension and urlparse(origin).netloc != request.host:
                 return jsonify(success=False, message='Чужой Origin запрещён'), 403
             token = request.headers.get('X-Agent-Token', '')
             if request.path == '/api/events' and not token:
@@ -546,6 +549,40 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     @app.post('/api/account/logout')
     def account_logout():
         return account_reply(license.logout)
+
+    # ---------------- расширение «Андрей» для браузера ----------------
+    def bridge():
+        found = getattr(getattr(agent, 'browser', None), 'bridge', None)
+        if found is None:
+            raise ValueError('Мост к браузеру недоступен')
+        return found
+
+    @app.get('/api/ext/next')
+    def ext_next():
+        """Долгий опрос от расширения: следующая команда или пустой ответ через ~20 секунд."""
+        command = bridge().next_command(request.args.get('wait', 20), request.args.get('browser', ''))
+        return jsonify(success=True, command=command)
+
+    @app.post('/api/ext/result')
+    def ext_result():
+        data = request.get_json(silent=True) or {}
+        bridge().complete(data.get('id'), data.get('ok'), data.get('result'), data.get('error'))
+        return jsonify(success=True)
+
+    @app.get('/api/ext/status')
+    def ext_status():
+        found = getattr(getattr(agent, 'browser', None), 'bridge', None)
+        return jsonify(success=True, **(found.status() if found else {'connected': False}))
+
+    @app.post('/api/ext/open-folder')
+    def ext_open_folder():
+        """Папка расширения — её выбирают в chrome://extensions → «Загрузить распакованное»."""
+        import sys
+        from src.web_services import system_open
+        base = Path(getattr(sys, '_MEIPASS', root))
+        folder = base / 'browser_extension'
+        opened = is_desktop() and folder.is_dir() and system_open(str(folder))
+        return jsonify(success=True, opened=bool(opened), path=str(folder))
 
     @app.post('/api/account/server')
     def account_server():

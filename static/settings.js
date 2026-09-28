@@ -465,6 +465,24 @@
   }
   document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buy(b.dataset.buy));
 
+  // ---------- расширение для браузера ----------
+  async function refreshExtension() {
+    try {
+      const st = await Agent.api('ext/status');
+      $('ext-pill').className = 'pill ' + (st.connected ? 'ok' : '');
+      $('ext-status').textContent = st.connected ? 'Подключено: ' + (st.browser || 'браузер') : 'Не подключено';
+      $('ext-steps').hidden = !!st.connected;
+    } catch (e) { /* */ }
+  }
+  $('ext-folder').onclick = async () => {
+    try {
+      const r = await Agent.post('ext/open-folder');
+      if (!r.opened) Agent.toast('Папка расширения: ' + r.path, 8000);
+    } catch (e) { Agent.toast(e.message); }
+  };
+  refreshExtension();
+  setInterval(refreshExtension, 5000);
+
   // ---------- живые события ----------
   function onEvent(e) {
     if (e.type === 'download') {
