@@ -483,6 +483,29 @@
   refreshExtension();
   setInterval(refreshExtension, 5000);
 
+  async function refreshIntegrations() {
+    try {
+      const st = await Agent.api('integrations');
+      $('int-status').textContent = st.items.length ? 'Подключено: ' + st.items.length : 'Пока нет';
+      $('int-pill').className = 'pill ' + (st.items.length ? 'ok' : '');
+      $('int-list').replaceChildren(...st.items.map(i => {
+        const li = document.createElement('li');
+        li.innerHTML = '<b></b> — <span></span>';
+        li.querySelector('b').textContent = i.name;
+        li.querySelector('span').textContent = `${i.commands} команд${i.context ? ', данные для вопросов' : ''} (${i.file})`;
+        return li;
+      }), ...st.errors.map(e => { const li = document.createElement('li'); li.textContent = 'Ошибка: ' + e; li.style.color = 'var(--bad)'; return li; }));
+    } catch (e) { /* */ }
+  }
+  $('int-folder').onclick = async () => {
+    try {
+      const r = await Agent.post('integrations/open-folder');
+      if (!r.opened) Agent.toast('Папка интеграций: ' + r.path, 8000);
+      setTimeout(refreshIntegrations, 2000);
+    } catch (e) { Agent.toast(e.message); }
+  };
+  refreshIntegrations();
+
   // ---------- живые события ----------
   function onEvent(e) {
     if (e.type === 'download') {

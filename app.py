@@ -27,6 +27,18 @@ from src.storage import PremiumRequired, Store, SECRET_NAMES
 log = logging.getLogger(__name__)
 
 VOICE_IDS = ('irina', 'denis', 'amy')
+# Пример интеграции: переименуйте в tracker.json и замените адреса на API своего приложения.
+EXAMPLE_INTEGRATION = {
+    'name': 'Трекер',
+    'commands': [
+        {'phrases': ['что в трекере( на (?P<day>сегодня|завтра))?', 'мои задачи'],
+         'method': 'GET', 'url': 'https://tracker.example/api/tasks?day={day}',
+         'headers': {'Authorization': 'Bearer {secret:TRACKER_TOKEN}'}, 'say': 'Задач: {count}. {items[*].title}'},
+        {'phrases': ['добавь в трекер (?P<text>.+)'], 'method': 'POST', 'url': 'https://tracker.example/api/tasks',
+         'json': {'title': '{text}'}, 'say': 'Добавил в трекер: {text}'},
+    ],
+    'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
+}
 VERSION = '5.3'
 
 
@@ -51,7 +63,8 @@ def build_agent(store, events=None):
     brain = Brain(store)
     desktop = DesktopController()
     commands = DesktopCommands(desktop, brain=brain, browser=browser, root=store.root)
-    return LocalComputerAgent(browser, brain=brain, desktop_commands=commands)
+    from src.integrations import Integrations
+    return LocalComputerAgent(browser, brain=brain, desktop_commands=commands, integrations=Integrations(store.root))
 
 
 def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None):
@@ -573,6 +586,25 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def ext_status():
         found = getattr(getattr(agent, 'browser', None), 'bridge', None)
         return jsonify(success=True, **(found.status() if found else {'connected': False}))
+
+    # ---------------- интеграции ----------------
+    @app.get('/api/integrations')
+    def integrations_status():
+        found = getattr(agent, 'integrations', None)
+        return jsonify(success=True, **(found.status() if found is not None else {'items': [], 'errors': [], 'folder': ''}))
+
+    @app.post('/api/integrations/open-folder')
+    def integrations_folder():
+        """Открыть папку интеграций; при первом открытии кладём туда пример."""
+        from src.integrations import folder
+        from src.web_services import system_open
+        path = folder(store.root)
+        path.mkdir(parents=True, exist_ok=True)
+        example = path / 'example.json.txt'
+        if not any(path.iterdir()):
+            example.write_text(json.dumps(EXAMPLE_INTEGRATION, ensure_ascii=False, indent=2), encoding='utf-8')
+        opened = is_desktop() and system_open(str(path))
+        return jsonify(success=True, opened=bool(opened), path=str(path))
 
     @app.post('/api/ext/open-folder')
     def ext_open_folder():
