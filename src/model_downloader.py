@@ -283,6 +283,35 @@ def download_llm(root, key, session=None, progress=None):
     raise DownloadError('не удалось скачать модель. ' + '; '.join(errors))
 
 
+SPEAKER_MODEL = {
+    'folder': 'speaker', 'file': 'campplus.onnx',
+    # 3D-Speaker CAM++ (Alibaba DAMO, Apache 2.0) в формате sherpa-onnx: голосовой «отпечаток» 192 числа.
+    'urls': ['https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/'
+             '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx',
+             'https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/'
+             '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx'],
+}
+
+
+def speaker_model_path(root):
+    return models_dir(root) / SPEAKER_MODEL['folder'] / SPEAKER_MODEL['file']
+
+
+def download_speaker(root, session=None, progress=None):
+    """Модель распознавания голоса пользователя (~28 МБ)."""
+    target = speaker_model_path(root)
+    if target.exists():
+        return target
+    session = _session(session)
+    errors = []
+    for url in SPEAKER_MODEL['urls']:
+        try:
+            return http_download(url, target, session, progress)
+        except Exception as exc:
+            errors.append(str(exc)[:160])
+    raise DownloadError('не удалось скачать модель голоса: ' + '; '.join(errors))
+
+
 def missing_items(root, settings):
     """Что нужно докачать, чтобы всё работало (для автоматической загрузки при первом запуске)."""
     from .brain.local_llm import find_binary, find_model as find_llm
@@ -295,6 +324,8 @@ def missing_items(root, settings):
         items.append('gigaam' if settings.get('voice_language') == 'ru' else 'parakeet')
     if not any(voice_files(name, root)[0] for name in PIPER_DEFAULT):
         items.append('piper')
+    if settings.get('voice_id', False) and not speaker_model_path(root).exists():
+        items.append('speaker')
     if settings.get('llm_provider', 'local') == 'local':
         gpu = bool(settings.get('llm_gpu')) and sys.platform != 'darwin'  # на Mac Metal есть всегда
         if find_binary(root, gpu)[1] not in (('vulkan', 'system') if gpu else ('cpu', 'vulkan', 'system')):
@@ -324,6 +355,8 @@ def download(root, items, report=print):
                 download_llama_runtime(root, item.split(':', 1)[1], progress=progress)
             elif item.startswith('llm:'):
                 download_llm(root, item.split(':', 1)[1], progress=progress)
+            elif item == 'speaker':
+                download_speaker(root, progress=progress)
             elif item == 'piper':
                 for name in PIPER_DEFAULT:
                     if not ensure_piper_voice(name, root)[0]:

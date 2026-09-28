@@ -90,6 +90,8 @@ SECTIONS = [
              'url': 'https://github.com/pyca/cryptography'},
             {'name': 'segno (QR-код подключения телефона)', 'author': '© Lars Heuer', 'license': 'BSD-3-Clause',
              'url': 'https://github.com/heuer/segno'},
+            {'name': 'pypdf (чтение PDF при изучении папок)', 'author': '© Mathieu Fenniak и др.', 'license': 'BSD-3-Clause',
+             'url': 'https://github.com/py-pdf/pypdf'},
             {'name': 'PyObjC (только macOS)', 'author': '© Ronald Oussoren и др.', 'license': 'MIT',
              'url': 'https://github.com/ronaldoussoren/pyobjc'},
             {'name': 'huggingface_hub', 'author': '© Hugging Face', 'license': 'Apache 2.0',

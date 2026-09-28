@@ -149,6 +149,14 @@ def parse(text):
         if candidate in _WINDOW_MAP:
             return 'window', {'action': _WINDOW_MAP[candidate]}
 
+    # «Сверни Telegram», «разверни Telegram» — окно приложения по названию, а не активное.
+    m = re.match(r'^(?:сверни|свернуть|спрячь|скрой)\s+(?:приложение\s+|программу\s+|окно\s+)?(.+)$', lower_yo)
+    if m and m[1] not in ('все', 'всё', 'все окна', 'всё окно', 'это окно', 'окно', 'все приложения', 'текущее окно'):
+        return 'minimize_app', {'name': m[1]}
+    m = re.match(r'^(?:разверни|восстанови)\s+(?:приложение\s+|программу\s+|окно\s+)?(.+)$', lower_yo)
+    if m and m[1] not in ('окно', 'это окно', 'на весь экран', 'текущее окно', 'во весь экран'):
+        return 'restore_app', {'name': m[1]}
+
     if lower in ('новая строка', 'с новой строки', 'абзац', 'новый абзац'):
         return 'newline', {}
     if lower in ('очисти поле', 'удали все', 'сотри все', 'очисти все'):
@@ -300,6 +308,12 @@ class DesktopCommands:
 
     def execute(self, action, args, settings):
         d = self.desktop
+        if action == 'minimize_app':
+            from ..app_control import minimize_application
+            return minimize_application(args['name'])
+        if action == 'restore_app':
+            from ..app_control import activate_running
+            return ('Разворачиваю ' + args['name']) if activate_running(args['name']) else f"{args['name']} не запущено."
         if not getattr(d, 'available', True):
             raise DesktopUnavailable('Управление другими приложениями доступно на Windows.')
         method = settings.get('type_method', 'auto')

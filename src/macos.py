@@ -65,6 +65,17 @@ def launch(name):
     return f'Приложение не найдено: {name}. Проверьте, что оно установлено в «Программы».'
 
 
+def minimize_application(name):
+    """«Сверни Telegram»: спрятать приложение (как ⌘H) — окна остаются, программа работает."""
+    app = mac_name(name)
+    if not app or app.casefold() in PROTECTED:
+        return 'Не понял, какое приложение свернуть.'
+    if not is_running(app):
+        return f'{name} не запущено.'
+    _osascript(f'tell application "System Events" to set visible of process "{_quoted(app)}" to false')
+    return 'Сворачиваю ' + name
+
+
 def close_application(name):
     app = mac_name(name)
     if not app or app.casefold() in PROTECTED:

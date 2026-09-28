@@ -9,8 +9,10 @@
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 log = logging.getLogger(__name__)
+_SEARCH = ThreadPoolExecutor(max_workers=2, thread_name_prefix='web-search')
 
 
 class LLMError(RuntimeError):
@@ -33,12 +35,16 @@ SYSTEM_PROMPT = """Ты — {name}, голосовой ассистент на �
 STYLES = {
     'short': 'Отвечай коротко: одно-три предложения, главное — в первом.',
     'detailed': 'Отвечай полно, но компактно: до шести предложений.',
+    # Режим «поболтать»: живой быстрый разговор.
+    'chat': ('Сейчас просто непринуждённая беседа. Отвечай живо и тепло, одним-двумя короткими предложениями, '
+             'как собеседник, а не справочник. Иногда задавай короткий встречный вопрос. Не читай лекций.'),
 }
+SEARCH_DEADLINE = 1.5  # секунд: поиск не должен задерживать ответ — не успел, отвечаем без него
 
 
-def system_prompt(settings):
-    prompt = SYSTEM_PROMPT.format(name=settings.get('wake_word') or 'Андрей',
-                                  style=STYLES.get(settings.get('answer_style'), STYLES['short']))
+def system_prompt(settings, mode='normal'):
+    style = STYLES['chat'] if mode == 'chat' else STYLES.get(settings.get('answer_style'), STYLES['short'])
+    prompt = SYSTEM_PROMPT.format(name=settings.get('wake_word') or 'Андрей', style=style)
     address = settings.get('address', 'сэр')
     if address and address != 'none' and settings.get('butler', True):
         prompt += (f'\n- Ты вежливый дворецкий: иногда (не в каждой фразе) обращайся к пользователю «{address}», '
@@ -78,15 +84,19 @@ class OpenAICompatibleProvider:
     def _context(self, question, settings):
         if not settings.get('llm_web_search', True) or not FRESH_HINTS.search(question):
             return ''
+        future = _SEARCH.submit(self.tools.web_search, question, 5, duckduckgo=settings.get('ddg_search', False))
         try:
-            results = self.tools.web_search(question, 5, duckduckgo=settings.get('ddg_search', False))
+            results = future.result(timeout=SEARCH_DEADLINE)
+        except FutureTimeout:
+            log.info('web search skipped: slower than %.1f s', SEARCH_DEADLINE)
+            return ''
         except Exception as exc:
             log.info('web search failed: %s', exc)
             return ''
         lines = [f"- [{r.get('source', 'поиск')}] {r['title']}: {r['snippet']}" for r in results if r.get('snippet')]
         return ('Справочные данные (используй их для точного ответа):\n' + '\n'.join(lines)) if lines else ''
 
-    def stream(self, history, settings, on_text=None, system=None, max_tokens=1500, with_tools=True):
+    def stream(self, history, settings, on_text=None, system=None, max_tokens=1500, with_tools=True, **_):
         messages = [{'role': 'system', 'content': system or system_prompt(settings)}]
         for item in history:
             content = item['content'] if isinstance(item['content'], str) else str(item['content'])

@@ -46,6 +46,8 @@ DEFAULTS = {
     'contact_aliases': '', 'contacts_latin': False,
     # Сайты: в браузере пользователя (как «Открой браузер») или в отдельном управляемом браузере агента.
     'browser_mode': 'user',
+    # Узнавание голоса: слушать только знакомые голоса; строгость — порог сходства отпечатков, %.
+    'voice_id': False, 'voice_id_strictness': 45,
 }
 LONG_TEXT = {'contact_aliases': 3000}
 # Платные разделы: «Оформление», «Распознавание», «Озвучка». Без подписки действуют значения по умолчанию.
@@ -71,7 +73,7 @@ CHOICES = {
 
 RANGES = {
     'silence_ms': (250, 5000), 'follow_up_seconds': (0, 30),
-    'vad_sensitivity': (10, 90), 'tts_rate': (60, 200),
+    'vad_sensitivity': (10, 90), 'tts_rate': (60, 200), 'voice_id_strictness': (30, 80),
 }
 
 # Секреты (ключи API) хранятся отдельно и никогда не возвращаются в /api/settings.

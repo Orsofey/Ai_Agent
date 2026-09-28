@@ -146,6 +146,9 @@
         local.ready ? '✓ Работает на этом ПК' + (local.runtime === 'vulkan' ? ' · видеокарта' : ' · процессор') :
         local.starting ? 'Загружается в память…' :
         !local.runtime_installed || !local.model_installed ? 'Не установлена — нажмите «Скачать» ниже' : (local.error || 'Запустится при первом вопросе');
+      if (ai.timing && ai.timing.first_token != null) {
+        $('llm-state').textContent += ` · последний ответ начался через ${ai.timing.first_token.toFixed(1)} с`;
+      }
       const mem = local.memory || {};
       if (mem.mode) {
         const now = mem.llm_mb ? ` Сейчас: ассистент ${mem.agent_mb} МБ + нейросеть ${mem.llm_mb} МБ.` : mem.agent_mb ? ` Сейчас ассистент занимает ${mem.agent_mb} МБ.` : '';

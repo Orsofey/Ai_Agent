@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '5.5'
+VERSION = '5.6'
 
 
 def local_ip():
@@ -92,7 +92,7 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def notify(text):
         """Сообщение ассистента без команды пользователя (сценарий закончился, вкладка заблокирована)."""
         store.add('device:desktop', 'agent', text)
-        events.emit('message', role='agent', text=text, source='scenario', owner='device:desktop', spoken=False)
+        events.emit('message', role='agent', text=text, source='system', owner='device:desktop', spoken=False)
 
     from src.scenarios import ScenarioManager
     from src.tracker import TrackerClient
@@ -101,6 +101,31 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     agent.scenarios = scenarios
     agent.tracker = tracker
     scenarios.ensure_thread()  # блокировки, начатые до перезапуска, продолжают действовать
+
+    def speak(text):
+        """Озвучить без команды пользователя (напоминание)."""
+        if player is not None and getattr(player, 'available', False):
+            settings = store.settings('device:desktop')
+            if hasattr(player, 'beep'):
+                player.beep('listen')
+            player.say(text, settings)
+
+    from src.reminders import Reminders
+    reminders = Reminders(store, notify=notify, speak=speak)
+    agent.reminders = reminders
+    reminders.ensure_thread()
+
+    from src.macros import Macros
+    macros = Macros(store, runner=lambda command, settings, who: agent.process_command(command, settings, owner=who))
+    agent.macros = macros
+
+    from src.speech.speaker import SpeakerGate
+    gate = SpeakerGate(store)
+    app.extensions['voice_gate'] = gate
+
+    from src.files import FileStudy
+    files = FileStudy(store, events, brain=getattr(agent, 'brain', None), notify=notify, speak=speak)
+    agent.files = files
 
     def owner():
         device = request.headers.get('X-Device-ID', 'desktop')
@@ -221,7 +246,9 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         brain = getattr(agent, 'brain', None)
         settings = store.settings(owner())
         local = brain.local.status(settings) if brain is not None and hasattr(brain, 'local') else None
-        return jsonify(success=True, provider=settings['llm_provider'], local=local)
+        timing = getattr(brain, 'last_timing', None)
+        return jsonify(success=True, provider=settings['llm_provider'], local=local,
+                       timing=timing if isinstance(timing, dict) else None)
 
     @app.post('/api/ai/test')
     def ai_test():
@@ -294,6 +321,11 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             return jsonify(success=True, response=existing[1] or 'Команда уже принята. После сбоя автоматически не повторяется.', duplicate=True)
         result, spoken = service.run(message, who, store.settings(who), source='text', speak=is_desktop())
         finish(ident, result)
+        if is_desktop() and voice is not None and getattr(agent, 'awaiting', None) and agent.awaiting(who) is True:
+            try:
+                voice.expect_answer()  # «Во сколько вы встаёте?» — ответить можно голосом без имени
+            except Exception:
+                pass
         return jsonify(success=True, response=result, spoken=spoken)
 
     @app.post('/api/chat/stream')
@@ -688,6 +720,84 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         data = request.get_json(silent=True) or {}
         message = scenarios.unblock(str(data.get('value', ''))) if data.get('unblock') else scenarios.stop()
         return jsonify(success=True, message=message, state=scenarios.summary())
+
+    # ---------------- напоминания ----------------
+    @app.get('/api/reminders')
+    def reminders_list():
+        return jsonify(success=True, items=reminders.list(), muted=store.meta('reminders_muted') == '1')
+
+    @app.post('/api/reminders')
+    def reminders_save():
+        items = reminders.replace((request.get_json() or {}).get('items'))
+        return jsonify(success=True, items=items)
+
+    @app.post('/api/reminders/mute')
+    def reminders_mute():
+        store.set_meta('reminders_muted', '1' if (request.get_json() or {}).get('muted') else None)
+        return jsonify(success=True, muted=store.meta('reminders_muted') == '1')
+
+    @app.post('/api/reminders/test')
+    def reminders_test():
+        item = next((i for i in reminders.list() if i['id'] == (request.get_json() or {}).get('id')), None)
+        if item is None:
+            raise ValueError('Напоминание не найдено')
+        text = reminders.say_text(item, store.settings('device:desktop'))
+        speak(text)
+        return jsonify(success=True, text=text)
+
+    # ---------------- макросы ----------------
+    @app.get('/api/macros')
+    def macros_list():
+        return jsonify(success=True, items=macros.list())
+
+    @app.post('/api/macros')
+    def macros_save():
+        return jsonify(success=True, items=macros.save((request.get_json() or {}).get('items')))
+
+    @app.post('/api/macros/run')
+    def macros_run():
+        """Запуск кнопкой — как голосовая команда «запусти макрос …» (через общую очередь команд)."""
+        name = str((request.get_json() or {}).get('name', ''))
+        if macros.find(name) is None:
+            raise ValueError('Макрос не найден')
+        result, _ = service.run('запусти макрос ' + name, 'device:desktop', store.settings('device:desktop'),
+                                source='text', speak=is_desktop())
+        return jsonify(success=True, message=result)
+
+    # ---------------- узнавание голоса ----------------
+    def voice_status():
+        loop = getattr(voice, 'target', None) or voice
+        enrolling = getattr(loop, 'enroll', None)
+        return dict(model_installed=gate.model_installed(), profiles=gate.summary(), has_password=gate.has_password(),
+                    enrolling=isinstance(enrolling, dict))
+
+    @app.get('/api/voiceid')
+    def voiceid_status():
+        return jsonify(success=True, **voice_status())
+
+    @app.post('/api/voiceid/download')
+    def voiceid_download():
+        from src.model_downloader import start_download
+        started = start_download(store.root, ['speaker'], events)
+        return jsonify(success=True, started=started)
+
+    @app.post('/api/voiceid/enroll')
+    def voiceid_enroll():
+        if voice is None or not hasattr(voice, 'start_enroll'):
+            raise ValueError('Голосовое управление не запущено')
+        name = str((request.get_json() or {}).get('name') or '').strip()[:40]
+        message = voice.start_enroll(name or ('Владелец' if not gate.profiles() else f'Голос {len(gate.profiles()) + 1}'))
+        return jsonify(success=True, message=message, **voice_status())
+
+    @app.post('/api/voiceid/delete')
+    def voiceid_delete():
+        gate.delete(str((request.get_json() or {}).get('id', '')))
+        return jsonify(success=True, **voice_status())
+
+    @app.post('/api/voiceid/password')
+    def voiceid_password():
+        gate.set_password(str((request.get_json() or {}).get('password', '')))
+        return jsonify(success=True, **voice_status())
 
     # ---------------- Трекер ----------------
     @app.get('/api/tracker')
