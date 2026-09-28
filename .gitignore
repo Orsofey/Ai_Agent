@@ -10,3 +10,7 @@ installer/
 models/**/*.onnx
 models/**/*.bin
 models/**/*.download/
+
+# Готовые сборки Android
+release/*.apk
+release/*.aab
