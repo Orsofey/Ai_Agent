@@ -16,6 +16,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
 
 from src import autostart
+from src.browser_bridge import ExtensionBridge
 from src.events import EventBus
 from src.local_tts_service import LocalTTSService
 from src.passwords import matches as check_password_hash
@@ -97,7 +98,15 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def is_desktop():
         return request.headers.get('X-Device-ID', 'desktop') == 'desktop'
 
+    def apply_browser_mode(value):
+        browser = getattr(agent, 'browser', None)
+        if isinstance(getattr(browser, 'bridge', None), ExtensionBridge):
+            browser.mode = value.get('browser_mode', 'user')
+
+    apply_browser_mode(store.settings('device:desktop'))
+
     def settings_changed(value):
+        apply_browser_mode(value)
         if hasattr(speech, 'configure'):
             try:
                 speech.configure(value)

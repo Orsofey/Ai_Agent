@@ -95,6 +95,7 @@ class BrowserController:
         self.context = None
         self.current = None
         self.channel = None
+        self.mode = 'user'  # 'user' — сайты в браузере пользователя, 'agent' — в отдельном браузере агента
         self.worker = threading.Thread(target=self._worker, daemon=True, name='agent-browser')
         self.worker.start()
 
@@ -129,6 +130,65 @@ class BrowserController:
             if method in ('close_browser', 'close_tab', 'tabs', 'media'):
                 return 'Браузер агента уже закрыт.'
             return getattr(self, '_'+method)(*args)
+
+    EXTENSION_HINT = ('Чтобы я делал это прямо в вашем браузере, подключите расширение «Андрей»: '
+                      'Настройки → Управление ПК → «Расширение для браузера».')
+
+    def _via_system(self, method, args):
+        """Без расширения: ссылки — в браузере по умолчанию, плеер — медиаклавишами, остальное — с подсказкой."""
+        from .web_services import system_open
+
+        def open_url(url):
+            if not system_open(self.valid_url(url)):
+                raise RuntimeError('не удалось открыть браузер по умолчанию')
+
+        def media_key(key):
+            from .desktop import winapi
+            winapi.hotkey(key)
+
+        if method in ('open', 'open_url'):
+            open_url(args[0])
+            name = self._site_name(args[0])
+            return 'Открываю ' + (name if name != 'сайт' else args[0])
+        if method == 'video':
+            query, source = args[0], (args[1] if len(args) > 1 else 'youtube')
+            if re.match(r'^https?://', query, re.I):
+                open_url(query)
+                return 'Открываю видео.'
+            if source == 'rutube':
+                open_url('https://rutube.ru/search/?query=' + quote(query))
+                return f'Ищу на Rutube: {query}'
+            open_url('https://www.youtube.com/results?search_query=' + quote(query))
+            return f'Ищу на YouTube: {query}'
+        if method == 'youtube':
+            action, arg = args[0], (args[1] if len(args) > 1 else None)
+            if action == 'search':
+                open_url('https://www.youtube.com/results?search_query=' + quote(arg))
+                return 'Ищу на YouTube: ' + arg
+            if action == 'next':
+                media_key('media_next')
+                return 'Включаю следующее видео.'
+            return 'Выбрать видео голосом не получится без расширения. ' + self.EXTENSION_HINT
+        if method == 'music':
+            query, service = args[0], (args[1] if len(args) > 1 else None)
+            info = next((m for m in self.MUSIC if m[0] == service), None) or self.MUSIC[0]
+            open_url(info[2].format(q=quote(query)))
+            return f'Открываю «{query}» в {info[1]} — нажмите на трек. Чтобы я включал музыку сам, подключите ' \
+                   'расширение «Андрей»: Настройки → Управление ПК → «Расширение для браузера».'
+        if method in ('media', 'player'):
+            media_key('media_play_pause')  # браузеры и музыкальные приложения понимают медиаклавиши
+            return 'Готово.'
+        if method == 'close_tab':
+            from .desktop import winapi
+            winapi.hotkey('ctrl', 'w')
+            return 'Вкладка закрыта.'
+        if method in ('close_site', 'url'):
+            return None if method == 'close_site' else ''
+        if method == 'tabs':
+            return 'Список вкладок доступен с расширением. ' + self.EXTENSION_HINT
+        if method == 'close_browser':
+            return 'Отдельный браузер агента не запущен.'
+        raise RuntimeError('Неизвестное действие')
 
     def _via_extension(self, bridge, method, args):
         """Выполнить действие в открытом браузере пользователя через расширение «Андрей»."""
@@ -227,8 +287,11 @@ class BrowserController:
         if bridge is not None and bridge.connected and method in self.EXTENSION_METHODS:
             try:
                 return self._via_extension(bridge, method, args)
-            except Exception as exc:  # расширение отвалилось — работаем своим браузером
+            except Exception as exc:  # расширение отвалилось — работаем как без него
                 log.info('Extension bridge failed (%s): %s', method, exc)
+        if self.mode == 'user' and self.context is None:
+            # Сайты — в браузере пользователя (тот же, что открывает «Открой браузер»), а не в отдельном окне агента.
+            return self._via_system(method, args)
         future = Future()
         self.jobs.put((method, args, future))
         try:

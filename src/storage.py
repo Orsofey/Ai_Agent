@@ -44,6 +44,8 @@ DEFAULTS = {
     'address': 'сэр', 'butler': True, 'ack': True, 'voice_preset': 'jarvis', 'memory_mode': 'auto',
     # Telegram: как произносите → как записан контакт («Арсений Крэк = Arseny Crack»).
     'contact_aliases': '', 'contacts_latin': False,
+    # Сайты: в браузере пользователя (как «Открой браузер») или в отдельном управляемом браузере агента.
+    'browser_mode': 'user',
 }
 LONG_TEXT = {'contact_aliases': 3000}
 # Платные разделы: «Оформление», «Распознавание», «Озвучка». Без подписки действуют значения по умолчанию.
@@ -62,8 +64,9 @@ CHOICES = {
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
     'address': ('сэр', 'мадам', 'босс', 'none'),
-    'voice_preset': ('jarvis', 'friday'),
-    'memory_mode': ('auto', 'economy', 'balanced', 'max'),  # плюс свои голоса «custom:<имя>» (см. _valid)
+    'voice_preset': ('jarvis', 'friday'),  # плюс свои голоса «custom:<имя>» (см. _valid)
+    'memory_mode': ('auto', 'economy', 'balanced', 'max'),
+    'browser_mode': ('user', 'agent'),
 }
 
 RANGES = {
