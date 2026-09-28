@@ -219,7 +219,17 @@ def main():
     text = manifest.read_text(encoding='utf-8')
     text = text.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application android:usesCleartextTraffic="true" android:allowBackup="false"', 1)
     text = text.replace('android:label="local_ai_agent"', 'android:label="Андрей"')
+    if '<queries>' in text:  # Android 11+: без этого приложение «не видит» синтезатор речи
+        text = text.replace('<queries>', '<queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>', 1)
+    else:
+        text = text.replace('</manifest>', '    <queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>\n'
+                            '    </queries>\n</manifest>', 1)
     manifest.write_text(text, encoding='utf-8')
+    # Озвучка без плагина flutter_tts (он тянул устаревший Kotlin Gradle Plugin): свой MainActivity с TextToSpeech.
+    activity = next((TARGET/'android/app/src/main').rglob('MainActivity.kt'), None)
+    if activity is None:
+        raise RuntimeError('MainActivity.kt not found in the generated Flutter project')
+    shutil.copy2(ROOT/'android_client/android/MainActivity.kt', activity)
     value = signing()
     props = TARGET/'android/key.properties'
     # Java Properties input is Latin-1; escape Cyrillic paths/passwords as Unicode sequences.

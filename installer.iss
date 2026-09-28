@@ -36,4 +36,6 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 ; Main.py enables startup on first launch. Delete the entry on uninstall only.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "LocalAIAgent"; Flags: uninsdeletevalue
 [Run]
+; Телефон в той же сети Wi-Fi: разрешить входящие подключения к ассистенту (Windows спросит подтверждение).
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Andrey phone"" dir=in action=allow program=""{app}\{#AppExe}"" enable=yes profile=private,public,domain"; Verb: runas; Description: "Разрешить подключение с телефона (брандмауэр Windows)"; Flags: shellexec runhidden waituntilterminated postinstall skipifsilent
 Filename: "{app}\{#AppExe}"; Description: "Launch Local AI Agent"; Flags: nowait postinstall skipifsilent

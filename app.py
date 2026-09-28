@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '5.7'
+VERSION = '5.8'
 
 
 def local_ip():
@@ -50,6 +50,36 @@ def local_ip():
             return sock.getsockname()[0]
     except OSError:
         return '127.0.0.1'
+
+
+VIRTUAL_ADAPTERS = re.compile(r'vethernet|virtualbox|vmware|hyper-v|wsl|docker|loopback|vpn|tap|tun|zerotier|'
+                              r'tailscale|hamachi|radmin|bluetooth|teredo|isatap', re.I)
+
+
+def local_ips():
+    """Все адреса ПК в локальных сетях: основной первым, затем Wi-Fi/Ethernet, без виртуальных адаптеров.
+    Телефон пробует их по очереди — выручает, когда «основной» адрес принадлежит VPN или виртуальной сети."""
+    import ipaddress
+    import psutil
+    main = local_ip()
+    found = [main] if main != '127.0.0.1' else []
+    virtual = set()
+    try:
+        stats = psutil.net_if_stats()
+        for name, addresses in psutil.net_if_addrs().items():
+            if VIRTUAL_ADAPTERS.search(name) or (name in stats and not stats[name].isup):
+                virtual.update(a.address for a in addresses)
+                continue
+            for address in addresses:
+                if address.family != socket.AF_INET:
+                    continue
+                ip = ipaddress.ip_address(address.address)
+                if ip.is_private and not ip.is_loopback and not ip.is_link_local and address.address not in found:
+                    found.append(address.address)
+    except Exception:
+        pass
+    rank = lambda a: (a in virtual, a != main, not a.startswith('192.168.'), not a.startswith('10.'))  # noqa: E731
+    return sorted(found, key=rank) or ['127.0.0.1']
 
 
 def build_agent(store, events=None):
@@ -68,7 +98,8 @@ def build_agent(store, events=None):
     return LocalComputerAgent(browser, brain=brain, desktop_commands=commands, integrations=Integrations(store.root))
 
 
-def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None):
+def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None,
+               background=False):
     root = Path(__file__).resolve().parent
     store = store or Store()
     events = events or EventBus()
@@ -111,9 +142,15 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             player.say(text, settings)
 
     from src.reminders import Reminders
-    reminders = Reminders(store, notify=notify, speak=speak)
+    reminders = Reminders(store, notify=notify, speak=speak, background=background)
     agent.reminders = reminders
     reminders.ensure_thread()
+
+    from src.relay_client import RelayClient
+    relay = RelayClient(store, app, license)
+    app.extensions['relay'] = relay
+    if background:
+        relay.start()  # телефон через интернет: ПК сам держит связь с сервером аккаунтов
 
     from src.power import Power
     agent.power = Power(notify=notify, speak=speak)
@@ -528,12 +565,21 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     # ---------------- подключение и профили ----------------
     @app.get('/api/connection')
     def connection():
-        return jsonify(success=True, ip=local_ip(), port=request.host.split(':')[-1],
-                       storage=str(store.root), token=store.meta('pairing_token'), user=session.get('user'))
+        return jsonify(success=True, ip=local_ip(), ips=local_ips(), port=request.host.split(':')[-1],
+                       storage=str(store.root), token=store.meta('pairing_token'), user=session.get('user'),
+                       relay=relay.status(), firewall=firewall_status())
 
     def phone_link(device='iphone'):
+        """Ссылка для телефона: все адреса ПК в локальной сети и (если включено) мост через интернет."""
+        from urllib.parse import quote
         port = request.host.split(':')[-1]
-        return f"http://{local_ip()}:{port}/#token={store.meta('pairing_token')}&device={device}"
+        ips = local_ips()
+        link = f"http://{ips[0]}:{port}/#token={store.meta('pairing_token')}&device={device}"
+        if len(ips) > 1:
+            link += '&hosts=' + ','.join(ips[1:4])
+        if relay.enabled():
+            link += f"&relay={quote(relay.server(), safe='')}&rid={relay.rid()}"
+        return link
 
     @app.get('/api/connection/qr')
     def connection_qr():
@@ -801,6 +847,37 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def voiceid_password():
         gate.set_password(str((request.get_json() or {}).get('password', '')))
         return jsonify(success=True, **voice_status())
+
+    # ---------------- доступ с телефона ----------------
+    def firewall_status():
+        """Windows: есть ли правило брандмауэра, пускающее телефон к ассистенту."""
+        import sys
+        if sys.platform != 'win32':
+            return None
+        import subprocess
+        try:
+            result = subprocess.run(['netsh', 'advfirewall', 'firewall', 'show', 'rule', 'name=Andrey phone'],
+                                    capture_output=True, timeout=5, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            return result.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return store.meta('firewall_rule') == '1'
+
+    @app.post('/api/connection/firewall')
+    def connection_firewall():
+        """Разрешить входящие подключения телефона (Windows просит подтверждение администратора)."""
+        import sys
+        if sys.platform != 'win32':
+            return jsonify(success=True, message='На этой системе ничего настраивать не нужно.')
+        import ctypes
+        port = request.host.split(':')[-1]
+        program = sys.executable
+        args = (f'advfirewall firewall add rule name="Andrey phone" dir=in action=allow protocol=TCP '
+                f'localport={port} profile=private,public,domain program="{program}" enable=yes')
+        code = ctypes.windll.shell32.ShellExecuteW(None, 'runas', 'netsh', args, None, 0)
+        if code <= 32:
+            raise ValueError('Windows не разрешил изменить брандмауэр. Подтвердите запрос администратора.')
+        store.set_meta('firewall_rule', '1')
+        return jsonify(success=True, message='Готово: телефон может подключаться к компьютеру.')
 
     # ---------------- Трекер ----------------
     @app.get('/api/tracker')

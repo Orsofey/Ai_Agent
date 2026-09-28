@@ -332,7 +332,7 @@
 
     <!-- ТЕЛЕФОН -->
     <section class="page" id="page-phone">
-      <h1>iPhone и Android</h1><p class="lead">Управляйте компьютером с телефона: команды, вопросы, диктовка. Телефон и ПК должны быть в одной сети Wi‑Fi.</p>
+      <h1>iPhone и Android</h1><p class="lead">Управляйте компьютером с телефона: команды, вопросы, диктовка. Дома — напрямую по Wi‑Fi, из любого места — через интернет.</p>
       <div class="card group">
         <div class="row phone-pair">
           <div class="label"><b>Наведите камеру телефона на код</b>
@@ -341,7 +341,15 @@
           <div class="control"><img id="pair-qr" class="qr" alt="QR-код подключения" width="180" height="180"></div></div>
         <div class="row"><div class="label"><b>Код подключения</b><small>Даёт управление ПК — никому не сообщайте.</small></div>
           <div class="control"><input type="password" id="connection-token" readonly><button class="btn" id="show-token">Показать</button></div></div>
-        <p class="hint">HTTP в локальной сети не шифруется. Для доступа извне используйте защищённый VPN.</p>
+        <p class="hint">HTTP в локальной сети не шифруется; через интернет связь идёт по HTTPS.</p>
+      </div>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Доступ через интернет</b><small id="relay-state">Телефон управляет ПК из любой сети — мобильный интернет, другой Wi‑Fi. Связь идёт через ваш сервер аккаунтов (HTTPS), порты открывать не нужно. После включения отсканируйте QR-код заново.</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" data-setting="remote_access"><span></span></label></div></div>
+        <div class="row" id="firewall-row" hidden><div class="label"><b>Брандмауэр Windows</b><small id="firewall-state">Если телефон пишет «Не удаётся связаться с ПК» в той же сети Wi‑Fi — чаще всего подключение блокирует брандмауэр. Нажмите и подтвердите запрос Windows.</small></div>
+          <div class="control"><button class="btn primary" id="firewall-allow">Разрешить подключение телефона</button></div></div>
+        <div class="row stack"><div class="label"><b>Адреса этого ПК</b><small>Телефон пробует их по очереди. Проверка: откройте в браузере телефона <code id="health-url">http://…/health</code> — должно появиться <code>"ok": true</code>.</small></div>
+          <ul class="examples" id="pc-ips"></ul></div>
       </div>
       <div class="card group">
         <div class="row stack"><div class="label"><b>«Привет, Siri, Андрей…» на iPhone</b>

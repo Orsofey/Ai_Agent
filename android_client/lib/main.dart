@@ -2,13 +2,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'speaker.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -201,7 +201,7 @@ class _ChatPageState extends State<ChatPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _recorder = AudioRecorder();
-  final _tts = FlutterTts();
+  final _tts = Speaker();
   final List<Message> _messages = [];
   bool _recording = false;
   bool _busy = false;
@@ -210,7 +210,6 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    _tts.setLanguage('ru-RU');
     SharedPreferences.getInstance().then((prefs) {
       if (mounted) setState(() => _speak = prefs.getBool('speak') ?? true);
     });
@@ -329,7 +328,10 @@ class _ChatPageState extends State<ChatPage> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Андрей'),
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Андрей'),
+          Text(widget.api.route, style: Theme.of(context).textTheme.bodySmall),
+        ]),
         actions: [
           IconButton(
             tooltip: _speak ? 'Не озвучивать ответы' : 'Озвучивать ответы',

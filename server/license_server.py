@@ -412,8 +412,36 @@ def create_app(server=None):
                                owner_password=os.environ.get('OWNER_PASSWORD', ''),
                                promo_codes=os.environ.get('PROMO_CODES', ''))
     app = Flask(__name__)
-    app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
+    app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024  # голосовые команды через мост (аудио в base64)
     app.extensions['license_server'] = server
+    from relay import Relay, RelayError
+    relay = Relay()
+    app.extensions['relay'] = relay
+
+    @app.errorhandler(RelayError)
+    def relay_error(exc):
+        return jsonify(success=False, message=str(exc)), exc.code
+
+    def relay_body():
+        data = request.get_json(silent=True) or {}
+        return data, str(data.get('rid', '')), str(data.get('key', ''))
+
+    @app.post('/relay/pc/poll')
+    def relay_poll():
+        data, rid, key = relay_body()
+        return jsonify(success=True, requests=relay.poll(rid, key, data.get('wait', 25)))
+
+    @app.post('/relay/pc/reply')
+    def relay_reply():
+        data, rid, key = relay_body()
+        relay.reply(rid, key, data.get('id', ''), data.get('status', 200), data.get('body'))
+        return jsonify(success=True)
+
+    @app.post('/relay/phone')
+    def relay_phone():
+        data, rid, key = relay_body()
+        result = relay.call(rid, key, data)
+        return jsonify(success=True, status=result['status'], body=result['body'])
 
     def token():
         header = request.headers.get('Authorization', '')
