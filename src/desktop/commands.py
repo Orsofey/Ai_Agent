@@ -5,7 +5,7 @@ parse() — чистая функция (тестируется без Windows),
 import re
 import time
 
-from . import messengers
+from . import messengers, navigation
 from .winapi import DesktopUnavailable
 
 # Фраза → сочетание клавиш.
@@ -166,6 +166,14 @@ def parse(text):
     if lower in ('где я', 'какое окно активно', 'какая программа открыта'):
         return 'where', {}
 
+    # «Перейди на первую вкладку», «следующая вкладка»; в Word — «перейди на страницу 10», «…где слово каша».
+    tab = navigation.parse_tab(raw)
+    if tab is not None:
+        return 'tab', {'which': tab}
+    word = navigation.parse_word(raw)
+    if word is not None:
+        return 'word', {'action': word[0], 'arg': word[1]}
+
     m = re.match(r'^(?:громче|тише)\s+на\s+(\d+)$', lower)
     if m:
         return 'keys', {'keys': ('volume_up' if lower.startswith('громче') else 'volume_down',), 'times': int(m[1])}
@@ -254,6 +262,15 @@ class DesktopCommands:
         self.root = root
         self.dictation = False
         self.chat = None  # открытый голосом чат: dict(app, who)
+        self.tabs = navigation.TabNavigator(desktop, browser)
+        self.word = navigation.WordNavigator(desktop)
+
+    def switch_to_site(self, url, names=()):
+        """«Открой ютуб»: если YouTube уже открыт в браузере — переключиться на его вкладку."""
+        try:
+            return self.tabs.switch_to_site(url, names)
+        except Exception:
+            return None
 
     def handle(self, text, settings):
         parsed = parse(text)
@@ -263,8 +280,8 @@ class DesktopCommands:
         try:
             return self.execute(action, args, settings)
         except DesktopUnavailable as exc:
-            if action == 'close_tab':
-                return None  # пусть закроет вкладку браузер агента
+            if action in ('close_tab', 'word'):
+                return None  # пусть закроет вкладку браузер агента / команда не для Word
             return str(exc)
 
     def close_browser_tab(self, names):
@@ -286,6 +303,12 @@ class DesktopCommands:
         if not getattr(d, 'available', True):
             raise DesktopUnavailable('Управление другими приложениями доступно на Windows.')
         method = settings.get('type_method', 'auto')
+        if action == 'tab':
+            return self.tabs.go(args['which'])
+        if action == 'word':
+            if d.target_process() not in navigation.WORD_PROCESSES:
+                return None  # не Word — пусть команду обработают дальше (браузер, ИИ)
+            return self.word.run(args['action'], args['arg'])
         if action == 'keys':
             d.hotkey(*args['keys'], times=args['times'])
             return 'Готово.'

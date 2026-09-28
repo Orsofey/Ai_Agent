@@ -123,6 +123,8 @@ class LocalComputerAgent:
         self.brain = brain
         self.desktop_commands = desktop_commands
         self.integrations = integrations
+        self.scenarios = None  # ScenarioManager: подключает app.py
+        self.tracker = None    # TrackerClient: подключает app.py
         self.dialog = Dialog()
 
     def awaiting(self, owner='default'):
@@ -199,6 +201,32 @@ class LocalComputerAgent:
             return 'Не нашёл плеер. Откройте музыкальный сервис и повторите.'
         return 'Запускаю плеер.'
 
+    def _switch_to_open_site(self, text):
+        from . import sites
+        from .desktop.navigation import parse_site
+        request = parse_site(text)
+        if request is None:
+            return None
+        verb, name = request
+        url = sites.find(name, threshold=0.9)
+        if not url:
+            return None
+        go = verb in ('перейди', 'перейти', 'переключись', 'вернись')
+        if not go:
+            from .app_control import RU_TO_EN, normalize
+            from . import start_menu
+            key = normalize(name)
+            if key in RU_TO_EN or key in {v.casefold() for v in RU_TO_EN.values()} or start_menu.exact(key):
+                return None  # «Открой Steam» — программа, а не сайт
+        bridge = getattr(self.browser, 'bridge', None)
+        if bridge is not None and getattr(bridge, 'connected', False) is True:
+            return self.browser.call('open', url)  # расширение само переключится на открытую вкладку
+        if self.desktop_commands is not None:
+            result = self.desktop_commands.switch_to_site(url, [name])
+            if result:
+                return result
+        return self.browser.call('open', url) if go else None
+
     @staticmethod
     def _discord_without_server(text):
         from .desktop.messengers import parse_discord
@@ -207,8 +235,14 @@ class LocalComputerAgent:
 
     def _is_known_command(self, text):
         from .desktop.commands import parse as desktop_parse
-        from . import music
-        return desktop_parse(text) is not None or youtube_command(text) is not None or music.parse(text) is not None
+        from . import display, music, scenarios, sites
+        from .desktop.navigation import parse_site
+        from .tracker import parse as tracker_parse
+        site = parse_site(text)
+        return desktop_parse(text) is not None or youtube_command(text) is not None or music.parse(text) is not None \
+            or (site is not None and sites.find(site[1], threshold=0.9) is not None) \
+            or display.parse(text) is not None or scenarios.parse(text) is not None \
+            or (self.tracker is not None and tracker_parse(text) is not None)
 
     def _route(self, text, settings, owner, on_text):
         """Выполнить команду. Вернуть (текст, вид): action — действие, info — ответ."""
@@ -218,9 +252,25 @@ class LocalComputerAgent:
             if result is not None:
                 return result, 'action'
 
+        # 1а. Чёрно-белый экран, сценарии («Работа», «Игра») и блокировка сайтов/приложений на время.
+        from . import display
+        grayscale = display.parse(text)
+        if grayscale is not None:
+            return display.set_grayscale(grayscale), 'action'
+        if self.scenarios is not None:
+            result = self.scenarios.handle(text)
+            if result is not None:
+                return result, 'action'
+
         # 1б. Интеграции с другими приложениями (папка integrations).
         if self.integrations is not None:
             result = self.integrations.handle(text, settings)
+            if result is not None:
+                return result, 'info'
+
+        # 1в. Трекер (онлайн, аккаунт пользователя): «что в трекере на сегодня», «добавь в трекер …».
+        if self.tracker is not None:
+            result = self.tracker.handle(text)
             if result is not None:
                 return result, 'info'
 
@@ -248,6 +298,11 @@ class LocalComputerAgent:
                 # Браузер пользователя уже открыт и подключён: открываем там (или переключаемся на вкладку).
                 return self.browser.call('open', sites.resolve(request['site'])), 'action'
             return sites.open_site(request['site'], request['browser']), 'action'
+
+        # 4б. «Перейди в ютуб», «открой ютуб»: сайт уже открыт — переключаемся на его вкладку.
+        switched = self._switch_to_open_site(text)
+        if switched is not None:
+            return switched, 'action'
 
         # 5. Сервисы и браузер.
         from .assistant_commands import handle, HELP_EXTRA
@@ -305,7 +360,9 @@ class LocalComputerAgent:
         question = value if action == 'search' else text
         if self.brain is not None:
             from .brain import LLMError
-            extra = self.integrations.context(question, settings) if self.integrations is not None else None
+            parts = [self.integrations.context(question, settings) if self.integrations is not None else None,
+                     self.tracker.context(question) if self.tracker is not None else None]
+            extra = '\n\n'.join(p for p in parts if p) or None
             prompt = f'{question}\n\n{extra}\n\nОтвечай по этим данным.' if extra else question
             try:
                 answer = self.brain.answer(prompt, settings, owner=owner, on_text=on_text)

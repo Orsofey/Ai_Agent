@@ -98,6 +98,19 @@ class ExtensionInChromiumTests(unittest.TestCase):
                 self.assertEqual(browser.call('url'), base + '/video.html')
                 self.assertTrue(browser.bridge.send('media', action='play'))
                 self.assertIn('Закрываю', browser.call('close_site', base + '/video.html'))
+                # «Перейди на первую вкладку» и блокировка сайта сценарием.
+                self.assertEqual(browser.bridge.send('tab', index=1), {'index': 1})
+                self.assertIsNone(browser.bridge.send('tab', index=50))
+                self.assertEqual(browser.bridge.send('block', domains=['127.0.0.1']), 1)
+                def blocked_tabs():  # Playwright не видит переход на страницу расширения — спрашиваем сами вкладки
+                    urls = worker.evaluate('chrome.tabs.query({}).then(tabs => tabs.map(t => t.url))')
+                    return [u for u in urls if u.endswith('blocked.html#127.0.0.1')]
+                for _ in range(20):
+                    if blocked_tabs():
+                        break
+                    time.sleep(0.25)
+                self.assertTrue(blocked_tabs(), 'сайт не заблокирован')
+                self.assertEqual(browser.bridge.send('block', domains=[]), 0)
                 context.close()
         finally:
             server.close()

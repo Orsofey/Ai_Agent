@@ -24,6 +24,8 @@
     <button class="nav-item premium" data-page="speech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Озвучка<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg>ИИ и ответы</button>
     <button class="nav-item" data-page="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Управление ПК</button>
+    <button class="nav-item" data-page="scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Сценарии</button>
+    <button class="nav-item" data-page="tracker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Трекер</button>
     <button class="nav-item premium" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Телефон</button>
     <button class="nav-item" data-page="licenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Лицензии</button>
@@ -205,7 +207,53 @@
             <li><b>«Громче»</b>, <b>«Тише»</b>, <b>«Следующий трек»</b></li>
             <li><b>«Сделай скриншот»</b>, <b>«Покажи рабочий стол»</b></li>
             <li><b>«Открой Telegram»</b>, <b>«Закрой Chrome»</b></li>
+            <li><b>«Перейди на первую вкладку»</b>, <b>«Следующая вкладка»</b>, <b>«Последняя вкладка»</b> — в браузере</li>
+            <li><b>«Перейди в ютуб»</b>, <b>«Открой ютуб»</b> — переключусь на уже открытую вкладку YouTube</li>
+            <li><b>«Перейди на страницу 10»</b>, <b>«Перейди на страницу, где есть слово каша»</b>, <b>«Найди дальше»</b> — в Word</li>
+            <li><b>«Включи чёрно-белый режим»</b>, <b>«Верни цвета»</b> — экран в оттенках серого</li>
           </ul></div>
+      </div>
+    </section>
+
+    <!-- СЦЕНАРИИ -->
+    <section class="page" id="page-scenarios">
+      <h1>Сценарии</h1><p class="lead">Как «Режимы» на Samsung: один голосовой запрос блокирует отвлекающие сайты и приложения на время, включает чёрно-белый экран, запускает нужные программы. «<span class="name-ref">Андрей</span>, включи сценарий работа на 2 часа».</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Сейчас</b><small id="sc-state">—</small></div>
+          <div class="control"><button class="btn" id="sc-stop">Снять все блокировки</button></div></div>
+        <ul class="examples" id="sc-blocks"></ul>
+      </div>
+      <div id="sc-list"></div>
+      <div class="card group">
+        <div class="row stack"><div class="control"><button class="btn" id="sc-add">+ Новый сценарий</button><button class="btn primary" id="sc-save">Сохранить сценарии</button><span class="hint" id="sc-hint"></span></div></div>
+        <div class="row stack"><div class="label"><b>Голосом</b></div>
+          <ul class="examples">
+            <li><b>«Включи сценарий работа»</b>, <b>«Включи режим учёба на 45 минут»</b></li>
+            <li><b>«Выключи сценарий»</b>, <b>«Сколько осталось?»</b></li>
+            <li><b>«Заблокируй ютуб на 30 минут»</b>, <b>«Заблокируй Steam на 2 часа»</b></li>
+            <li><b>«Разблокируй ютуб»</b>, <b>«Разблокируй всё»</b></li>
+          </ul></div>
+        <div class="row stack"><div class="label"><b>Как работает блокировка</b><small>Сайты надёжнее всего блокирует расширение «Андрей» (раздел «Управление ПК»): вкладка сменяется страницей «Сайт заблокирован». Без расширения я закрываю вкладку с заблокированным сайтом, как только она становится активной. Приложения закрываются штатно, как крестиком; несохранённые данные программа предложит сохранить.</small></div></div>
+      </div>
+    </section>
+
+    <!-- ТРЕКЕР -->
+    <section class="page" id="page-tracker">
+      <h1>Трекер</h1><p class="lead">Войдите в аккаунт Трекера — и спрашивайте голосом: «Что в трекере на сегодня?», «Добавь в трекер задачу купить молоко на завтра», «Отметь привычку зарядка», «Как у меня с привычками на этой неделе?». Данные запрашиваются онлайн, без выгрузки файлов.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Подключение</b><small id="tr-state">—</small></div>
+          <div class="control"><button class="btn" id="tr-test" hidden>Проверить связь</button><button class="btn" id="tr-logout" hidden>Выйти</button></div></div>
+        <div id="tr-form">
+          <div class="row"><div class="label"><b>Адрес Трекера</b><small>Сервер, где работает ваш Трекер, например https://tracker.example.ru</small></div>
+            <div class="control"><input id="tr-url" placeholder="https://…" autocomplete="url"></div></div>
+          <div class="row"><div class="label"><b>E-mail или логин</b></div>
+            <div class="control"><input id="tr-email" autocomplete="username"></div></div>
+          <div class="row"><div class="label"><b>Пароль</b><small>Пароль не сохраняется: Трекер выдаёт ассистенту отдельный токен, который можно отозвать.</small></div>
+            <div class="control"><input id="tr-password" type="password" autocomplete="current-password"></div></div>
+          <div class="row"><div class="label"><b>или токен доступа</b><small>Если в Трекере есть кнопка «Подключить ассистента» — вставьте выданный токен вместо пароля.</small></div>
+            <div class="control"><input id="tr-token" type="password" autocomplete="off" placeholder="необязательно"></div></div>
+          <div class="row stack"><div class="control"><button class="btn primary" id="tr-login">Войти в Трекер</button><span class="hint" id="tr-hint"></span></div></div>
+        </div>
       </div>
     </section>
 
@@ -336,5 +384,6 @@
 <script src="/static/core.js?v={{ version }}"></script>
 <script src="/static/select.js?v={{ version }}"></script>
 <script src="/static/settings.js?v={{ version }}"></script>
+<script src="/static/scenarios.js?v={{ version }}"></script>
 </body>
 </html>
