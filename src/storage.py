@@ -1,5 +1,6 @@
 """Persistent local storage. No user data are written into the install folder."""
 import json
+import re
 import os
 import secrets
 import sqlite3
@@ -40,7 +41,7 @@ DEFAULTS = {
     'type_method': 'auto', 'messenger_autosend': False, 'autostart': True,
     'minimize_to_tray': True, 'video_source': 'youtube',
     # Характер: «Да, сэр, включаю Telegram».
-    'address': 'сэр', 'butler': True, 'ack': True, 'voice_preset': 'jarvis',
+    'address': 'сэр', 'butler': True, 'ack': True, 'voice_preset': 'jarvis', 'memory_mode': 'auto',
     # Telegram: как произносите → как записан контакт («Арсений Крэк = Arseny Crack»).
     'contact_aliases': '', 'contacts_latin': False,
 }
@@ -61,7 +62,8 @@ CHOICES = {
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
     'address': ('сэр', 'мадам', 'босс', 'none'),
-    'voice_preset': ('classic', 'jarvis', 'friday', 'narrator', 'trailer', 'robot'),
+    'voice_preset': ('jarvis', 'friday'),
+    'memory_mode': ('auto', 'economy', 'balanced', 'max'),  # плюс свои голоса «custom:<имя>» (см. _valid)
 }
 
 RANGES = {
@@ -158,6 +160,8 @@ class Store:
 
     @staticmethod
     def _valid(key, item):
+        if key == 'voice_preset' and re.fullmatch(r'custom:[\w.-]{1,80}', str(item)):
+            return True
         if key in CHOICES and item not in CHOICES[key]:
             return False
         if key in RANGES and not RANGES[key][0] <= item <= RANGES[key][1]:

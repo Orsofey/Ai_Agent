@@ -104,12 +104,10 @@
       <div class="card group">
         <div class="row"><div class="label"><b>Озвучивать ответы</b></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="tts_enabled"><span></span></label></div></div>
-        <div class="row"><div class="label"><b>Стиль голоса</b><small>«Джарвис» — спокойный ИИ-дворецкий с цифровым оттенком. Стили — обработка звука, а не копии голосов реальных актёров.</small></div>
-          <div class="control"><select data-setting="voice_preset"><option value="jarvis">Джарвис — ИИ-дворецкий</option><option value="friday">Пятница — ИИ-ассистентка</option><option value="narrator">Диктор</option><option value="trailer">Трейлер</option><option value="robot">Робот</option><option value="classic">Обычный</option></select></div></div>
-        <div class="row"><div class="label"><b>Русский голос</b></div>
-          <div class="control"><select data-setting="tts_voice" id="voice-ru"><option value="irina">Ирина</option><option value="denis">Денис</option></select></div></div>
-        <div class="row"><div class="label"><b>Английский голос</b><small>Для ответов на английском.</small></div>
-          <div class="control"><select data-setting="tts_voice_en" id="voice-en"><option value="amy">Amy</option></select></div></div>
+        <div class="row stack"><div class="label"><b>Голос ассистента</b><small>Джарвис и Пятница звучат офлайн. Свой голос — файл модели Piper (.onnx + .onnx.json) в папке голосов.</small></div>
+          <div class="voice-cards" id="voice-cards" role="radiogroup" aria-label="Голос ассистента"></div>
+          <select data-setting="voice_preset" id="voice-preset" hidden><option value="jarvis">Джарвис</option><option value="friday">Пятница</option></select>
+          <div class="control"><button class="btn ghost" id="voice-folder">Добавить свой голос…</button><span class="hint" id="voice-folder-hint"></span></div></div>
         <div class="row"><div class="label"><b>Скорость речи</b></div>
           <div class="control"><div class="range"><input type="range" min="60" max="200" step="5" data-setting="tts_rate" data-unit="%"><output data-for="tts_rate"></output></div></div></div>
         <div class="row stack"><div class="control"><button class="btn" id="test-voice">Проверить голос</button></div></div>
@@ -125,6 +123,8 @@
         <div data-provider="local">
           <div class="row"><div class="label"><b>Модель</b><small>Чем больше модель, тем точнее ответы, но тем медленнее и больше памяти.</small></div>
             <div class="control"><select data-setting="local_model"><option value="qwen3-4b">Qwen3 4B — быстрая (рекомендуется)</option><option value="qwen2.5-7b">Qwen2.5 7B — точнее, 12+ ГБ ОЗУ</option><option value="qwen3-1.7b">Qwen3 1.7B — для слабых ПК</option></select></div></div>
+          <div class="row"><div class="label"><b>Режим памяти</b><small id="memory-info">Сколько ОЗУ отдать нейросети. «Авто» выбирает по объёму памяти компьютера.</small></div>
+            <div class="control"><select data-setting="memory_mode"><option value="auto">Авто (рекомендуется)</option><option value="economy">Экономный — минимум ОЗУ</option><option value="balanced">Сбалансированный</option><option value="max">Максимум — длинные разговоры</option></select></div></div>
           <div class="row"><div class="label"><b>Ускорение видеокартой</b><small>Vulkan: NVIDIA, AMD и Intel. Ответы в 3–10 раз быстрее. Нужна отдельная загрузка (≈50 МБ).</small></div>
             <div class="control"><label class="switch"><input type="checkbox" data-setting="llm_gpu"><span></span></label></div></div>
           <div class="row stack"><div class="control"><button class="btn primary" id="download-ai" hidden>Скачать нейросеть (≈2,5 ГБ, один раз)</button><div class="models" id="llm-models"></div></div></div>
@@ -163,6 +163,19 @@
           <div class="control"><select data-setting="type_method"><option value="auto">Авто</option><option value="keys">Печатать по буквам</option><option value="paste">Вставлять через буфер</option></select></div></div>
         <div class="row"><div class="label"><b>Сразу отправлять сообщения</b><small>Для «Напиши Милане в Телеграме …». Иначе агент напишет и попросит сказать «отправь».</small></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="messenger_autosend"><span></span></label></div></div>
+        <div class="row stack"><div class="label"><b>Расширение «Андрей» для браузера</b>
+            <small>С ним ассистент работает в вашем открытом браузере: переключается на уже открытые вкладки, открывает ссылки там же, управляет плеерами YouTube и музыки. Chrome, Edge, Яндекс Браузер, Opera, Brave.</small></div>
+          <div class="control"><span class="pill" id="ext-pill"><span class="dot"></span><span id="ext-status">Проверяю…</span></span><button class="btn" id="ext-folder">Установить расширение…</button></div>
+          <ol class="examples steps" id="ext-steps">
+            <li>Нажмите «Установить расширение…» — откроется папка расширения.</li>
+            <li>В браузере откройте <code>chrome://extensions</code> (в Яндекс Браузере — <code>browser://extensions</code>), включите «Режим разработчика».</li>
+            <li>«Загрузить распакованное расширение» → выберите эту папку.</li>
+            <li>Нажмите значок «Андрей» на панели браузера → вставьте код подключения из раздела «Телефон» → «Подключить».</li>
+          </ol></div>
+        <div class="row stack"><div class="label"><b>Интеграции с приложениями</b>
+            <small>Ассистент читает данные других приложений и выполняет в них действия: JSON-описание (адрес API или файл экспорта + голосовые фразы) или Python-плагин. Пример кладётся в папку автоматически.</small></div>
+          <div class="control"><span class="pill" id="int-pill"><span class="dot"></span><span id="int-status">—</span></span><button class="btn" id="int-folder">Папка интеграций…</button></div>
+          <ul class="examples" id="int-list"></ul></div>
         <div class="row stack"><div class="label"><b>Как называть контакты голосом</b><small>По строке на контакт: «как говорите = как записан в мессенджере». Падежи учитываются: «Напиши Арсению Крэку…» найдёт Arseny Crack.</small></div>
           <div class="control"><textarea class="field" data-setting="contact_aliases" rows="3" style="width:100%;resize:vertical" maxlength="3000" placeholder="Арсений Крэк = Arseny Crack&#10;Мама = Мамуля ❤️&#10;Работа = Отдел продаж 2025"></textarea></div></div>
         <div class="row"><div class="label"><b>Контакты записаны латиницей</b><small>Искать «Арсений» как «Arsen…». Удобно, если почти все имена в Telegram на английском.</small></div>
@@ -247,6 +260,12 @@
     <section class="page" id="page-account">
       <h1>Аккаунт и подписка</h1><p class="lead">Один аккаунт на всех ваших компьютерах. Подписка открывает оформление, распознавание и голоса.</p>
 
+      <div class="card server-card" id="server-box">
+        <div class="server-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
+        <div class="server-text"><b>Адрес сервера аккаунтов</b><small id="server-state">Сервер ещё не подключён — вставьте адрес проекта Amvera.</small></div>
+        <div class="server-form"><input id="server-url" placeholder="https://имя-проекта.amvera.io" autocomplete="off" spellcheck="false"><button class="btn primary" id="server-save">Подключить</button></div>
+      </div>
+
       <div class="auth" id="auth-box">
         <div class="auth-hero">
           <div class="auth-logo"><img src="/static/icon-192.png" alt=""></div>
@@ -296,7 +315,7 @@
           <ul><li>Всё из месячной подписки</li><li>Без продлений и списаний</li><li>Все будущие обновления</li></ul>
           <button class="btn primary" data-buy="lifetime">Оплатить 500 ₽</button></div>
       </div>
-      <p class="hint" id="plans-hint">Оплата картой, СБП или SberPay через ЮKassa. Чек придёт на email. Автоматических списаний нет.</p>
+      <p class="hint" id="plans-hint">Оплата картой, СБП или T-Pay. Чек придёт на email. Автоматических списаний нет.</p>
     </section>
 
     <!-- ПРОФИЛЬ -->
@@ -313,6 +332,7 @@
 
 <script src="/static/motion.js?v={{ version }}"></script>
 <script src="/static/core.js?v={{ version }}"></script>
+<script src="/static/select.js?v={{ version }}"></script>
 <script src="/static/settings.js?v={{ version }}"></script>
 </body>
 </html>

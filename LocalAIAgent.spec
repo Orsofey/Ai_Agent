@@ -4,7 +4,8 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH)
-datas = [(str(root / 'static'), 'static'), (str(root / 'templates'), 'templates')]
+datas = [(str(root / 'static'), 'static'), (str(root / 'templates'), 'templates'),
+         (str(root / 'browser_extension'), 'browser_extension')]
 binaries = []
 MAC = sys.platform == 'darwin'
 if MAC:

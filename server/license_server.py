@@ -124,6 +124,74 @@ class YooKassa:
         return response.json()
 
 
+class TBankKassa:
+    """Интернет-эквайринг Т-Банка (Т-Бизнес, API v2): Init → ссылка на оплату, GetState — проверка статуса.
+
+    Деньги приходят на расчётный счёт Т-Бизнеса. Запросы подписываются токеном: SHA-256 от значений
+    параметров верхнего уровня + Password, отсортированных по имени параметра.
+    """
+    API = 'https://securepay.tinkoff.ru/v2'
+    PAID = {'CONFIRMED'}
+    FAILED = {'REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'REVERSED', 'PARTIAL_REVERSED', 'REFUNDED',
+              'PARTIAL_REFUNDED', 'AUTH_FAIL'}
+
+    def __init__(self, terminal_key, password, session=None, api=None, taxation='usn_income', notification_url=''):
+        self.terminal = terminal_key
+        self.password = password
+        self.session = session or requests.Session()
+        self.api = (api or os.environ.get('TBANK_API') or self.API).rstrip('/')
+        self.taxation = taxation
+        self.notification_url = notification_url
+
+    @staticmethod
+    def token(params, password):
+        values = {k: v for k, v in params.items() if k != 'Token' and not isinstance(v, (dict, list))}
+        values['Password'] = password
+        text = ''.join(('true' if v is True else 'false' if v is False else str(v)) for _, v in sorted(values.items()))
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+    def _call(self, method, params):
+        params = dict(params, TerminalKey=self.terminal)
+        params['Token'] = self.token(params, self.password)
+        response = self.session.post(f'{self.api}/{method}', json=params, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        if not data.get('Success') or str(data.get('ErrorCode', '0')) != '0':
+            raise ValueError('Т-Банк: ' + (data.get('Message') or data.get('Details') or 'ошибка платежа'))
+        return data
+
+    def create(self, plan, email, user_id, return_url):
+        info = PLANS[plan]
+        kopecks = int(round(float(info['price']) * 100))
+        params = {
+            'Amount': kopecks, 'OrderId': f'{user_id}-{plan}-{secrets.token_hex(6)}', 'Description': info['title'][:140],
+            'SuccessURL': return_url, 'FailURL': return_url, 'DATA': {'Email': email},
+            # Чек по 54-ФЗ (Т-Банк отправит его покупателю через подключённую онлайн-кассу).
+            'Receipt': {'Email': email, 'Taxation': self.taxation, 'Items': [{
+                'Name': info['title'][:128], 'Price': kopecks, 'Quantity': 1, 'Amount': kopecks,
+                'Tax': os.environ.get('TBANK_TAX', 'none'), 'PaymentMethod': 'full_payment', 'PaymentObject': 'service'}]},
+        }
+        if self.notification_url:
+            params['NotificationURL'] = self.notification_url
+        data = self._call('Init', params)
+        return {'id': str(data['PaymentId']), 'status': 'pending', 'paid': False,
+                'amount': {'value': info['price'], 'currency': 'RUB'},
+                'confirmation': {'confirmation_url': data['PaymentURL']}}
+
+    def get(self, payment_id):
+        data = self._call('GetState', {'PaymentId': str(payment_id)})
+        status = data.get('Status', '')
+        paid = status in self.PAID
+        return {'id': str(payment_id), 'paid': paid,
+                'status': 'succeeded' if paid else 'canceled' if status in self.FAILED else 'pending',
+                'amount': {'value': f"{int(data.get('Amount', 0)) / 100:.2f}", 'currency': 'RUB'}}
+
+    def verify_notification(self, data):
+        """Подпись уведомления Т-Банка: тот же токен, что и у запросов."""
+        return bool(data.get('Token')) and data.get('TerminalKey') == self.terminal and \
+            secrets.compare_digest(str(data['Token']), self.token(data, self.password))
+
+
 class TestKassa:
     """Тестовый режим без ЮKassa: платёж сразу считается оплаченным."""
 
@@ -206,7 +274,10 @@ class LicenseServer:
         if not 8 <= len(password) <= 200:
             raise ValueError('Пароль: от 8 символов')
         if email in self.owners:
-            raise ValueError('Этот email зарезервирован владельцем. Войдите паролем владельца.')
+            # Владелец нажал «Регистрация» вместо «Вход»: с верным паролем владельца просто входим.
+            if self.owner_password and password == self.owner_password:
+                return self.login(email, password)
+            raise ValueError('Этот email принадлежит владельцу. Войдите на вкладке «Вход» паролем из OWNER_PASSWORD.')
         with self.lock, self.connect() as db:
             if db.execute('SELECT 1 FROM users WHERE email=?', (email,)).fetchone():
                 raise ValueError('Этот email уже зарегистрирован. Войдите.')
@@ -299,8 +370,11 @@ class LicenseServer:
             if payment['status'] != 'succeeded' or not payment.get('paid') or row['applied']:
                 return payment['status']
             plan = row['plan']
+            # Сумма всегда сверяется; владелец платежа — по метаданным, если провайдер их возвращает
+            # (ЮKassa возвращает, Т-Банк — нет: там владелец известен по нашей записи о платеже).
+            owner = (payment.get('metadata') or {}).get('user_id')
             if payment['amount']['value'] != PLANS[plan]['price'] or payment['amount']['currency'] != 'RUB' or \
-                    str(payment.get('metadata', {}).get('user_id')) != str(row['user_id']):
+                    (owner is not None and str(owner) != str(row['user_id'])):
                 return 'mismatch'
             user = db.execute('SELECT plan,expires FROM users WHERE id=?', (row['user_id'],)).fetchone()
             if plan == 'lifetime':
@@ -320,7 +394,13 @@ def create_app(server=None):
         key_text = os.environ.get('LICENSE_PRIVATE_KEY')
         key = load_private_key(key_text) if key_text else private_key_from_disk(data)
         shop, secret = os.environ.get('YOOKASSA_SHOP_ID'), os.environ.get('YOOKASSA_SECRET_KEY')
-        if shop and secret:
+        terminal, password = os.environ.get('TBANK_TERMINAL_KEY'), os.environ.get('TBANK_PASSWORD')
+        public_url = os.environ.get('PUBLIC_URL', '').rstrip('/')
+        if terminal and password:
+            # Т-Бизнес: деньги на расчётный счёт в Т-Банке.
+            kassa = TBankKassa(terminal, password, taxation=os.environ.get('TBANK_TAXATION', 'usn_income'),
+                               notification_url=public_url + '/tbank/webhook' if public_url else '')
+        elif shop and secret:
             kassa = YooKassa(shop, secret)
         elif os.environ.get('LICENSE_TEST_MODE') == '1':
             kassa = TestKassa()  # только для отладки: любая «оплата» проходит сразу
@@ -407,6 +487,18 @@ def create_app(server=None):
         status = server.apply(payment_id)
         return jsonify(success=True, status=status, **account(server.user(token())))
 
+    @app.post('/tbank/webhook')
+    def tbank_webhook():
+        """Уведомление Т-Банка. Проверяем подпись, затем статус всё равно перепроверяем через GetState."""
+        data = request.get_json(silent=True) or {}
+        kassa = server.kassa
+        if isinstance(kassa, TBankKassa) and kassa.verify_notification(data):
+            payment_id = str(data.get('PaymentId', ''))
+            if re.fullmatch(r'\d{1,20}', payment_id):
+                server.apply(payment_id)
+            return 'OK', 200  # Т-Банк ждёт ровно «OK», иначе будет повторять уведомление
+        return 'bad token', 400
+
     @app.post('/yookassa/webhook')
     def webhook():
         """Уведомление ЮKassa. Содержимому не доверяем: статус перепроверяется запросом к API."""
@@ -415,6 +507,19 @@ def create_app(server=None):
         if re.fullmatch(r'[\w-]{8,64}', payment_id):
             server.apply(payment_id)
         return '', 200
+
+    @app.get('/')
+    def home():
+        """Главная страница сервера — чтобы по адресу проекта было видно, что всё работает."""
+        payments = 'подключена' if server.kassa is not None else 'не подключена (вход и промокоды работают)'
+        return ('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+                '<title>Андрей — сервер аккаунтов</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;'
+                'font-family:system-ui;background:linear-gradient(135deg,#0b1020,#16243f);color:#eaf2ff">'
+                '<div style="max-width:520px;padding:32px;border-radius:20px;background:rgba(255,255,255,.06);'
+                'border:1px solid rgba(150,200,255,.2)"><h1 style="margin-top:0">✅ Сервер аккаунтов «Андрей» работает</h1>'
+                f'<p>Оплата: {payments}.</p><p>Вставьте адрес этой страницы в приложении: Настройки → '
+                '«Аккаунт и подписка» → «Адрес сервера».</p><p style="opacity:.7">Проверка: <a style="color:#5ef2c2" '
+                'href="/health">/health</a></p></div></body></html>')
 
     @app.get('/paid')
     def paid():

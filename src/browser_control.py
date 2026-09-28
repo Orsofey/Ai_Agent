@@ -1,5 +1,6 @@
 """Own browser profile, serial Playwright worker. Never touches unrelated tabs."""
 from concurrent.futures import Future, TimeoutError
+import logging
 import os
 import queue
 import re
@@ -19,6 +20,7 @@ PROGID_CHANNELS = [
 ]
 
 # Порядок попыток запуска, если реестр недоступен. Яндекс — первым, т.к. часто дефолтный в РФ.
+log = logging.getLogger(__name__)
 CHANNEL_ORDER = ['yandex', 'chrome', 'msedge', 'brave', 'opera', 'vivaldi', None]
 
 
@@ -114,6 +116,8 @@ class BrowserController:
 
     def _run(self, method, args):
         """Выполнить действие; если пользователь закрыл окно браузера — перезапустить и повторить."""
+        if method == 'open':
+            method = 'focus_or_open'  # уже открытый сайт — переключаемся на его вкладку
         try:
             return getattr(self, '_'+method)(*args)
         except Exception as exc:
@@ -126,6 +130,85 @@ class BrowserController:
                 return 'Браузер агента уже закрыт.'
             return getattr(self, '_'+method)(*args)
 
+    def _via_extension(self, bridge, method, args):
+        """Выполнить действие в открытом браузере пользователя через расширение «Андрей»."""
+        if method == 'open':
+            url = self.valid_url(args[0])
+            result = bridge.send('open', url=url) or {}
+            name = self._site_name(url)
+            return ('Переключаюсь на ' if result.get('focused') else 'Открываю ') + (name if name != 'сайт' else url)
+        if method == 'url':
+            return bridge.send('url') or ''
+        if method == 'tabs':
+            tabs = bridge.send('tabs') or []
+            return '\n'.join(f"{i + 1}. {t.get('title') or t.get('url')}" for i, t in enumerate(tabs)) or 'Вкладок нет.'
+        if method == 'close_tab':
+            bridge.send('close_tab')
+            return 'Вкладка закрыта.'
+        if method == 'close_site':
+            closed = bridge.send('close_site', url=args[0]) or 0
+            return ('Закрываю ' + self._site_name(args[0]) + '.') if closed else None
+        if method in ('media', 'player'):
+            action = args[0] if method == 'media' else 'play'
+            done = bridge.send('media', action=action)
+            if method == 'player' and not done:
+                return None
+            return ('Пауза.' if action == 'pause' else 'Продолжаю воспроизведение.') if done else 'Не нашёл плеер на открытых вкладках.'
+        if method == 'video':
+            query, source = args[0], (args[1] if len(args) > 1 else 'youtube')
+            if re.match(r'^https?://', query, re.I):
+                bridge.send('navigate', url=self.valid_url(query))
+                return 'Открываю видео.'
+            if source == 'rutube':
+                bridge.send('navigate', url='https://rutube.ru/search/?query=' + quote(query))
+                return f'Ищу на Rutube: {query}'
+            bridge.send('navigate', url='https://www.youtube.com/results?search_query=' + quote(query))
+            picked = bridge.send('youtube', timeout=30, action='pick', arg=1)
+            return f'Включаю «{query}» на YouTube.' if picked else f'Ищу на YouTube: {query}'
+        if method == 'youtube':
+            action, arg = args[0], (args[1] if len(args) > 1 else None)
+            if action == 'search':
+                bridge.send('navigate', url='https://www.youtube.com/results?search_query=' + quote(arg))
+                return 'Ищу на YouTube: ' + arg
+            result = bridge.send('youtube', timeout=30, action=action, arg=arg)
+            if action == 'pick':
+                if not result:
+                    return 'Не нашёл видео на странице. Откройте YouTube или поиск и повторите.'
+                return f'Открываю видео номер {arg}.' if arg > 0 else 'Открываю последнее видео.'
+            return {'next': 'Включаю следующее видео.', 'back': 'Возвращаюсь назад.', 'fullscreen': 'Готово.',
+                    'seek': f'Перематываю {"назад" if (arg or 0) < 0 else "вперёд"} на {abs(arg or 0)} секунд.'}.get(action, 'Готово.')
+        if method == 'music':
+            query, service = args[0], (args[1] if len(args) > 1 else None)
+            current = bridge.send('url') or ''
+            info = next((m for m in self.MUSIC if m[0] == service), None) or self._music_service(current) or self.MUSIC[0]
+            played = bridge.send('music', timeout=40, url=info[2].format(q=quote(query)))
+            if not played:
+                return f'Нашёл «{query}» в {info[1]}. Нажмите на трек — сервис может требовать вход в аккаунт.'
+            return f'Включаю «{query}» в {info[1]}.'
+        raise RuntimeError('Неизвестное действие')
+
+    def _focus_or_open(self, url):
+        """«Открой YouTube»: если сайт уже открыт во вкладке — переключиться на неё, а не открывать заново."""
+        self.valid_url(url)
+        if self.context is None:
+            return self._open(url)  # браузер ещё не запущен — открывать нечего, _open его запустит
+        target = urlparse(url)
+        host = (target.hostname or '').removeprefix('www.')
+        path = target.path.rstrip('/')
+        try:
+            pages = [p for p in self.context.pages if not p.is_closed()]
+        except Exception as exc:
+            if self._is_closed_error(exc):
+                raise  # окно закрыто пользователем — _run перезапустит браузер
+            pages = []
+        for page in pages:
+            current = urlparse(page.url)
+            if (current.hostname or '').removeprefix('www.') == host and (not path or current.path.startswith(path)):
+                page.bring_to_front()
+                self.current = page
+                return 'Переключаюсь на ' + self._site_name(url)
+        return self._open(url)
+
     def _reset(self):
         self.context = None
         self.current = None
@@ -136,7 +219,16 @@ class BrowserController:
                 pass
             self.pw = None
 
+    # Команды, которые умеет выполнять расширение в браузере пользователя.
+    EXTENSION_METHODS = {'open', 'video', 'youtube', 'media', 'close_tab', 'close_site', 'url', 'player', 'music', 'tabs'}
+
     def call(self, method, *args):
+        bridge = getattr(self, 'bridge', None)
+        if bridge is not None and bridge.connected and method in self.EXTENSION_METHODS:
+            try:
+                return self._via_extension(bridge, method, args)
+            except Exception as exc:  # расширение отвалилось — работаем своим браузером
+                log.info('Extension bridge failed (%s): %s', method, exc)
         future = Future()
         self.jobs.put((method, args, future))
         try:

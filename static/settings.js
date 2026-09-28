@@ -29,6 +29,7 @@
     if (out) out.textContent = el.value + ' ' + (el.dataset.unit || '');
   }
   function fill(settings) {
+    setTimeout(() => document.getElementById('voice-cards') && paintVoiceCards(), 0);
     fields.forEach(el => {
       const key = el.dataset.setting;
       if (!(key in settings) || el === document.activeElement) return;
@@ -145,6 +146,11 @@
         local.ready ? '✓ Работает на этом ПК' + (local.runtime === 'vulkan' ? ' · видеокарта' : ' · процессор') :
         local.starting ? 'Загружается в память…' :
         !local.runtime_installed || !local.model_installed ? 'Не установлена — нажмите «Скачать» ниже' : (local.error || 'Запустится при первом вопросе');
+      const mem = local.memory || {};
+      if (mem.mode) {
+        const now = mem.llm_mb ? ` Сейчас: ассистент ${mem.agent_mb} МБ + нейросеть ${mem.llm_mb} МБ.` : mem.agent_mb ? ` Сейчас ассистент занимает ${mem.agent_mb} МБ.` : '';
+        $('memory-info').textContent = `${mem.mode_title}. Нейросеть ≈ ${(mem.estimate_mb / 1024).toFixed(1)} ГБ, в компьютере ${mem.total_ram_gb} ГБ.${now}`;
+      }
       const list = $('llm-models');
       list.replaceChildren();
       const rows = [['llama:cpu', { title: 'Движок llama.cpp (процессор)', size_mb: 30, installed: models.llama.cpu.installed }]];
@@ -210,16 +216,47 @@
   }
   $('refresh-mics').onclick = loadMicrophones;
 
+  // ---------- голос ассистента: карточки Джарвис / Пятница / свои ----------
+  function paintVoiceCards() {
+    const current = $('voice-preset').value;
+    document.querySelectorAll('.voice-card').forEach(c => {
+      c.classList.toggle('selected', c.dataset.voice === current);
+      c.setAttribute('aria-checked', c.dataset.voice === current);
+    });
+  }
   async function loadVoices() {
     try {
       const data = await Agent.api('ai/voices');
-      const mark = (select, lang) => [...select.options].forEach(o => {
-        const v = data.voices.find(x => x.id === o.value);
-        if (v && !v.installed) o.textContent = o.textContent.replace(/ \(не установлен\)$/, '') + ' (не установлен)';
-      });
-      mark($('voice-ru'), 'ru'); mark($('voice-en'), 'en');
+      const select = $('voice-preset'), box = $('voice-cards');
+      const saved = Agent.settings.voice_preset;
+      select.replaceChildren(...data.assistant.map(v => new Option(v.title, v.id)));
+      if (saved && ![...select.options].some(o => o.value === saved)) select.add(new Option(saved, saved));
+      select.value = saved || 'jarvis';
+      box.replaceChildren(...data.assistant.map(v => {
+        const card = document.createElement('button');
+        card.type = 'button'; card.className = 'voice-card'; card.dataset.voice = v.id; card.setAttribute('role', 'radio');
+        const initial = v.id === 'jarvis' ? 'J' : v.id === 'friday' ? 'F' : '★';
+        card.innerHTML = '<span class="voice-avatar"></span><span class="voice-meta"><b></b><small></small></span><span class="voice-wave"><i></i><i></i><i></i><i></i></span>';
+        card.querySelector('.voice-avatar').textContent = initial;
+        card.querySelector('b').textContent = v.title;
+        card.querySelector('small').textContent = v.note;
+        card.onclick = () => {
+          select.value = v.id;
+          select.dispatchEvent(new Event('change'));
+          paintVoiceCards();
+        };
+        return card;
+      }));
+      paintVoiceCards();
     } catch (e) { /* */ }
   }
+  $('voice-folder').onclick = async () => {
+    try {
+      const r = await Agent.post('voices/open-folder');
+      $('voice-folder-hint').textContent = r.opened ? 'Папка открыта. Положите туда .onnx и .onnx.json и нажмите «Проверить голос».' : 'Папка голосов: ' + r.path;
+      setTimeout(loadVoices, 1500);
+    } catch (e) { Agent.toast(e.message); }
+  };
   $('test-voice').onclick = async () => {
     try {
       const r = await Agent.post('tts/speak', { text: `Привет! Я ${Agent.settings.wake_word || 'Андрей'}. Так звучит мой голос.` });
@@ -360,7 +397,12 @@
       badge.className = 'plan-badge ' + (a.premium ? 'premium' : '');
       $('account-check').hidden = a.plan === 'lifetime';
     }
-    if (!a.configured && !a.logged_in) message('Сервер аккаунтов ещё не подключён в этой сборке. Разработчику: docs/AMVERA.md.', 'bad');
+    const box = $('server-box');
+    box.classList.toggle('connected', !!a.configured);
+    box.hidden = a.logged_in && a.configured;
+    $('server-state').textContent = a.configured ? 'Подключён: ' + a.server_url : 'Сервер ещё не подключён — вставьте адрес проекта Amvera.';
+    if (a.configured && document.activeElement !== $('server-url')) $('server-url').value = a.server_url || '';
+    $('server-save').textContent = a.configured ? 'Изменить' : 'Подключить';
   }
   async function loadAccount() {
     try { paintAccount((await Agent.api('account')).account); } catch (e) { /* */ }
@@ -398,6 +440,13 @@
     const a = await accountAction('account/promo', { code }, $('promo-apply'));
     if (a && a.premium) { $('promo-code').value = ''; Agent.toast('Промокод активирован: подписка навсегда!', 6000); }
   };
+  $('server-save').onclick = async () => {
+    const url = $('server-url').value.trim();
+    if (!url) { $('server-url').focus(); return; }
+    const a = await accountAction('account/server', { url }, $('server-save'));
+    if (a) { message('Сервер подключён. Теперь войдите или зарегистрируйтесь.', 'ok'); Agent.toast('Сервер аккаунтов подключён', 3000); }
+  };
+  $('server-url').addEventListener('keydown', e => { if (e.key === 'Enter') $('server-save').click(); });
   $('promo-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('promo-apply').click(); });
 
   async function buy(plan) {
@@ -420,6 +469,47 @@
     } catch (e) { Agent.toast(e.message, 5000); }
   }
   document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buy(b.dataset.buy));
+
+  // ---------- расширение для браузера ----------
+  async function refreshExtension() {
+    try {
+      const st = await Agent.api('ext/status');
+      $('ext-pill').className = 'pill ' + (st.connected ? 'ok' : '');
+      $('ext-status').textContent = st.connected ? 'Подключено: ' + (st.browser || 'браузер') : 'Не подключено';
+      $('ext-steps').hidden = !!st.connected;
+    } catch (e) { /* */ }
+  }
+  $('ext-folder').onclick = async () => {
+    try {
+      const r = await Agent.post('ext/open-folder');
+      if (!r.opened) Agent.toast('Папка расширения: ' + r.path, 8000);
+    } catch (e) { Agent.toast(e.message); }
+  };
+  refreshExtension();
+  setInterval(refreshExtension, 5000);
+
+  async function refreshIntegrations() {
+    try {
+      const st = await Agent.api('integrations');
+      $('int-status').textContent = st.items.length ? 'Подключено: ' + st.items.length : 'Пока нет';
+      $('int-pill').className = 'pill ' + (st.items.length ? 'ok' : '');
+      $('int-list').replaceChildren(...st.items.map(i => {
+        const li = document.createElement('li');
+        li.innerHTML = '<b></b> — <span></span>';
+        li.querySelector('b').textContent = i.name;
+        li.querySelector('span').textContent = `${i.commands} команд${i.context ? ', данные для вопросов' : ''} (${i.file})`;
+        return li;
+      }), ...st.errors.map(e => { const li = document.createElement('li'); li.textContent = 'Ошибка: ' + e; li.style.color = 'var(--bad)'; return li; }));
+    } catch (e) { /* */ }
+  }
+  $('int-folder').onclick = async () => {
+    try {
+      const r = await Agent.post('integrations/open-folder');
+      if (!r.opened) Agent.toast('Папка интеграций: ' + r.path, 8000);
+      setTimeout(refreshIntegrations, 2000);
+    } catch (e) { Agent.toast(e.message); }
+  };
+  refreshIntegrations();
 
   // ---------- живые события ----------
   function onEvent(e) {

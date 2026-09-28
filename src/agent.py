@@ -118,10 +118,11 @@ def parse_command(command, settings=None):
 
 
 class LocalComputerAgent:
-    def __init__(self, browser, brain=None, desktop_commands=None):
+    def __init__(self, browser, brain=None, desktop_commands=None, integrations=None):
         self.browser = browser
         self.brain = brain
         self.desktop_commands = desktop_commands
+        self.integrations = integrations
         self.dialog = Dialog()
 
     def awaiting(self, owner='default'):
@@ -217,6 +218,12 @@ class LocalComputerAgent:
             if result is not None:
                 return result, 'action'
 
+        # 1б. Интеграции с другими приложениями (папка integrations).
+        if self.integrations is not None:
+            result = self.integrations.handle(text, settings)
+            if result is not None:
+                return result, 'info'
+
         # 2. Видео на YouTube в том же окне: «открой первое видео», «найди на ютубе…».
         yt = youtube_command(text)
         if yt is not None:
@@ -236,6 +243,10 @@ class LocalComputerAgent:
         # 4. «Открой в браузере Claude Code», «открой в Яндекс Браузере YouTube».
         request = sites.parse(text)
         if request:
+            bridge = getattr(self.browser, 'bridge', None)
+            if bridge is not None and getattr(bridge, 'connected', False) is True and bridge.matches(request['browser']):
+                # Браузер пользователя уже открыт и подключён: открываем там (или переключаемся на вкладку).
+                return self.browser.call('open', sites.resolve(request['site'])), 'action'
             return sites.open_site(request['site'], request['browser']), 'action'
 
         # 5. Сервисы и браузер.
@@ -294,8 +305,10 @@ class LocalComputerAgent:
         question = value if action == 'search' else text
         if self.brain is not None:
             from .brain import LLMError
+            extra = self.integrations.context(question, settings) if self.integrations is not None else None
+            prompt = f'{question}\n\n{extra}\n\nОтвечай по этим данным.' if extra else question
             try:
-                answer = self.brain.answer(question, settings, owner=owner, on_text=on_text)
+                answer = self.brain.answer(prompt, settings, owner=owner, on_text=on_text)
             except LLMError as exc:
                 answer = None
                 error = str(exc)

@@ -27,7 +27,19 @@ from src.storage import PremiumRequired, Store, SECRET_NAMES
 log = logging.getLogger(__name__)
 
 VOICE_IDS = ('irina', 'denis', 'amy')
-VERSION = '5.3'
+# Пример интеграции: переименуйте в tracker.json и замените адреса на API своего приложения.
+EXAMPLE_INTEGRATION = {
+    'name': 'Трекер',
+    'commands': [
+        {'phrases': ['что в трекере( на (?P<day>сегодня|завтра))?', 'мои задачи'],
+         'method': 'GET', 'url': 'https://tracker.example/api/tasks?day={day}',
+         'headers': {'Authorization': 'Bearer {secret:TRACKER_TOKEN}'}, 'say': 'Задач: {count}. {items[*].title}'},
+        {'phrases': ['добавь в трекер (?P<text>.+)'], 'method': 'POST', 'url': 'https://tracker.example/api/tasks',
+         'json': {'title': '{text}'}, 'say': 'Добавил в трекер: {text}'},
+    ],
+    'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
+}
+VERSION = '5.4'
 
 
 def local_ip():
@@ -45,11 +57,14 @@ def build_agent(store, events=None):
     from src.brain import Brain
     from src.browser_control import BrowserController
     from src.desktop import DesktopController, DesktopCommands
+    from src.browser_bridge import ExtensionBridge
     browser = BrowserController(store.root)
+    browser.bridge = ExtensionBridge()  # расширение «Андрей» в браузере пользователя
     brain = Brain(store)
     desktop = DesktopController()
     commands = DesktopCommands(desktop, brain=brain, browser=browser, root=store.root)
-    return LocalComputerAgent(browser, brain=brain, desktop_commands=commands)
+    from src.integrations import Integrations
+    return LocalComputerAgent(browser, brain=brain, desktop_commands=commands, integrations=Integrations(store.root))
 
 
 def create_app(store=None, recognizer=None, agent=None, *, events=None, player=None, voice=None, license=None):
@@ -99,7 +114,8 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def authenticate():
         if request.path.startswith('/api/'):
             origin = request.headers.get('Origin')
-            if origin and urlparse(origin).netloc != request.host:
+            extension = request.path.startswith('/api/ext/') and str(origin).startswith(('chrome-extension://', 'moz-extension://'))
+            if origin and not extension and urlparse(origin).netloc != request.host:
                 return jsonify(success=False, message='Чужой Origin запрещён'), 403
             token = request.headers.get('X-Agent-Token', '')
             if request.path == '/api/events' and not token:
@@ -397,7 +413,17 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     # ---------------- синтез для телефона ----------------
     @app.get('/api/ai/voices')
     def list_voices():
-        return jsonify(success=True, voices=local_tts.available_voices())
+        return jsonify(success=True, voices=local_tts.available_voices(), assistant=local_tts.assistant_voices())
+
+    @app.post('/api/voices/open-folder')
+    def open_voice_folder():
+        """Папка своих голосов (models/voices): положите туда .onnx и .onnx.json голоса Piper."""
+        from src.local_tts_service import custom_voice_dirs
+        from src.web_services import system_open
+        folder = custom_voice_dirs(store.root)[0]
+        folder.mkdir(parents=True, exist_ok=True)
+        opened = is_desktop() and system_open(str(folder))
+        return jsonify(success=True, opened=bool(opened), path=str(folder))
 
     @app.post('/api/ai/synthesize_local')
     def synthesize_local():
@@ -536,6 +562,66 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     @app.post('/api/account/logout')
     def account_logout():
         return account_reply(license.logout)
+
+    # ---------------- расширение «Андрей» для браузера ----------------
+    def bridge():
+        found = getattr(getattr(agent, 'browser', None), 'bridge', None)
+        if found is None:
+            raise ValueError('Мост к браузеру недоступен')
+        return found
+
+    @app.get('/api/ext/next')
+    def ext_next():
+        """Долгий опрос от расширения: следующая команда или пустой ответ через ~20 секунд."""
+        command = bridge().next_command(request.args.get('wait', 20), request.args.get('browser', ''))
+        return jsonify(success=True, command=command)
+
+    @app.post('/api/ext/result')
+    def ext_result():
+        data = request.get_json(silent=True) or {}
+        bridge().complete(data.get('id'), data.get('ok'), data.get('result'), data.get('error'))
+        return jsonify(success=True)
+
+    @app.get('/api/ext/status')
+    def ext_status():
+        from src.browser_bridge import ExtensionBridge
+        found = getattr(getattr(agent, 'browser', None), 'bridge', None)
+        return jsonify(success=True, **(found.status() if isinstance(found, ExtensionBridge) else {'connected': False}))
+
+    # ---------------- интеграции ----------------
+    @app.get('/api/integrations')
+    def integrations_status():
+        from src.integrations import Integrations
+        found = getattr(agent, 'integrations', None)
+        return jsonify(success=True, **(found.status() if isinstance(found, Integrations)
+                                        else {'items': [], 'errors': [], 'folder': ''}))
+
+    @app.post('/api/integrations/open-folder')
+    def integrations_folder():
+        """Открыть папку интеграций; при первом открытии кладём туда пример."""
+        from src.integrations import folder
+        from src.web_services import system_open
+        path = folder(store.root)
+        path.mkdir(parents=True, exist_ok=True)
+        example = path / 'example.json.txt'
+        if not any(path.iterdir()):
+            example.write_text(json.dumps(EXAMPLE_INTEGRATION, ensure_ascii=False, indent=2), encoding='utf-8')
+        opened = is_desktop() and system_open(str(path))
+        return jsonify(success=True, opened=bool(opened), path=str(path))
+
+    @app.post('/api/ext/open-folder')
+    def ext_open_folder():
+        """Папка расширения — её выбирают в chrome://extensions → «Загрузить распакованное»."""
+        import sys
+        from src.web_services import system_open
+        base = Path(getattr(sys, '_MEIPASS', root))
+        folder = base / 'browser_extension'
+        opened = is_desktop() and folder.is_dir() and system_open(str(folder))
+        return jsonify(success=True, opened=bool(opened), path=str(folder))
+
+    @app.post('/api/account/server')
+    def account_server():
+        return account_reply(lambda: license.set_server((request.get_json() or {}).get('url', '')))
 
     @app.post('/api/account/promo')
     def account_promo():
