@@ -35,7 +35,7 @@ class MinimizeTests(unittest.TestCase):
         from src import app_control
         user32 = Mock()
         with patch.object(app_control.sys, 'platform', 'win32'), \
-                patch.object(app_control, '_app_pids', return_value={42}), \
+                patch.object(app_control, '_pids_by_names', return_value={42}), \
                 patch.object(app_control, '_find_windows', return_value=[101, 102]), \
                 patch.object(app_control.ctypes, 'WinDLL', return_value=user32, create=True):
             self.assertEqual(app_control.minimize_application('telegram'), 'Сворачиваю telegram')

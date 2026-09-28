@@ -134,6 +134,7 @@ class LocalComputerAgent:
         self.scenarios = None  # ScenarioManager: подключает app.py
         self.tracker = None    # TrackerClient: подключает app.py
         self.reminders = None  # Reminders: подключает app.py
+        self.power = None      # Power: выключение и перезагрузка ПК
         self.macros = None     # Macros: подключает app.py
         self.files = None      # FileStudy: подключает app.py
         self.dialog = Dialog()
@@ -142,7 +143,8 @@ class LocalComputerAgent:
     def awaiting(self, owner='default'):
         """Агент задал вопрос или идёт беседа — голос слушает следующую фразу без имени."""
         return self.dialog.awaiting(owner) is True or self.chatting(owner) \
-            or bool(self.reminders is not None and self.reminders.awaiting(owner))
+            or bool(self.reminders is not None and self.reminders.awaiting(owner)) \
+            or bool(self.power is not None and self.power.awaiting(owner))
 
     # ---- режим «поболтать» ----
     def chatting(self, owner='default'):
@@ -192,6 +194,10 @@ class LocalComputerAgent:
             except Exception as exc:
                 return str(exc) or 'Не получилось ответить.'
 
+        if self.power is not None:
+            reply = self.power.handle(text, owner, settings)
+            if reply is not None:
+                return reply
         if self.reminders is not None:
             reply = self.reminders.handle(text, owner, settings)
             if reply is not None:

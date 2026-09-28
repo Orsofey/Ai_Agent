@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '5.6'
+VERSION = '5.7'
 
 
 def local_ip():
@@ -114,6 +114,9 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     reminders = Reminders(store, notify=notify, speak=speak)
     agent.reminders = reminders
     reminders.ensure_thread()
+
+    from src.power import Power
+    agent.power = Power(notify=notify, speak=speak)
 
     from src.macros import Macros
     macros = Macros(store, runner=lambda command, settings, who: agent.process_command(command, settings, owner=who))

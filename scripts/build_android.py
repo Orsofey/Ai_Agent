@@ -75,6 +75,117 @@ def signing():
     return value
 
 
+REPOSITORY = 'https://dl.google.com/android/repository/'
+
+
+def sdk_dir():
+    """Папка Android SDK: из local.properties, созданного Flutter, переменных окружения или стандартного места."""
+    props = TARGET/'android/local.properties'
+    if props.exists():
+        match = re.search(r'^sdk\.dir=(.+)$', props.read_text(encoding='utf-8', errors='replace'), re.M)
+        if match:
+            path = Path(match[1].strip().replace('\\:', ':').replace('\\\\', '\\'))
+            if path.is_dir():
+                return path
+    for name in ('ANDROID_HOME', 'ANDROID_SDK_ROOT'):
+        if os.getenv(name) and Path(os.environ[name]).is_dir():
+            return Path(os.environ[name])
+    for path in (Path(os.getenv('LOCALAPPDATA', '~'))/'Android/Sdk', Path.home()/'Library/Android/sdk', Path.home()/'Android/Sdk'):
+        path = path.expanduser()
+        if path.is_dir():
+            return path
+    return None
+
+
+def required_ndk(flutter):
+    """Версия NDK, которую просит Flutter (flutter.ndkVersion)."""
+    tools = Path(flutter).resolve().parent.parent/'packages/flutter_tools/gradle'
+    for source in sorted(tools.rglob('*')) if tools.is_dir() else []:
+        if source.suffix in ('.kt', '.kts', '.groovy', '.gradle') and source.is_file():
+            match = re.search(r'ndkVersion\s*(?::\s*String)?\s*=\s*"(\d+\.\d+\.\d+)"', source.read_text(encoding='utf-8', errors='ignore'))
+            if match:
+                return match[1]
+    return None
+
+
+def installed_ndks(sdk):
+    folder = sdk/'ndk'
+    found = [p.name for p in folder.iterdir() if (p/'source.properties').exists()] if folder.is_dir() else []
+    return sorted(found, key=lambda v: [int(x) for x in re.findall(r'\d+', v)])
+
+
+def install_ndk(sdk, version):
+    """Скачать NDK напрямую из репозитория Google — без sdkmanager (новая обёртка «Android CLI» падает на Windows)."""
+    import urllib.request
+    import zipfile
+    from xml.etree import ElementTree
+    host = {'nt': 'windows'}.get(os.name, 'macosx' if sys.platform == 'darwin' else 'linux')
+    with urllib.request.urlopen(REPOSITORY + 'repository2-3.xml', timeout=60) as response:
+        root = ElementTree.fromstring(response.read())
+    url = None
+    for package in root.iter('remotePackage'):
+        if package.get('path') != 'ndk;' + version:
+            continue
+        for archive in package.iter('archive'):
+            if (archive.findtext('host-os') or host) == host:
+                url = REPOSITORY + archive.find('complete').findtext('url')
+    if not url:
+        raise RuntimeError(f'NDK {version} для {host} не найден в репозитории Google')
+    archive = sdk/'ndk'/f'ndk-{version}.zip.part'
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    print(f'Скачиваю Android NDK {version} (≈700 МБ, один раз): {url}')
+    with urllib.request.urlopen(url, timeout=60) as response, open(archive, 'wb') as out:
+        total = int(response.headers.get('Content-Length') or 0)
+        done, shown = 0, -1
+        while True:
+            chunk = response.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            done += len(chunk)
+            percent = done * 100 // total if total else 0
+            if percent != shown and percent % 5 == 0:
+                print(f'  NDK: {percent}%', flush=True)
+                shown = percent
+    temp = sdk/'ndk'/f'.unpack-{version}'
+    shutil.rmtree(temp, ignore_errors=True)
+    with zipfile.ZipFile(archive) as zf:
+        zf.extractall(temp)
+    archive.unlink()
+    inner = next(p for p in temp.iterdir() if p.is_dir())
+    target = sdk/'ndk'/version
+    shutil.rmtree(target, ignore_errors=True)
+    inner.rename(target)
+    shutil.rmtree(temp, ignore_errors=True)
+    if sys.platform != 'win32':
+        for item in target.rglob('*'):
+            if item.is_file() and item.parent.name == 'bin':
+                item.chmod(item.stat().st_mode | 0o755)
+    return version
+
+
+def ensure_ndk(flutter):
+    """Вернуть версию NDK для build.gradle.kts так, чтобы Gradle не запускал sdkmanager."""
+    sdk = sdk_dir()
+    wanted = required_ndk(flutter)
+    if sdk is None:
+        print('WARNING: Android SDK not found; Gradle will try to install NDK itself.')
+        return None
+    have = installed_ndks(sdk)
+    if wanted and wanted in have:
+        return wanted
+    if wanted:
+        try:
+            return install_ndk(sdk, wanted)
+        except Exception as exc:
+            print(f'WARNING: could not download NDK {wanted}: {exc}')
+    if have:
+        print(f'Using installed NDK {have[-1]}')
+        return have[-1]
+    raise RuntimeError('Не найден Android NDK. Установите его: Android Studio → Settings → Languages & Frameworks → '
+                       'Android SDK → SDK Tools → «NDK (Side by side)» → Apply, затем повторите BUILD_ANDROID.bat.')
+
+
 def app_version():
     """Версия для магазинов: имя — из app.py (5.4), номер сборки растёт с каждой сборкой (требование Play и RuStore)."""
     match = re.search(r"^VERSION = '([\d.]+)'", (ROOT/'app.py').read_text(encoding='utf-8'), re.M)
@@ -136,6 +247,10 @@ def main():
     text = header+text.replace('android {', signing_block, 1)
     text = text.replace('signingConfigs.getByName("debug")', 'signingConfigs.getByName("release")')
     text = text.replace('minSdk = flutter.minSdkVersion', 'minSdk = maxOf(flutter.minSdkVersion, 23)')
+    ndk = ensure_ndk(flutter)
+    if ndk:
+        # Готовый NDK: Gradle не будет вызывать sdkmanager (он падает с 0xC0000409 в новых cmdline-tools).
+        text = text.replace('ndkVersion = flutter.ndkVersion', f'ndkVersion = "{ndk}"')
     gradle.write_text(text, encoding='utf-8')
     run([flutter, 'pub', 'get'], TARGET)
     run([dart if dart.exists() else flutter, *([] if dart.exists() else ['pub']), 'run', 'flutter_launcher_icons'], TARGET)
