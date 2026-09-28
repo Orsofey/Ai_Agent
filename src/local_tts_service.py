@@ -113,13 +113,47 @@ def model_card(name, root):
     return card.read_text(encoding='utf-8', errors='replace')[:4000]
 
 
+# ---- свои голоса: models/voices/<имя>.onnx + <имя>.onnx.json (обученные или купленные с правами) ----
+def custom_voice_dirs(root):
+    return [Path(root) / 'models' / 'voices', app_base() / 'models' / 'voices']
+
+
+def custom_voices(root):
+    """Список своих голосов Piper: id «custom:<имя>», название, язык."""
+    import json
+    found = {}
+    for folder in custom_voice_dirs(root):
+        if not folder.is_dir():
+            continue
+        for onnx in sorted(folder.glob('*.onnx')):
+            config = onnx.with_name(onnx.name + '.json')
+            if not config.exists() or onnx.stem in found:
+                continue
+            try:
+                info = json.loads(config.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            language = (info.get('language') or {}).get('code', '') or info.get('espeak', {}).get('voice', '')
+            title = info.get('title') or info.get('dataset') or onnx.stem
+            found[onnx.stem] = {'id': 'custom:' + onnx.stem, 'title': str(title)[:60], 'lang': language[:2] or 'ru',
+                                'onnx': onnx, 'config': config}
+    return list(found.values())
+
+
+def _custom_files(name, root):
+    for voice in custom_voices(root):
+        if voice['id'] == name:
+            return voice['onnx'], voice['config']
+    return None, None
+
+
 def get_piper_voice(name, root):
-    if name not in PIPER_VOICES:
+    if name not in PIPER_VOICES and not str(name).startswith('custom:'):
         return None
     with _lock:
         if name in _piper_voices:
             return _piper_voices[name]
-        onnx, config = voice_files(name, root)
+        onnx, config = _custom_files(name, root) if name.startswith('custom:') else voice_files(name, root)
         if not onnx:
             return None
         try:
@@ -167,6 +201,14 @@ class LocalTTSService:
                            'installed': voice_files(name, self.root)[0] is not None})
         return voices
 
+    def assistant_voices(self):
+        """Голоса ассистента для настроек: Джарвис, Пятница и свои голоса из models/voices."""
+        from . import voice_fx
+        voices = [{'id': key, 'title': voice_fx.PRESETS[key]['title'], 'note': voice_fx.PRESETS[key]['note']}
+                  for key in voice_fx.MAIN]
+        voices += [{'id': v['id'], 'title': v['title'], 'note': 'Свой голос'} for v in custom_voices(self.root)]
+        return voices
+
     def status(self):
         voices = self.available_voices()
         ready = [v['id'] for v in voices if v['engine'] == 'piper' and v['installed']]
@@ -185,12 +227,15 @@ class LocalTTSService:
         text = str(text).strip()[:2000]
         if not text:
             return None
+        if str(preset).startswith('custom:') and get_piper_voice(preset, self.root) is not None \
+                and detect_language(text) == 'ru':
+            voice, preset = preset, 'classic'  # свой голос звучит как есть, без обработки
         style = voice_fx.preset(preset)
         if style['voice'] and PIPER_VOICES.get(voice, {}).get('lang') == 'ru' and voice_files(style['voice'], self.root)[0]:
-            voice = style['voice']  # «Джарвис» — мужской голос, даже если выбрана Ирина
+            voice = style['voice']  # «Джарвис» — мужской голос, «Пятница» — женский
         # Понижение тона растягивает звук — заранее говорим быстрее, чтобы темп остался прежним.
         length_scale = round(style['pitch'] / rate, 3) if rate and rate > 0 else style['pitch']
-        piper_voice = get_piper_voice(voice, self.root) if voice in PIPER_VOICES else None
+        piper_voice = get_piper_voice(voice, self.root) if voice in PIPER_VOICES or voice.startswith('custom:') else None
         if piper_voice is None:
             piper_voice = get_piper_voice('irina', self.root) or get_piper_voice('denis', self.root)
         if piper_voice is not None:

@@ -9,10 +9,10 @@ import numpy as np
 PRESETS = {
     'classic': {'title': 'Обычный', 'voice': None, 'pitch': 1.0, 'fx': None,
                 'note': 'Выбранный голос без обработки'},
-    'jarvis': {'title': 'Джарвис — ИИ-дворецкий', 'voice': 'denis', 'pitch': 0.93, 'fx': 'ai',
-               'note': 'Спокойный низкий голос с цифровым оттенком, как у ИИ из фантастики'},
-    'friday': {'title': 'Пятница — ИИ-ассистентка', 'voice': 'irina', 'pitch': 1.02, 'fx': 'ai_light',
-               'note': 'Лёгкая цифровая окраска женского голоса'},
+    'jarvis': {'title': 'Джарвис', 'voice': 'denis', 'pitch': 0.93, 'fx': 'ai',
+               'note': 'Мужской: спокойный, низкий, с цифровым оттенком ИИ-дворецкого'},
+    'friday': {'title': 'Пятница', 'voice': 'irina', 'pitch': 1.02, 'fx': 'ai_light',
+               'note': 'Женский: мягкий, с лёгкой цифровой окраской ИИ-ассистентки'},
     'narrator': {'title': 'Диктор', 'voice': 'denis', 'pitch': 0.88, 'fx': 'warm',
                  'note': 'Низкий бархатный голос, как у диктора документального кино'},
     'trailer': {'title': 'Трейлер', 'voice': 'denis', 'pitch': 0.82, 'fx': 'epic',
@@ -20,6 +20,9 @@ PRESETS = {
     'robot': {'title': 'Робот', 'voice': 'denis', 'pitch': 0.95, 'fx': 'robot',
               'note': 'Металлический голос андроида'},
 }
+
+
+MAIN = ('jarvis', 'friday')  # два основных голоса в настройках; остальные — для совместимости
 
 
 def preset(name):

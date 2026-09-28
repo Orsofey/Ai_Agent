@@ -1,5 +1,6 @@
 """Persistent local storage. No user data are written into the install folder."""
 import json
+import re
 import os
 import secrets
 import sqlite3
@@ -61,7 +62,7 @@ CHOICES = {
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
     'address': ('сэр', 'мадам', 'босс', 'none'),
-    'voice_preset': ('classic', 'jarvis', 'friday', 'narrator', 'trailer', 'robot'),
+    'voice_preset': ('jarvis', 'friday'),  # плюс свои голоса «custom:<имя>» (см. _valid)
 }
 
 RANGES = {
@@ -158,6 +159,8 @@ class Store:
 
     @staticmethod
     def _valid(key, item):
+        if key == 'voice_preset' and re.fullmatch(r'custom:[\w.-]{1,80}', str(item)):
+            return True
         if key in CHOICES and item not in CHOICES[key]:
             return False
         if key in RANGES and not RANGES[key][0] <= item <= RANGES[key][1]:

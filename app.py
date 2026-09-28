@@ -397,7 +397,17 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     # ---------------- синтез для телефона ----------------
     @app.get('/api/ai/voices')
     def list_voices():
-        return jsonify(success=True, voices=local_tts.available_voices())
+        return jsonify(success=True, voices=local_tts.available_voices(), assistant=local_tts.assistant_voices())
+
+    @app.post('/api/voices/open-folder')
+    def open_voice_folder():
+        """Папка своих голосов (models/voices): положите туда .onnx и .onnx.json голоса Piper."""
+        from src.local_tts_service import custom_voice_dirs
+        from src.web_services import system_open
+        folder = custom_voice_dirs(store.root)[0]
+        folder.mkdir(parents=True, exist_ok=True)
+        opened = is_desktop() and system_open(str(folder))
+        return jsonify(success=True, opened=bool(opened), path=str(folder))
 
     @app.post('/api/ai/synthesize_local')
     def synthesize_local():

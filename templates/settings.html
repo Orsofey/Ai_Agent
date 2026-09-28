@@ -104,12 +104,10 @@
       <div class="card group">
         <div class="row"><div class="label"><b>Озвучивать ответы</b></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="tts_enabled"><span></span></label></div></div>
-        <div class="row"><div class="label"><b>Стиль голоса</b><small>«Джарвис» — спокойный ИИ-дворецкий с цифровым оттенком. Стили — обработка звука, а не копии голосов реальных актёров.</small></div>
-          <div class="control"><select data-setting="voice_preset"><option value="jarvis">Джарвис — ИИ-дворецкий</option><option value="friday">Пятница — ИИ-ассистентка</option><option value="narrator">Диктор</option><option value="trailer">Трейлер</option><option value="robot">Робот</option><option value="classic">Обычный</option></select></div></div>
-        <div class="row"><div class="label"><b>Русский голос</b></div>
-          <div class="control"><select data-setting="tts_voice" id="voice-ru"><option value="irina">Ирина</option><option value="denis">Денис</option></select></div></div>
-        <div class="row"><div class="label"><b>Английский голос</b><small>Для ответов на английском.</small></div>
-          <div class="control"><select data-setting="tts_voice_en" id="voice-en"><option value="amy">Amy</option></select></div></div>
+        <div class="row stack"><div class="label"><b>Голос ассистента</b><small>Джарвис и Пятница звучат офлайн. Свой голос — файл модели Piper (.onnx + .onnx.json) в папке голосов.</small></div>
+          <div class="voice-cards" id="voice-cards" role="radiogroup" aria-label="Голос ассистента"></div>
+          <select data-setting="voice_preset" id="voice-preset" hidden><option value="jarvis">Джарвис</option><option value="friday">Пятница</option></select>
+          <div class="control"><button class="btn ghost" id="voice-folder">Добавить свой голос…</button><span class="hint" id="voice-folder-hint"></span></div></div>
         <div class="row"><div class="label"><b>Скорость речи</b></div>
           <div class="control"><div class="range"><input type="range" min="60" max="200" step="5" data-setting="tts_rate" data-unit="%"><output data-for="tts_rate"></output></div></div></div>
         <div class="row stack"><div class="control"><button class="btn" id="test-voice">Проверить голос</button></div></div>

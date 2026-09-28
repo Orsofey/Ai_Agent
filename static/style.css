@@ -360,3 +360,23 @@ body.locked .paywall ~ * { pointer-events: none; user-select: none; opacity: .42
 .server-form input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--input); color: var(--text); }
 .server-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+
+/* ---------- Выбор голоса ассистента ---------- */
+.voice-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 6px 0 10px; }
+.voice-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--border); background: var(--chip); color: var(--text); text-align: left; transition: border-color .2s, box-shadow .2s, transform .15s; }
+.voice-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.voice-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring), 0 10px 30px -14px var(--glow); }
+.voice-avatar { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 18px;
+  background: var(--accent-fill); color: var(--on-accent); }
+.voice-meta { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.voice-meta b { font-size: 16px; }
+.voice-meta small { color: var(--muted); font-size: 12px; }
+.voice-wave { display: flex; gap: 3px; align-items: center; height: 22px; opacity: .25; }
+.voice-wave i { width: 3px; height: 30%; border-radius: 3px; background: var(--accent); }
+.voice-card.selected .voice-wave { opacity: 1; }
+.voice-card.selected .voice-wave i { animation: wave 1s ease-in-out infinite; }
+.voice-card .voice-wave i:nth-child(2) { animation-delay: .15s; } .voice-card .voice-wave i:nth-child(3) { animation-delay: .3s; }
+.voice-card .voice-wave i:nth-child(4) { animation-delay: .45s; }
+@keyframes wave { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+[data-animations="off"] .voice-wave i { animation: none !important; height: 60%; }

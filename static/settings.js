@@ -29,6 +29,7 @@
     if (out) out.textContent = el.value + ' ' + (el.dataset.unit || '');
   }
   function fill(settings) {
+    setTimeout(() => document.getElementById('voice-cards') && paintVoiceCards(), 0);
     fields.forEach(el => {
       const key = el.dataset.setting;
       if (!(key in settings) || el === document.activeElement) return;
@@ -210,16 +211,47 @@
   }
   $('refresh-mics').onclick = loadMicrophones;
 
+  // ---------- голос ассистента: карточки Джарвис / Пятница / свои ----------
+  function paintVoiceCards() {
+    const current = $('voice-preset').value;
+    document.querySelectorAll('.voice-card').forEach(c => {
+      c.classList.toggle('selected', c.dataset.voice === current);
+      c.setAttribute('aria-checked', c.dataset.voice === current);
+    });
+  }
   async function loadVoices() {
     try {
       const data = await Agent.api('ai/voices');
-      const mark = (select, lang) => [...select.options].forEach(o => {
-        const v = data.voices.find(x => x.id === o.value);
-        if (v && !v.installed) o.textContent = o.textContent.replace(/ \(не установлен\)$/, '') + ' (не установлен)';
-      });
-      mark($('voice-ru'), 'ru'); mark($('voice-en'), 'en');
+      const select = $('voice-preset'), box = $('voice-cards');
+      const saved = Agent.settings.voice_preset;
+      select.replaceChildren(...data.assistant.map(v => new Option(v.title, v.id)));
+      if (saved && ![...select.options].some(o => o.value === saved)) select.add(new Option(saved, saved));
+      select.value = saved || 'jarvis';
+      box.replaceChildren(...data.assistant.map(v => {
+        const card = document.createElement('button');
+        card.type = 'button'; card.className = 'voice-card'; card.dataset.voice = v.id; card.setAttribute('role', 'radio');
+        const initial = v.id === 'jarvis' ? 'J' : v.id === 'friday' ? 'F' : '★';
+        card.innerHTML = '<span class="voice-avatar"></span><span class="voice-meta"><b></b><small></small></span><span class="voice-wave"><i></i><i></i><i></i><i></i></span>';
+        card.querySelector('.voice-avatar').textContent = initial;
+        card.querySelector('b').textContent = v.title;
+        card.querySelector('small').textContent = v.note;
+        card.onclick = () => {
+          select.value = v.id;
+          select.dispatchEvent(new Event('change'));
+          paintVoiceCards();
+        };
+        return card;
+      }));
+      paintVoiceCards();
     } catch (e) { /* */ }
   }
+  $('voice-folder').onclick = async () => {
+    try {
+      const r = await Agent.post('voices/open-folder');
+      $('voice-folder-hint').textContent = r.opened ? 'Папка открыта. Положите туда .onnx и .onnx.json и нажмите «Проверить голос».' : 'Папка голосов: ' + r.path;
+      setTimeout(loadVoices, 1500);
+    } catch (e) { Agent.toast(e.message); }
+  };
   $('test-voice').onclick = async () => {
     try {
       const r = await Agent.post('tts/speak', { text: `Привет! Я ${Agent.settings.wake_word || 'Андрей'}. Так звучит мой голос.` });
