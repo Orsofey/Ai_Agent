@@ -18,7 +18,9 @@
 <div class="settings-app">
   <nav class="side" aria-label="Разделы настроек">
     <div class="brand"><img src="/static/icon-192.png" alt=""><div><div class="brand-name"><span>Настройки</span></div><small>Local AI Agent {{ version }}</small></div></div>
+    <button class="nav-item" data-page="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>Аккаунт и подписка</button>
     <button class="nav-item active" data-page="general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Общие</button>
+    <button class="nav-item" data-page="commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg>Все команды</button>
     <button class="nav-item" data-page="voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Голос и микрофон</button>
     <button class="nav-item premium" data-page="recognition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>Распознавание<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item premium" data-page="speech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Озвучка<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
@@ -27,12 +29,10 @@
     <button class="nav-item" data-page="scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Сценарии</button>
     <button class="nav-item" data-page="reminders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Напоминания</button>
     <button class="nav-item" data-page="macros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 4l14 8-14 8z"/></svg>Макросы</button>
-    <button class="nav-item" data-page="tracker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Трекер</button>
+    <button class="nav-item" data-page="integrations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Интеграции</button>
     <button class="nav-item premium" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Телефон</button>
     <button class="nav-item" data-page="licenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Лицензии</button>
-    <button class="nav-item" data-page="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>Аккаунт и подписка</button>
-    <button class="nav-item" data-page="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Данные</button>
   </nav>
 
   <main class="content">
@@ -59,6 +59,19 @@
         <div class="row"><div class="label"><b>Сворачивать в трей при закрытии</b><small>Крестик прячет окно, а голосовое управление продолжает работать.</small></div>
           <div class="control"><label class="switch"><input type="checkbox" data-setting="minimize_to_tray"><span></span></label></div></div>
       </div>
+      <h2 class="section-title">Данные</h2><p class="hint" id="profile">История и настройки хранятся только на этом компьютере.</p>
+      <div class="card group">
+        <div class="row stack"><div class="control"><button class="btn" id="export">Экспорт истории и настроек</button><button class="btn danger" id="clear-history">Очистить историю</button></div></div>
+        <p class="hint" id="storage"></p>
+      </div>
+    </section>
+
+    <!-- ВСЕ КОМАНДЫ -->
+    <section class="page" id="page-commands">
+      <h1>Все команды</h1><p class="lead">Говорите после имени: «<span class="name-ref">Андрей</span>, открой Telegram». Формулировки можно менять — ассистент понимает похожие фразы.</p>
+      <div class="card group"><div class="row"><div class="label"><b>Поиск</b></div>
+        <div class="control"><input id="cmd-search" placeholder="например: вкладка, музыка, word"></div></div></div>
+      <div id="cmd-list"></div>
     </section>
 
     <!-- ГОЛОС -->
@@ -296,9 +309,11 @@
     </section>
 
     <!-- ТРЕКЕР -->
-    <section class="page" id="page-tracker">
-      <h1>Трекер</h1><p class="lead">Войдите в аккаунт Трекера — и спрашивайте голосом: «Что в трекере на сегодня?», «Добавь в трекер задачу купить молоко на завтра», «Отметь привычку зарядка», «Как у меня с привычками на этой неделе?». Данные запрашиваются онлайн, без выгрузки файлов.</p>
+    <section class="page" id="page-integrations">
+      <h1>Интеграции</h1><p class="lead">Подключите приложения — и управляйте ими голосом: «<span class="name-ref">Андрей</span>, что в трекере на сегодня?», «создай документ план поездки», «мои репозитории». Нажмите «Подключить» и войдите в свой аккаунт — данные запрашиваются онлайн, пароли не сохраняются.</p>
+      <div class="connectors" id="connectors"></div>
       <div class="card group">
+        <details class="more"><summary>Трекер: вход по адресу и паролю (если кнопка «Подключить» недоступна)</summary>
         <div class="row"><div class="label"><b>Подключение</b><small id="tr-state">—</small></div>
           <div class="control"><button class="btn" id="tr-test" hidden>Проверить связь</button><button class="btn" id="tr-logout" hidden>Выйти</button></div></div>
         <div id="tr-form">
@@ -310,8 +325,10 @@
             <div class="control"><input id="tr-password" type="password" autocomplete="current-password"></div></div>
           <div class="row"><div class="label"><b>или токен доступа</b><small>Если в Трекере есть кнопка «Подключить ассистента» — вставьте выданный токен вместо пароля.</small></div>
             <div class="control"><input id="tr-token" type="password" autocomplete="off" placeholder="необязательно"></div></div>
-          <div class="row stack"><div class="control"><button class="btn primary" id="tr-login">Войти в Трекер</button><span class="hint" id="tr-hint"></span></div></div>
+          <div class="row stack"><div class="control"><button class="btn primary" id="tr-login">Войти в Интеграции</button><span class="hint" id="tr-hint"></span></div></div>
         </div>
+        </details>
+        <div class="row stack"><div class="label"><b>Свои интеграции</b><small>Любое приложение с API или файлом экспорта — JSON-описание или Python-плагин в папке интеграций (раздел «Управление ПК»).</small></div></div>
       </div>
     </section>
 
@@ -435,13 +452,6 @@
     </section>
 
     <!-- ПРОФИЛЬ -->
-    <section class="page" id="page-profile">
-      <h1>Данные</h1><p class="lead" id="profile">История и настройки хранятся только на этом компьютере.</p>
-      <div class="card group">
-        <div class="row stack"><div class="control"><button class="btn" id="export">Экспорт истории и настроек</button><button class="btn danger" id="clear-history">Очистить историю</button></div></div>
-        <p class="hint" id="storage"></p>
-      </div>
-    </section>
   </main>
 </div>
 <div class="save-state"><span class="pill" id="save-state"><span class="dot"></span><span>Изменения сохраняются автоматически</span></span></div>

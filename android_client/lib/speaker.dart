@@ -15,6 +15,11 @@ class Speaker {
     }
   }
 
+  /// Воспроизвести готовый звук (WAV с голосом ассистента ПК).
+  Future<void> play(List<int> wav) async {
+    await _channel.invokeMethod('play', {'audio': Uint8List.fromList(wav)});
+  }
+
   Future<void> stop() async {
     try {
       await _channel.invokeMethod('stop');

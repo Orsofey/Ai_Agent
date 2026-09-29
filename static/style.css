@@ -459,3 +459,18 @@ input[readonly] { opacity: .8; cursor: default; }
 input[type=time], input[type=datetime-local] { color-scheme: dark; }
 :root[data-theme=light] input[type=time], :root[data-theme=light] input[type=datetime-local],
 :root[data-theme=sakura] input[type=time], :root[data-theme=sakura] input[type=datetime-local] { color-scheme: light; }
+
+/* Интеграции: карточки приложений */
+.connectors { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.conn-card { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.conn-card.connected { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.conn-head { display: flex; gap: 12px; align-items: center; }
+.conn-icon { width: 44px; height: 44px; display: grid; place-items: center; font-size: 24px; border-radius: 12px; background: var(--chip); border: 1px solid var(--border); }
+.conn-status { display: block; color: var(--muted); font-size: 12.5px; }
+.conn-status.ok { color: var(--accent); }
+.conn-card .examples { margin: 0; padding-left: 18px; font-size: 13px; }
+.conn-actions { margin-top: auto; display: flex; gap: 8px; }
+.conn-row { display: flex; gap: 8px; margin-top: 6px; }
+.conn-row input { flex: 1; min-width: 0; }
+.conn-code { font-size: 20px; letter-spacing: 3px; }
+details.more summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 0; }

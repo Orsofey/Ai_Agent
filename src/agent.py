@@ -133,6 +133,7 @@ class LocalComputerAgent:
         self.integrations = integrations
         self.scenarios = None  # ScenarioManager: подключает app.py
         self.tracker = None    # TrackerClient: подключает app.py
+        self.connectors = None # Connectors: GitHub, Google, Miro
         self.reminders = None  # Reminders: подключает app.py
         self.power = None      # Power: выключение и перезагрузка ПК
         self.macros = None     # Macros: подключает app.py
@@ -346,6 +347,12 @@ class LocalComputerAgent:
             result = self.tracker.handle(text)
             if result is not None:
                 return result, 'info'
+
+        # 1г. Подключённые приложения: GitHub, Google Документы и Таблицы, Miro.
+        if self.connectors is not None:
+            result = self.connectors.handle(text)
+            if result is not None:
+                return result, 'action'
 
         # 2. Видео на YouTube в том же окне: «открой первое видео», «найди на ютубе…».
         yt = youtube_command(text)

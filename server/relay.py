@@ -15,7 +15,8 @@ POLL_SECONDS = 25        # сколько ПК ждёт команду в одн
 REPLY_SECONDS = 110      # сколько телефон ждёт ответ ПК
 ONLINE_SECONDS = 60      # ПК считается в сети, если опрашивал сервер недавно
 MAX_QUEUE = 20
-ALLOWED = {'/api/chat', '/api/transcribe', '/api/history', '/api/cancel', '/api/connection'}
+ALLOWED = {'/api/chat', '/api/transcribe', '/api/history', '/api/cancel', '/api/connection', '/api/commands',
+           '/api/remote/settings', '/api/tts/phone'}
 
 
 class RelayError(Exception):

@@ -263,6 +263,27 @@ class AgentApi {
         ];
       });
 
+  /// Настройки ассистента на ПК (разделы как в окне настроек) и текущие значения.
+  Future<Map<String, dynamic>> remoteSettings() => _guard(() async {
+        return await _call('GET', '/api/remote/settings', timeout: const Duration(seconds: 20));
+      });
+
+  Future<Map<String, dynamic>> saveSettings(Map<String, dynamic> values) => _guard(() async {
+        final data = await _call('POST', '/api/remote/settings', json: {'values': values});
+        return Map<String, dynamic>.from(data['values'] as Map);
+      });
+
+  Future<List<Map<String, dynamic>>> commands() => _guard(() async {
+        final data = await _call('GET', '/api/commands', timeout: const Duration(seconds: 20));
+        return (data['categories'] as List).cast<Map<String, dynamic>>();
+      });
+
+  /// Ответ голосом ассистента с ПК (WAV).
+  Future<List<int>> voice(String text) => _guard(() async {
+        final data = await _call('POST', '/api/tts/phone', json: {'text': text}, timeout: const Duration(seconds: 40));
+        return base64Decode(data['audio'].toString());
+      });
+
   Future<void> cancel() => _guard(() async {
         await _call('POST', '/api/cancel', timeout: const Duration(seconds: 10));
       });

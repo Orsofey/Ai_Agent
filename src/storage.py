@@ -68,7 +68,7 @@ CHOICES = {
     'tts_voice': ('irina', 'denis'),
     'tts_voice_en': ('amy',),
     'address': ('сэр', 'мадам', 'босс', 'none'),
-    'voice_preset': ('jarvis', 'friday'),  # плюс свои голоса «custom:<имя>» (см. _valid)
+    'voice_preset': ('jarvis', 'friday', 'narrator', 'irina', 'denis', 'dmitri', 'ruslan'),  # плюс свои голоса «custom:<имя>» (см. _valid)
     'memory_mode': ('auto', 'economy', 'balanced', 'max'),
     'browser_mode': ('user', 'agent'),
 }

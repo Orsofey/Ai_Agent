@@ -1,4 +1,4 @@
-// «Андрей» для Android: голосовой и текстовый пульт ИИ-агента, который работает на вашем ПК.
+// «Андрей» для Android: голосовой и текстовый пульт ИИ-агента на ПК — в том же оформлении, что и на компьютере.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,34 +8,70 @@ import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'pages.dart';
 import 'speaker.dart';
+import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const AgentApp());
 }
 
-const accent = Color(0xFF7C5CFF);
+/// Тема приложения — та же, что выбрана на ПК (Настройки → Оформление); запоминается на телефоне.
+class Appearance extends ChangeNotifier {
+  Appearance._();
+  static final instance = Appearance._();
 
-class AgentApp extends StatelessWidget {
+  Palette palette = paletteOf('aurora');
+
+  Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    palette = paletteOf(prefs.getString('theme'));
+    notifyListeners();
+  }
+
+  Future<void> set(String? id) async {
+    if (id == null || id == palette.id || !palettes.containsKey(id)) return;
+    palette = paletteOf(id);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme', id);
+  }
+}
+
+class AgentApp extends StatefulWidget {
   const AgentApp({super.key});
 
   @override
+  State<AgentApp> createState() => _AgentAppState();
+}
+
+class _AgentAppState extends State<AgentApp> {
+  @override
+  void initState() {
+    super.initState();
+    Appearance.instance.load();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Андрей',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: accent, brightness: Brightness.dark),
-        scaffoldBackgroundColor: const Color(0xFF0B1020),
-        useMaterial3: true,
-      ),
-      home: const StartPage(),
+    return ListenableBuilder(
+      listenable: Appearance.instance,
+      builder: (context, _) {
+        final palette = Appearance.instance.palette;
+        return MaterialApp(
+          title: 'Андрей',
+          debugShowCheckedModeBanner: false,
+          theme: themeFor(palette),
+          builder: (context, child) => Scene(palette: palette, child: child ?? const SizedBox()),
+          home: const StartPage(),
+        );
+      },
     );
   }
 }
 
-/// Загружает сохранённое подключение и открывает чат или экран подключения.
+/// Загружает сохранённое подключение и открывает главный экран или экран подключения.
 class StartPage extends StatefulWidget {
   const StartPage({super.key});
 
@@ -60,7 +96,7 @@ class _StartPageState extends State<StartPage> {
     final pairing = Pairing.parse(prefs.getString('link') ?? '');
     if (!mounted) return;
     Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => pairing == null ? ConnectPage(device: device) : ChatPage(api: AgentApi(pairing, device))));
+        builder: (_) => pairing == null ? ConnectPage(device: device) : HomePage(api: AgentApi(pairing, device))));
   }
 
   @override
@@ -91,7 +127,7 @@ class _ConnectPageState extends State<ConnectPage> {
   Future<void> _connect(String text) async {
     final pairing = Pairing.parse(text);
     if (pairing == null) {
-      setState(() => _error = 'Это не ссылка подключения. Откройте на ПК Настройки → «iPhone и Android» и отсканируйте QR-код.');
+      setState(() => _error = 'Это не ссылка подключения. Откройте на ПК Настройки → «Телефон» и отсканируйте QR-код.');
       return;
     }
     setState(() {
@@ -104,7 +140,7 @@ class _ConnectPageState extends State<ConnectPage> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('link', pairing.link);
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ChatPage(api: api)));
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => HomePage(api: api)));
     } on AgentError catch (error) {
       setState(() => _error = error.message);
     } finally {
@@ -122,37 +158,35 @@ class _ConnectPageState extends State<ConnectPage> {
 
   @override
   Widget build(BuildContext context) {
+    final p = Appearance.instance.palette;
     return Scaffold(
       appBar: AppBar(title: const Text('Подключение к ПК')),
       body: ListView(padding: const EdgeInsets.all(20), children: [
-        const Icon(Icons.computer_rounded, size: 72, color: accent),
-        const SizedBox(height: 16),
-        const Text(
-          'Запустите «Андрея» на компьютере и откройте Настройки → «iPhone и Android». '
-          'Телефон и ПК должны быть в одной сети Wi‑Fi.',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        FilledButton.icon(
-          onPressed: _busy ? null : _scan,
-          icon: const Icon(Icons.qr_code_scanner_rounded),
-          label: const Text('Сканировать QR-код'),
-        ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _link,
-          decoration: const InputDecoration(labelText: 'или вставьте ссылку подключения', border: OutlineInputBorder()),
-          keyboardType: TextInputType.url,
-          onSubmitted: _connect,
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton(onPressed: _busy ? null : () => _connect(_link.text), child: const Text('Подключиться')),
-        if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        Center(child: Orb(palette: p, active: _busy, size: 110)),
+        const SizedBox(height: 22),
+        GlassCard(children: [
+          Text('Запустите «Андрея» на компьютере и откройте Настройки → «Телефон». Дома подключение идёт по Wi‑Fi, '
+              'а с включённым «Доступом через интернет» — из любой сети.',
+              textAlign: TextAlign.center, style: TextStyle(color: p.muted)),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: _busy ? null : _scan,
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            label: const Text('Сканировать QR-код'),
           ),
+          const SizedBox(height: 18),
+          TextField(
+            controller: _link,
+            decoration: const InputDecoration(labelText: 'или вставьте ссылку подключения'),
+            keyboardType: TextInputType.url,
+            onSubmitted: _connect,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: _busy ? null : () => _connect(_link.text), child: const Text('Подключиться')),
+          if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+          if (_error != null)
+            Padding(padding: const EdgeInsets.only(top: 16), child: Text(_error!, style: TextStyle(color: p.bad))),
+        ]),
       ]),
     );
   }
@@ -182,6 +216,58 @@ class _ScanPageState extends State<ScanPage> {
   }
 }
 
+/// Главный экран: «Диалог», «Команды», «Настройки» — как разделы окна на ПК.
+class HomePage extends StatefulWidget {
+  const HomePage({super.key, required this.api});
+
+  final AgentApi api;
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Тема ПК — сразу при запуске, чтобы телефон выглядел так же.
+    widget.api.remoteSettings().then((data) {
+      final values = data['values'];
+      if (values is Map) Appearance.instance.set(values['theme']?.toString());
+    }).catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      ChatPage(api: widget.api),
+      CommandsPage(api: widget.api),
+      SettingsPage(api: widget.api, onDisconnect: _disconnect),
+    ];
+    return Scaffold(
+      body: IndexedStack(index: _tab, children: pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.graphic_eq_rounded), label: 'Диалог'),
+          NavigationDestination(icon: Icon(Icons.terminal_rounded), label: 'Команды'),
+          NavigationDestination(icon: Icon(Icons.tune_rounded), label: 'Настройки'),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _disconnect() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('link');
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ConnectPage(device: widget.api.device)));
+  }
+}
+
 class Message {
   Message(this.mine, this.text);
   final bool mine;
@@ -201,17 +287,23 @@ class _ChatPageState extends State<ChatPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _recorder = AudioRecorder();
-  final _tts = Speaker();
+  final _speaker = Speaker();
   final List<Message> _messages = [];
   bool _recording = false;
   bool _busy = false;
   bool _speak = true;
+  bool _pcVoice = true;
 
   @override
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then((prefs) {
-      if (mounted) setState(() => _speak = prefs.getBool('speak') ?? true);
+      if (mounted) {
+        setState(() {
+          _speak = prefs.getBool('speak') ?? true;
+          _pcVoice = (prefs.getString('voice_source') ?? 'pc') == 'pc';
+        });
+      }
     });
     _loadHistory();
   }
@@ -219,7 +311,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     _recorder.dispose();
-    _tts.stop();
+    _speaker.stop();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -255,6 +347,21 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
+  /// Ответ — голосом ассистента с ПК (Джарвис, Пятница, дикторы); если не вышло — голосом телефона.
+  Future<void> _say(String text) async {
+    final prefs = await SharedPreferences.getInstance();
+    _pcVoice = (prefs.getString('voice_source') ?? 'pc') == 'pc';
+    if (_pcVoice) {
+      try {
+        await _speaker.play(await widget.api.voice(text));
+        return;
+      } catch (_) {
+        // голоса на ПК не установлены или связь медленная — читаем голосом телефона
+      }
+    }
+    await _speaker.speak(text);
+  }
+
   Future<void> _send(String text) async {
     text = text.trim();
     if (text.isEmpty || _busy) return;
@@ -264,7 +371,7 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final answer = await widget.api.send(text);
       _add(false, answer);
-      if (_speak && answer.isNotEmpty) await _tts.speak(answer);
+      if (_speak && answer.isNotEmpty) await _say(answer);
     } on AgentError catch (error) {
       _add(false, error.message);
     } finally {
@@ -300,7 +407,7 @@ class _ChatPageState extends State<ChatPage> {
       _add(false, 'Разрешите доступ к микрофону в настройках Android, чтобы говорить с агентом.');
       return;
     }
-    await _tts.stop();
+    await _speaker.stop();
     final folder = await getTemporaryDirectory();
     await _recorder.start(
       const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
@@ -309,28 +416,22 @@ class _ChatPageState extends State<ChatPage> {
     setState(() => _recording = true);
   }
 
-  Future<void> _disconnect() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('link');
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ConnectPage(device: widget.api.device)));
-  }
-
   Future<void> _toggleSpeak() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() => _speak = !_speak);
     await prefs.setBool('speak', _speak);
-    if (!_speak) await _tts.stop();
+    if (!_speak) await _speaker.stop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = Appearance.instance.palette;
+    final status = _recording ? 'Слушаю… нажмите ещё раз, чтобы отправить' : _busy ? 'Думаю…' : 'Нажмите на сферу и говорите';
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Андрей'),
-          Text(widget.api.route, style: Theme.of(context).textTheme.bodySmall),
+          Text('Андрей', style: TextStyle(fontWeight: FontWeight.w700, color: p.accent)),
+          Text(widget.api.route, style: TextStyle(fontSize: 12, color: p.muted)),
         ]),
         actions: [
           IconButton(
@@ -342,7 +443,7 @@ class _ChatPageState extends State<ChatPage> {
             tooltip: 'Пауза: остановить команду на ПК',
             icon: const Icon(Icons.pause_circle_outline_rounded),
             onPressed: () async {
-              await _tts.stop();
+              await _speaker.stop();
               try {
                 await widget.api.cancel();
               } on AgentError catch (error) {
@@ -350,47 +451,35 @@ class _ChatPageState extends State<ChatPage> {
               }
             },
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) => value == 'disconnect' ? _disconnect() : _loadHistory(),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'refresh', child: Text('Обновить историю')),
-              PopupMenuItem(value: 'disconnect', child: Text('Подключить другой ПК')),
-            ],
-          ),
+          IconButton(tooltip: 'Обновить', icon: const Icon(Icons.refresh_rounded), onPressed: _loadHistory),
         ],
       ),
       body: Column(children: [
+        GestureDetector(
+          onTap: _busy && !_recording ? null : _toggleRecording,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 10),
+            child: Orb(palette: p, active: _recording, size: _messages.isEmpty ? 170 : 96),
+          ),
+        ),
+        Text(status, style: TextStyle(color: p.muted)),
+        const SizedBox(height: 8),
         Expanded(
           child: _messages.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text('Нажмите на микрофон и скажите, например:\n«Открой Telegram» или «Какая погода?»',
-                      textAlign: TextAlign.center),
+                  padding: const EdgeInsets.all(32),
+                  child: Text('Скажите, например:\n«Открой Telegram» или «Какая погода?»',
+                      textAlign: TextAlign.center, style: TextStyle(color: p.muted)),
                 ))
               : ListView.builder(
                   controller: _scroll,
                   padding: const EdgeInsets.all(12),
                   itemCount: _messages.length,
-                  itemBuilder: (_, index) {
-                    final message = _messages[index];
-                    return Align(
-                      alignment: message.mine ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-                        decoration: BoxDecoration(
-                          color: message.mine ? accent : scheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: SelectableText(message.text),
-                      ),
-                    );
-                  },
+                  itemBuilder: (_, index) => Bubble(message: _messages[index], palette: p),
                 ),
         ),
-        if (_busy) const LinearProgressIndicator(),
+        if (_busy) LinearProgressIndicator(color: p.accent, backgroundColor: p.chip),
         SafeArea(
           top: false,
           child: Padding(
@@ -402,20 +491,47 @@ class _ChatPageState extends State<ChatPage> {
                   enabled: !_recording,
                   textInputAction: TextInputAction.send,
                   onSubmitted: _send,
-                  decoration: const InputDecoration(hintText: 'Команда для ПК…', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(hintText: 'Спросите или дайте команду…'),
                 ),
               ),
               const SizedBox(width: 8),
-              FloatingActionButton(
-                onPressed: _busy && !_recording ? null : _toggleRecording,
-                backgroundColor: _recording ? scheme.error : accent,
-                tooltip: _recording ? 'Остановить запись' : 'Сказать команду',
-                child: Icon(_recording ? Icons.stop_rounded : Icons.mic_rounded),
+              IconButton.filled(
+                onPressed: _busy ? null : () => _send(_input.text),
+                icon: const Icon(Icons.send_rounded),
               ),
             ]),
           ),
         ),
       ]),
+    );
+  }
+}
+
+class Bubble extends StatelessWidget {
+  const Bubble({super.key, required this.message, required this.palette});
+
+  final Message message;
+  final Palette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final mine = message.mine;
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+        decoration: BoxDecoration(
+          gradient: mine ? LinearGradient(colors: [palette.accent, palette.accent2]) : null,
+          color: mine ? null : palette.surface,
+          border: mine ? null : Border.all(color: palette.border),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18), topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(mine ? 18 : 4), bottomRight: Radius.circular(mine ? 4 : 18)),
+        ),
+        child: SelectableText(message.text, style: TextStyle(color: mine ? palette.onAccent : palette.text)),
+      ),
     );
   }
 }

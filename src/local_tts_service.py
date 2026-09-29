@@ -21,11 +21,17 @@ log = logging.getLogger(__name__)
 _lock = threading.RLock()
 _piper_voices = {}
 
+# trial: лицензия датасета не проверена для коммерческого использования — голос для проверки;
+# перед продажей прочитайте карточку голоса (MODEL_CARD рядом с моделью) или уберите его.
 PIPER_VOICES = {
     'irina': {'file': 'ru_RU-irina-medium.onnx', 'repo_path': 'ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx',
               'title': 'Ирина (естественный, рекомендуется)', 'lang': 'ru'},
     'denis': {'file': 'ru_RU-denis-medium.onnx', 'repo_path': 'ru/ru_RU/denis/medium/ru_RU-denis-medium.onnx',
               'title': 'Денис (мужской)', 'lang': 'ru'},
+    'dmitri': {'file': 'ru_RU-dmitri-medium.onnx', 'repo_path': 'ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx',
+               'title': 'Дмитрий (мужской)', 'lang': 'ru', 'trial': True},
+    'ruslan': {'file': 'ru_RU-ruslan-medium.onnx', 'repo_path': 'ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium.onnx',
+               'title': 'Руслан (мужской)', 'lang': 'ru', 'trial': True},
     'amy': {'file': 'en_US-amy-medium.onnx', 'repo_path': 'en/en_US/amy/medium/en_US-amy-medium.onnx',
             'title': 'Amy (английский)', 'lang': 'en'},
 }
@@ -204,9 +210,15 @@ class LocalTTSService:
     def assistant_voices(self):
         """Голоса ассистента для настроек: Джарвис, Пятница и свои голоса из models/voices."""
         from . import voice_fx
-        voices = [{'id': key, 'title': voice_fx.PRESETS[key]['title'], 'note': voice_fx.PRESETS[key]['note']}
-                  for key in voice_fx.MAIN]
-        voices += [{'id': v['id'], 'title': v['title'], 'note': 'Свой голос'} for v in custom_voices(self.root)]
+        voices = []
+        for key in voice_fx.MAIN:
+            style = voice_fx.PRESETS[key]
+            base = style['voice'] or 'irina'
+            voices.append({'id': key, 'title': style['title'], 'note': style['note'], 'voice': base,
+                           'group': style.get('group', 'assistant'),
+                           'installed': voice_files(base, self.root)[0] is not None})
+        voices += [{'id': v['id'], 'title': v['title'], 'note': 'Свой голос', 'group': 'custom', 'installed': True}
+                   for v in custom_voices(self.root)]
         return voices
 
     def status(self):
