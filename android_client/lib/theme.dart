@@ -1,6 +1,8 @@
 // Темы как в приложении на ПК (static/themes.css): те же цвета, фон со свечением, стеклянные карточки.
 import 'package:flutter/material.dart';
 
+import 'ornaments.dart';
+
 class Palette {
   const Palette(this.id, this.title, {required this.bg, required this.surface, required this.surfaceStrong,
       required this.text, required this.muted, required this.accent, required this.accent2, required this.onAccent,
@@ -39,6 +41,16 @@ const palettes = <String, Palette>{
       muted: Color(0xFFB9A67E), accent: Color(0xFFE0BD6E), accent2: Color(0xFFF5DC9B), onAccent: Color(0xFF1A1206),
       border: Color(0x57D4AF5F), chip: Color(0x14D4AF5F), bad: Color(0xFFE0705C),
       glows: [Color(0x44E0BD6E), Color(0x33F5DC9B), Color(0x22FFFFFF)]),
+  'gzhel': Palette('gzhel', 'Гжель',
+      bg: Color(0xFFF6F9FF), surface: Color(0xC2FFFFFF), surfaceStrong: Color(0xFFFFFFFF), text: Color(0xFF0F2257),
+      muted: Color(0xFF566A9A), accent: Color(0xFF1A4FC4), accent2: Color(0xFFC29A45), onAccent: Color(0xFFFFFFFF),
+      border: Color(0x331B40A0), chip: Color(0x0F1E50BE), bad: Color(0xFFC8324A),
+      glows: [Color(0x333B72E6), Color(0x22C29A45), Color(0x2A1A4FC4)], dark: false),
+  'slavic': Palette('slavic', 'Славянская',
+      bg: Color(0xFF0C0605), surface: Color(0xC7160B08), surfaceStrong: Color(0xFF1C0E0A), text: Color(0xFFF8EAD0),
+      muted: Color(0xFFC6A67A), accent: Color(0xFFE7B545), accent2: Color(0xFFD2342A), onAccent: Color(0xFF1A0B04),
+      border: Color(0x57D6A43A), chip: Color(0x14D6A43A), bad: Color(0xFFFF5A4A),
+      glows: [Color(0x55BE281E), Color(0x33E7B545), Color(0x22D2342A)]),
   'dark': Palette('dark', 'Тёмная',
       bg: Color(0xFF0F141C), surface: Color(0xFF161D28), surfaceStrong: Color(0xFF1B2330), text: Color(0xFFE9EEF6),
       muted: Color(0xFF98A4B6), accent: Color(0xFF5AA8FF), accent2: Color(0xFF7EE0C3), onAccent: Color(0xFF06121F),
@@ -110,6 +122,16 @@ class Scene extends StatelessWidget {
           if (glows.length > 1) _glow(glows[1], const Alignment(1.2, -0.2), 1.2),
           if (glows.length > 2) _glow(glows[2], const Alignment(-0.4, 1.3), 1.3),
         ],
+        if (OrnamentStyle.of(palette.id) case final style?) ...[
+          // Букет в правом нижнем углу и малый — в левом верхнем, как на ПК.
+          Positioned(right: -12, bottom: 40, width: 260, height: 260,
+              child: IgnorePointer(child: Opacity(opacity: .55, child: CustomPaint(painter: BouquetPainter(style))))),
+          Positioned(left: -10, top: 60, width: 150, height: 150,
+              child: IgnorePointer(child: Opacity(opacity: .3,
+                  child: Transform.rotate(angle: 3.14159, child: CustomPaint(painter: BouquetPainter(style)))))),
+          Positioned(left: 0, right: 0, top: 0, height: palette.id == 'gzhel' ? 12 : 33,
+              child: IgnorePointer(child: CustomPaint(painter: BandPainter(palette.id)))),
+        ],
         Positioned.fill(child: child),
       ]),
     );
@@ -136,6 +158,31 @@ class Orb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = OrnamentStyle.of(palette.id);
+    if (style != null) {
+      final porcelain = palette.id == 'gzhel';
+      final rim1 = porcelain ? Colors.white : palette.bg;
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(center: const Alignment(-0.3, -0.45), radius: 0.9,
+              colors: porcelain
+                  ? const [Colors.white, Color(0xFFF5F8FF), Color(0xFFDDE7FB), Color(0xFFAEC2EE)]
+                  : const [Color(0xFF3A1A0E), Color(0xFF1A0906), Color(0xFF0C0605)]),
+          border: Border.all(color: palette.accent2, width: 1.5),
+          boxShadow: [
+            BoxShadow(color: rim1, spreadRadius: 4),
+            BoxShadow(color: porcelain ? palette.accent : palette.accent2, spreadRadius: 5.5),
+            BoxShadow(color: (active ? palette.bad : palette.accent).withValues(alpha: active ? 0.6 : 0.35),
+                blurRadius: active ? 60 : 34, spreadRadius: active ? 10 : 4),
+          ],
+        ),
+        child: CustomPaint(painter: OrbPainter(style)),
+      );
+    }
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       width: size,

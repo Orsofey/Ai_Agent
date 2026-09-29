@@ -1,4 +1,4 @@
-/* Seven themes: five signature themes + classic dark/light.
+/* Nine themes: seven signature themes + classic dark/light.
    Each theme = variables + its own living background (.scene). */
 
 /* Общая база: каждая тема (и карточка-превью) начинает с одинаковых значений. */
@@ -168,6 +168,104 @@
 }
 [data-theme="luxe"] .orb { box-shadow: 0 0 0 6px #0b0906, 0 0 0 7px rgba(212, 175, 95, .6), 0 0 calc(30px + var(--level) * 80px) var(--glow); }
 
+/* ===== 6. ГЖЕЛЬ — белый фарфор, кобальт кистью и золотая кромка ===== */
+[data-theme="gzhel"] {
+  --font-display: 'Palatino Linotype', 'Book Antiqua', 'Palatino', 'Georgia', serif;
+  --radius: 22px; --radius-sm: 14px; --blur: 12px; --display-spacing: .4px;
+  --bg: #f6f9ff; --bar: rgba(251, 253, 255, .82); --surface: rgba(255, 255, 255, .76); --surface-strong: #fff;
+  --border: rgba(27, 64, 160, .20); --text: #0f2257; --muted: #566a9a; --chip: rgba(30, 80, 190, .06);
+  --input: rgba(255, 255, 255, .94); --accent: #1a4fc4; --accent-2: #c29a45; --on-accent: #fff;
+  --accent-fill: linear-gradient(135deg, #3b72e6, #1a4fc4 45%, #0c2c86); --ring: rgba(26, 79, 196, .16);
+  --glow: rgba(46, 102, 221, .26); --ok: #1f8a6b; --warn: #b8801c; --bad: #c8324a;
+  --user-bubble: linear-gradient(135deg, #2f67dc, #0d2d88); --user-text: #fff; --agent-bubble: #fff;
+  --orb: url("/static/ornaments/gzhel-orb.svg") center / 88% no-repeat,
+         radial-gradient(circle at 34% 26%, #fff 0%, #f5f8ff 45%, #dde7fb 78%, #aec2ee 100%);
+  --shadow: 0 14px 36px rgba(15, 45, 130, .11);
+  --title-fill: linear-gradient(90deg, #0c2c86, #3b72e6 50%, #0c2c86);
+  --scene: radial-gradient(ellipse at 104% 104%, rgba(46, 102, 221, .16), transparent 42%),
+           radial-gradient(ellipse at -4% -4%, rgba(46, 102, 221, .10), transparent 38%),
+           linear-gradient(165deg, #fdfeff 0%, #f3f7ff 60%, #eaf0fd 100%);
+}
+[data-theme="gzhel"] .brand-name span { color: transparent; background-size: 200% 100%; animation: sheen 9s linear infinite; }
+[data-theme="gzhel"] .card { outline: 1px solid rgba(194, 154, 69, .42); outline-offset: -6px; }
+[data-theme="gzhel"] .topbar { position: relative; z-index: 2; border-bottom-color: transparent; }
+[data-theme="gzhel"] .topbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px; pointer-events: none;
+  background: url("/static/ornaments/gzhel-band.svg") repeat-x 0 0 / auto 10px;
+  filter: drop-shadow(0 2px 2px rgba(12, 44, 134, .15));
+}
+[data-theme="gzhel"] .orb {
+  box-shadow: 0 0 0 5px #fff, 0 0 0 6.5px #c29a45, 0 0 0 10px #fff, 0 0 0 11.5px #1a4fc4,
+              0 0 calc(30px + var(--level) * 80px) var(--glow), inset 0 -10px 24px rgba(26, 79, 196, .12);
+}
+[data-theme="gzhel"] .orb-ring { border-style: dotted; border-width: 2px; border-color: rgba(26, 79, 196, .35); }
+[data-theme="gzhel"] .msg.user { box-shadow: 0 6px 18px rgba(13, 45, 136, .18); }
+:is(html[data-theme="gzhel"] body > .scene, .theme-card[data-theme="gzhel"] > .scene)::before {
+  right: -3vmin; bottom: -4vmin; width: min(58vmin, 560px); aspect-ratio: 1; opacity: .9;
+  background: url("/static/ornaments/gzhel-spray.svg") center / contain no-repeat;
+  transform-origin: 100% 100%; animation: bloom 14s ease-in-out infinite alternate;
+}
+:is(html[data-theme="gzhel"] body > .scene, .theme-card[data-theme="gzhel"] > .scene)::after {
+  left: -3vmin; top: -3vmin; width: min(34vmin, 330px); aspect-ratio: 1; opacity: .5;
+  background: url("/static/ornaments/gzhel-spray.svg") center / contain no-repeat;
+  transform: rotate(180deg);
+}
+[data-theme="gzhel"] .particle.gz-petal {
+  top: -40px; width: 22px; height: 22px; opacity: .55;
+  background: url("/static/ornaments/gzhel-petal.svg") center / contain no-repeat;
+  animation: petal-fall linear infinite, petal-sway ease-in-out infinite alternate;
+}
+
+/* ===== 7. СЛАВЯНСКАЯ — хохлома на чёрном лаке, золото, киноварь и вышивка-оберег ===== */
+[data-theme="slavic"] {
+  --font-display: 'Palatino Linotype', 'Book Antiqua', 'Palatino', 'Georgia', serif;
+  --radius: 10px; --radius-sm: 8px; --display-spacing: 1.6px; --blur: 8px;
+  --bg: #0c0605; --bar: rgba(16, 8, 6, .88); --surface: rgba(22, 11, 8, .78); --surface-strong: #1c0e0a;
+  --border: rgba(214, 164, 58, .34); --text: #f8ead0; --muted: #c6a67a; --chip: rgba(214, 164, 58, .08);
+  --input: rgba(10, 4, 3, .82); --accent: #e7b545; --accent-2: #d2342a; --on-accent: #1a0b04;
+  --accent-fill: linear-gradient(135deg, #fbe597, #e0a93d 48%, #a86c17); --ring: rgba(231, 181, 69, .22);
+  --glow: rgba(214, 60, 42, .42); --ok: #a3d06e; --warn: #f0b63c; --bad: #ff5a4a;
+  --user-bubble: linear-gradient(135deg, #c22c22, #6e0f0b); --user-text: #fff3dc; --agent-bubble: rgba(214, 164, 58, .07);
+  --orb: url("/static/ornaments/khokhloma-orb.svg") center / 100% no-repeat,
+         radial-gradient(circle at 36% 30%, #3a1a0e 0%, #1a0906 60%, #0c0605 100%);
+  --shadow: 0 0 0 1px rgba(214, 164, 58, .1), 0 22px 50px rgba(0, 0, 0, .55);
+  --title-fill: linear-gradient(90deg, #fbe597, #e0a93d, #ef5a3a, #e0a93d, #fbe597);
+  --scene: radial-gradient(ellipse at 50% 118%, rgba(190, 40, 30, .38), transparent 55%),
+           radial-gradient(ellipse at 50% -10%, #221009, #0c0605 62%);
+}
+[data-theme="slavic"] .brand-name { text-transform: uppercase; }
+[data-theme="slavic"] .brand-name span { color: transparent; background-size: 200% 100%; animation: sheen 7s linear infinite; }
+[data-theme="slavic"] .voice-title, [data-theme="slavic"] .page > h1 { color: #f4d27a; text-shadow: 0 1px 0 #5a2a06, 0 0 18px rgba(231, 181, 69, .25); }
+[data-theme="slavic"] .card { outline: 1px dashed rgba(214, 60, 42, .55); outline-offset: -6px; }
+[data-theme="slavic"] .topbar { position: relative; z-index: 2; border-bottom-color: rgba(214, 164, 58, .45); }
+[data-theme="slavic"] .topbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -20px; height: 19px; pointer-events: none; opacity: .92;
+  background: url("/static/ornaments/stitch-band.svg") repeat-x 0 0 / auto 19px;
+}
+[data-theme="slavic"] .orb {
+  box-shadow: 0 0 0 4px #0c0605, 0 0 0 5.5px #e7b545, 0 0 0 9px #0c0605, 0 0 0 10px rgba(210, 52, 42, .85),
+              0 0 calc(34px + var(--level) * 90px) var(--glow);
+}
+[data-theme="slavic"] .orb-ring { border: 1px dashed rgba(231, 181, 69, .5); animation: spin 80s linear infinite; }
+[data-theme="slavic"] .orb-ring.r2 { border-color: rgba(214, 60, 42, .45); animation-direction: reverse; }
+[data-theme="slavic"] .btn.primary { text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 1px 0 rgba(255, 240, 190, .5); }
+:is(html[data-theme="slavic"] body > .scene, .theme-card[data-theme="slavic"] > .scene)::before {
+  right: -2vmin; bottom: -2vmin; width: min(62vmin, 600px); aspect-ratio: 1; opacity: .85;
+  background: url("/static/ornaments/khokhloma.svg") center / contain no-repeat;
+  transform-origin: 100% 100%; animation: bloom 16s ease-in-out infinite alternate;
+}
+:is(html[data-theme="slavic"] body > .scene, .theme-card[data-theme="slavic"] > .scene)::after {
+  left: -2vmin; top: -2vmin; width: min(38vmin, 360px); aspect-ratio: 1; opacity: .45;
+  background: url("/static/ornaments/khokhloma.svg") center / contain no-repeat;
+  transform: rotate(180deg);
+}
+[data-theme="slavic"] .particle.ember {
+  bottom: -20px; width: 4px; height: 4px; border-radius: 50%;
+  background: radial-gradient(circle, #fff3c0 0%, #f2b640 45%, rgba(214, 60, 42, 0) 75%);
+  box-shadow: 0 0 8px rgba(242, 182, 64, .8);
+  animation: bubble-rise linear infinite, bubble-wobble ease-in-out infinite alternate, twinkle 1.6s ease-in-out infinite alternate;
+}
+
 /* ===== Классика ===== */
 [data-theme="dark"] {
   --bg: #0f141c; --bar: rgba(18, 24, 34, .9); --surface: #161d28; --surface-strong: #1b2330;
@@ -193,6 +291,10 @@
 .theme-card[data-theme="cyberpunk"] > .scene::after { background-size: 24px 24px; height: 50%; }
 .theme-card[data-theme="sakura"] > .scene::before { width: 220px; height: 150px; right: -50px; top: -40px; opacity: .45; }
 .theme-card[data-theme="aurora"] > .scene::before { filter: blur(18px); }
+.theme-card[data-theme="gzhel"] > .scene::before { width: 150px; right: -14px; bottom: -18px; }
+.theme-card[data-theme="gzhel"] > .scene::after { width: 70px; }
+.theme-card[data-theme="slavic"] > .scene::before { width: 160px; right: -10px; bottom: -14px; }
+.theme-card[data-theme="slavic"] > .scene::after { width: 76px; }
 
 /* Пауза в стиле каждой темы. */
 [data-theme="aurora"] .pause-btn { border-radius: 999px; }
@@ -200,4 +302,6 @@
   text-transform: uppercase; letter-spacing: 1px; }
 [data-theme="sakura"] .pause-btn { border-radius: 999px 999px 999px 6px; }
 [data-theme="ocean"] .pause-btn { border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%; }
+[data-theme="gzhel"] .pause-btn { border-radius: 999px; outline: 1px solid #c29a45; outline-offset: 2px; }
+[data-theme="slavic"] .pause-btn { border-radius: 6px; outline: 1px dashed #d2342a; outline-offset: 3px; text-transform: uppercase; letter-spacing: 1.5px; }
 [data-theme="luxe"] .pause-btn { border-radius: 4px; outline: 1px solid var(--accent); outline-offset: 3px; text-transform: uppercase; letter-spacing: 2px; }
