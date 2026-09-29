@@ -19,10 +19,21 @@ PRESETS = {
                 'note': 'Эпичный голос из киноанонса с большим залом'},
     'robot': {'title': 'Робот', 'voice': 'denis', 'pitch': 0.95, 'fx': 'robot',
               'note': 'Металлический голос андроида'},
+    # Русские дикторы — голоса Piper как есть (скачиваются при первом выборе).
+    'irina': {'title': 'Ирина', 'voice': 'irina', 'pitch': 1.0, 'fx': None, 'group': 'narrators',
+              'note': 'Женский, спокойный и чёткий'},
+    'denis': {'title': 'Денис', 'voice': 'denis', 'pitch': 1.0, 'fx': None, 'group': 'narrators',
+              'note': 'Мужской, ровный'},
+    'dmitri': {'title': 'Дмитрий', 'voice': 'dmitri', 'pitch': 1.0, 'fx': None, 'group': 'narrators',
+               'note': 'Мужской, дикторская подача · для проверки: лицензию голоса уточните до продажи'},
+    'ruslan': {'title': 'Руслан', 'voice': 'ruslan', 'pitch': 1.0, 'fx': None, 'group': 'narrators',
+               'note': 'Мужской, выразительный · для проверки: лицензию голоса уточните до продажи'},
 }
+PRESETS['narrator']['group'] = 'narrators'
 
 
-MAIN = ('jarvis', 'friday')  # два основных голоса в настройках; остальные — для совместимости
+# Голоса в настройках: два ассистента и пять русских дикторов; «Трейлер» и «Робот» — для совместимости.
+MAIN = ('jarvis', 'friday', 'narrator', 'irina', 'denis', 'dmitri', 'ruslan')
 
 
 def preset(name):

@@ -195,3 +195,112 @@
   loadReminders();
   loadVoice();
 })();
+
+/* Раздел «Все команды». */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let categories = [];
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  function render() {
+    const q = ($('cmd-search').value || '').trim().toLowerCase();
+    $('cmd-list').replaceChildren(...categories.map(cat => {
+      const items = cat.items.filter(i => !q || (cat.title + ' ' + i.say + ' ' + i.does).toLowerCase().includes(q));
+      if (!items.length) return null;
+      const card = el('div', 'card group');
+      const h = el('h3', null, `${cat.icon} ${cat.title}`);
+      const list = el('ul', 'examples commands');
+      items.forEach(i => { const li = el('li'); li.append(el('b', null, '«' + i.say + '»'), document.createTextNode(' — ' + i.does)); list.append(li); });
+      card.append(h, list);
+      return card;
+    }).filter(Boolean));
+    if (!$('cmd-list').children.length) $('cmd-list').append(el('p', 'hint', 'Ничего не нашлось.'));
+  }
+  Agent.api('commands').then(d => { categories = d.categories; render(); }).catch(e => { $('cmd-list').textContent = e.message; });
+  $('cmd-search').addEventListener('input', render);
+})();
+
+/* Раздел «Интеграции»: карточки приложений с кнопкой «Подключить». */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const el = (tag, props = {}, ...children) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children.filter(c => c != null));
+    return node;
+  };
+  let trackerUrl = '';
+
+  function card(item) {
+    const status = el('small', { className: 'conn-status' + (item.connected ? ' ok' : ''),
+      textContent: item.connected ? '✓ Подключено' + (item.user ? ': ' + item.user : '') : (item.configured ? 'Не подключено' : 'Нужна настройка') });
+    const actions = el('div', { className: 'conn-actions' });
+    const extra = el('div', { className: 'conn-extra' });
+    if (item.connected) {
+      const off = el('button', { className: 'btn ghost', textContent: 'Отключить' });
+      off.onclick = async () => { render((await Agent.post(`connectors/${item.id}/disconnect`)).items); };
+      actions.append(off);
+    } else {
+      const on = el('button', { className: 'btn primary', textContent: 'Подключить' });
+      on.disabled = !item.configured && !item.token_hint && item.id !== 'tracker';
+      on.onclick = () => connect(item, extra);
+      actions.append(on);
+    }
+    if (!item.connected && item.id === 'tracker' && !item.configured) {
+      const url = el('input', { placeholder: 'Адрес Трекера: https://…', value: trackerUrl });
+      const save = el('button', { className: 'btn', textContent: 'Сохранить' });
+      save.onclick = async () => {
+        try { const d = await Agent.post('connectors/tracker/url', { url: url.value.trim() }); load(); }
+        catch (e) { Agent.toast(e.message, 5000); }
+      };
+      extra.append(el('small', { textContent: 'Разработчик может вписать адрес Трекера в программу — тогда это поле не понадобится.' }),
+        el('div', { className: 'conn-row' }, url, save));
+    }
+    if (!item.connected && item.token_hint) {
+      const token = el('input', { type: 'password', placeholder: 'или вставьте личный токен', autocomplete: 'off' });
+      const use = el('button', { className: 'btn', textContent: 'Войти по токену' });
+      use.onclick = async () => {
+        try { await Agent.post(`connectors/${item.id}/connect`, { token: token.value.trim() }); Agent.toast(item.title + ' подключён.'); load(); }
+        catch (e) { Agent.toast(e.message, 5000); }
+      };
+      extra.append(el('details', { className: 'more' }, el('summary', { textContent: 'Войти по личному токену' }),
+        el('small', { textContent: item.token_hint }), el('div', { className: 'conn-row' }, token, use)));
+    }
+    const examples = el('ul', { className: 'examples' }, ...item.examples.map(e => el('li', {}, el('b', { textContent: '«' + e + '»' }))));
+    return el('div', { className: 'card conn-card' + (item.connected ? ' connected' : '') },
+      el('div', { className: 'conn-head' }, el('span', { className: 'conn-icon', textContent: item.icon }),
+        el('div', {}, el('b', { textContent: item.title }), status)),
+      el('p', { className: 'hint', textContent: item.description }), examples, extra, actions);
+  }
+
+  async function connect(item, extra) {
+    try {
+      const data = await Agent.post(`connectors/${item.id}/connect`, {});
+      if (data.device) {
+        extra.replaceChildren(el('p', {}, 'Откройте ', el('b', { textContent: data.device.url }), ' и введите код: ',
+          el('b', { className: 'conn-code', textContent: data.device.code })));
+        const timer = setInterval(async () => {
+          const r = await Agent.post(`connectors/${item.id}/poll`).catch(() => ({}));
+          if (r.done) { clearInterval(timer); Agent.toast(item.title + ' подключён.'); load(); }
+          else if (r.error) { clearInterval(timer); Agent.toast(r.error, 6000); load(); }
+        }, 5000);
+      } else {
+        Agent.toast(data.opened ? 'Войдите в аккаунт в открывшемся браузере.' : 'Откройте ссылку входа: ' + data.url, 7000);
+        if (!data.opened && data.url) window.open(data.url, '_blank');
+        const started = Date.now();
+        const timer = setInterval(async () => {
+          const d = await Agent.api('connectors').catch(() => null);
+          const now = d && d.items.find(i => i.id === item.id);
+          if ((now && now.connected) || Date.now() - started > 300000) { clearInterval(timer); if (d) render(d.items); }
+        }, 3000);
+      }
+    } catch (e) { Agent.toast(e.message, 7000); }
+  }
+
+  function render(items) { $('connectors').replaceChildren(...items.map(card)); }
+  async function load() {
+    try { const d = await Agent.api('connectors'); trackerUrl = d.tracker_url || ''; render(d.items); }
+    catch (e) { $('connectors').textContent = e.message; }
+  }
+  load();
+})();

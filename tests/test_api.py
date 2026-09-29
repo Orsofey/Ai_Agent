@@ -104,7 +104,8 @@ class APIv5Tests(unittest.TestCase):
             self.assertIn(required, names + ' '.join(i['author'] for s in data['sections'] for i in s['items']))
         self.assertNotIn('Silero TTS', names)
         self.assertNotIn('2.5 3B', names)
-        self.assertEqual([v['voice'] for v in data['voices']], ['irina', 'denis', 'amy'])
+        self.assertEqual([v['voice'] for v in data['voices'] if not v['trial']], ['irina', 'denis', 'amy'])
+        self.assertEqual([v['voice'] for v in data['voices'] if v['trial']], ['dmitri', 'ruslan'])
         self.assertIn('page-licenses', self.client.get('/settings').get_data(as_text=True))
 
     def test_removed_components_rejected(self):

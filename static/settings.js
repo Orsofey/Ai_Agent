@@ -238,12 +238,23 @@
       box.replaceChildren(...data.assistant.map(v => {
         const card = document.createElement('button');
         card.type = 'button'; card.className = 'voice-card'; card.dataset.voice = v.id; card.setAttribute('role', 'radio');
-        const initial = v.id === 'jarvis' ? 'J' : v.id === 'friday' ? 'F' : '★';
+        const initial = v.id === 'jarvis' ? 'J' : v.id === 'friday' ? 'F' : v.group === 'narrators' ? v.title[0] : '★';
         card.innerHTML = '<span class="voice-avatar"></span><span class="voice-meta"><b></b><small></small></span><span class="voice-wave"><i></i><i></i><i></i><i></i></span>';
         card.querySelector('.voice-avatar').textContent = initial;
         card.querySelector('b').textContent = v.title;
-        card.querySelector('small').textContent = v.note;
-        card.onclick = () => {
+        card.querySelector('small').textContent = v.note + (v.installed ? '' : ' · скачается при выборе (~60 МБ)');
+        card.onclick = async () => {
+          if (!v.installed) {
+            try {
+              await Agent.post('models/download', { items: ['piper:' + v.voice] });
+              Agent.toast(`Скачиваю голос «${v.title}»… Он включится, когда загрузка закончится.`, 6000);
+              const timer = setInterval(async () => {
+                const d = await Agent.api('ai/voices').catch(() => null);
+                const now = d && d.assistant.find(x => x.id === v.id);
+                if (now && now.installed) { clearInterval(timer); v.installed = true; loadVoices(); Agent.toast(`Голос «${v.title}» готов.`); }
+              }, 4000);
+            } catch (e) { Agent.toast(e.message, 5000); return; }
+          }
           select.value = v.id;
           select.dispatchEvent(new Event('change'));
           paintVoiceCards();
@@ -324,7 +335,7 @@
       data.voices.forEach(v => {
         const row = el('div', 'row stack');
         const label = el('div', 'label');
-        label.append(el('b', null, v.title));
+        label.append(el('b', null, v.title + (v.trial ? ' — для проверки: коммерческая лицензия не подтверждена' : '')));
         label.append(el('small', null, !v.installed ? 'Голос не установлен.' : v.card ? '' : 'Карточка не найдена — скачайте голос заново в разделе «Распознавание».'));
         row.append(label);
         if (v.card) { const pre = el('pre', 'hint', v.card); pre.style.whiteSpace = 'pre-wrap'; pre.style.margin = '0'; row.append(pre); }

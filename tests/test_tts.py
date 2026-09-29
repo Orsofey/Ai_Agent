@@ -23,7 +23,10 @@ class TTSServiceTests(unittest.TestCase):
     def test_no_non_commercial_voices(self):
         # Silero TTS (CC BY-NC) и lessac (датасет только для исследований) убраны.
         ids = [v['id'] for v in self.service.available_voices()]
-        self.assertEqual(sorted(ids), ['amy', 'denis', 'irina'])
+        commercial = [i for i in ids if not PIPER_VOICES[i].get('trial')]
+        self.assertEqual(sorted(commercial), ['amy', 'denis', 'irina'])
+        # Голоса «для проверки» явно помечены — перед продажей их лицензию нужно проверить.
+        self.assertEqual(sorted(i for i in ids if PIPER_VOICES[i].get('trial')), ['dmitri', 'ruslan'])
 
     def test_model_card_shown_when_present(self):
         folder = piper_models_dir(self.temp.name)

@@ -357,6 +357,9 @@ def download(root, items, report=print):
                 download_llm(root, item.split(':', 1)[1], progress=progress)
             elif item == 'speaker':
                 download_speaker(root, progress=progress)
+            elif item.startswith('piper:'):
+                if not ensure_piper_voice(item.split(':', 1)[1], root)[0]:
+                    raise RuntimeError('голос не скачан')
             elif item == 'piper':
                 for name in PIPER_DEFAULT:
                     if not ensure_piper_voice(name, root)[0]:

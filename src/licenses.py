@@ -112,6 +112,6 @@ def collect(root):
     cards = []
     for name, info in PIPER_VOICES.items():
         installed = voice_files(name, root)[0] is not None
-        cards.append({'voice': name, 'title': info['title'], 'installed': installed,
+        cards.append({'voice': name, 'title': info['title'], 'installed': installed, 'trial': bool(info.get('trial')),
                       'card': model_card(name, root) if installed else None})
     return {'sections': SECTIONS, 'voices': cards}

@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '5.8'
+VERSION = '5.9'
 
 
 def local_ip():
@@ -131,6 +131,14 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     tracker = TrackerClient(store)
     agent.scenarios = scenarios
     agent.tracker = tracker
+
+    def open_link(url):
+        from src.web_services import system_open
+        system_open(url)
+
+    from src.connectors import Connectors
+    connectors = Connectors(store, tracker=tracker, opener=open_link)
+    agent.connectors = connectors
     scenarios.ensure_thread()  # блокировки, начатые до перезапуска, продолжают действовать
 
     def speak(text):
@@ -848,6 +856,43 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         gate.set_password(str((request.get_json() or {}).get('password', '')))
         return jsonify(success=True, **voice_status())
 
+    # ---------------- телефон: настройки ПК и голос ПК ----------------
+    @app.get('/api/remote/settings')
+    def remote_settings():
+        """Настройки ассистента на ПК для экрана «Настройки» в приложении телефона."""
+        from src.settings_schema import as_json
+        return jsonify(success=True, sections=as_json(local_tts.assistant_voices()),
+                       values=store.settings('device:desktop'), premium=store.is_premium())
+
+    @app.post('/api/remote/settings')
+    def remote_settings_save():
+        values = (request.get_json() or {}).get('values') or {}
+        if not isinstance(values, dict):
+            raise ValueError('Нужны значения настроек')
+        value = store.save_settings('device:desktop', values)
+        settings_changed(value)
+        return jsonify(success=True, values=value)
+
+    @app.post('/api/tts/phone')
+    def tts_phone():
+        """Ответ голосом ассистента (Джарвис, Пятница, дикторы) для воспроизведения на телефоне."""
+        import base64
+        text = str((request.get_json() or {}).get('text', '')).strip()
+        if not 1 <= len(text) <= 2000:
+            raise ValueError('Нужен текст до 2000 символов')
+        settings = store.settings('device:desktop')
+        path = local_tts.synthesize(text, settings.get('tts_voice', 'irina'), settings.get('tts_rate', 110) / 100.0,
+                                    preset=settings.get('voice_preset', 'classic'))
+        if not path:
+            return jsonify(success=False, message='Голоса на ПК ещё не установлены'), 503
+        return jsonify(success=True, mime='audio/wav', audio=base64.b64encode(Path(path).read_bytes()).decode())
+
+    # ---------------- все команды ----------------
+    @app.get('/api/commands')
+    def commands_catalog():
+        from src.command_catalog import catalog
+        return jsonify(success=True, wake=store.settings('device:desktop').get('wake_word', 'Андрей'), categories=catalog())
+
     # ---------------- доступ с телефона ----------------
     def firewall_status():
         """Windows: есть ли правило брандмауэра, пускающее телефон к ассистенту."""
@@ -878,6 +923,65 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             raise ValueError('Windows не разрешил изменить брандмауэр. Подтвердите запрос администратора.')
         store.set_meta('firewall_rule', '1')
         return jsonify(success=True, message='Готово: телефон может подключаться к компьютеру.')
+
+    # ---------------- интеграции ----------------
+    from src.connectors import ConnectorError
+
+    @app.errorhandler(ConnectorError)
+    def connector_error(exc):
+        return jsonify(success=False, message=str(exc)), 400
+
+    @app.get('/api/connectors')
+    def connectors_list():
+        return jsonify(success=True, items=connectors.status(), tracker_url=connectors.get('tracker').url)
+
+    @app.post('/api/connectors/<connector_id>/connect')
+    def connectors_connect(connector_id):
+        data = request.get_json(silent=True) or {}
+        connector = connectors.get(connector_id)
+        if data.get('token'):
+            user = connector.use_token(str(data['token']))
+            return jsonify(success=True, connected=True, user=user)
+        result = connector.start(request.host_url)
+        opened = False
+        if result.get('url') and is_desktop():
+            open_link(result['url'])
+            opened = True
+        return jsonify(success=True, opened=opened, **result)
+
+    @app.post('/api/connectors/<connector_id>/poll')
+    def connectors_poll(connector_id):
+        connector = connectors.get(connector_id)
+        return jsonify(success=True, **(connector.poll() if hasattr(connector, 'poll') else {'done': connector.connected()}))
+
+    @app.post('/api/connectors/<connector_id>/disconnect')
+    def connectors_disconnect(connector_id):
+        connectors.get(connector_id).disconnect()
+        return jsonify(success=True, items=connectors.status())
+
+    @app.post('/api/connectors/tracker/url')
+    def connectors_tracker_url():
+        from src.tracker import check_url
+        store.set_meta('tracker_url', check_url((request.get_json() or {}).get('url', '')))
+        return jsonify(success=True, items=connectors.status())
+
+    @app.get('/oauth/<connector_id>/callback')
+    def oauth_callback(connector_id):
+        """Сюда браузер возвращается после входа в аккаунт приложения (Трекер, Google, Miro)."""
+        import html
+        error = request.args.get('error')
+        try:
+            if error:
+                raise ConnectorError(request.args.get('error_description') or error)
+            user = connectors.callback(connector_id, request.args.get('code', ''), request.args.get('state', ''))
+            title, text = 'Готово', f'Аккаунт {html.escape(user or "")} подключён к «Андрею». Это окно можно закрыть.'
+            events.emit('connectors', id=connector_id, connected=True)
+        except ConnectorError as exc:
+            title, text = 'Не получилось', html.escape(str(exc))
+        page = ('<!doctype html><meta charset="utf-8"><title>Андрей</title><body style="font:18px system-ui;'
+                'background:#0b1020;color:#e8ecff;display:grid;place-items:center;height:100vh;margin:0">'
+                f'<div style="text-align:center"><h1>{title}</h1><p>{text}</p></div>')
+        return Response(page, mimetype='text/html')
 
     # ---------------- Трекер ----------------
     @app.get('/api/tracker')
