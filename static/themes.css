@@ -1,4 +1,4 @@
-/* Nine themes: seven signature themes + classic dark/light.
+/* Ten themes: the brand default (AI Agent), seven signature themes + classic dark/light.
    Each theme = variables + its own living background (.scene). */
 
 /* Общая база: каждая тема (и карточка-превью) начинает с одинаковых значений. */
@@ -7,6 +7,90 @@
   --radius: 18px; --radius-sm: 12px; --blur: 18px; --display-spacing: 0; --orb-radius: 50%;
   --card-clip: none; --title-fill: none;
 }
+
+/* ===== 0. AI AGENT — фирменная тема по умолчанию (дизайн-код АРХИПОВ▮) =====
+   Ink и Graphite, точечная сетка, один акцент Voice Blue (текст на нём — Ink), курсор ▮ лаймом,
+   Tektur для заголовков и JetBrains Mono для текста. Без градиентов, теней и свечений. */
+@font-face { font-family: 'Tektur'; font-weight: 500; font-display: swap; src: url('/static/fonts/Tektur-Medium.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-display: swap; src: url('/static/fonts/JetBrainsMono-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; font-display: swap; src: url('/static/fonts/JetBrainsMono-Bold.ttf') format('truetype'); }
+[data-theme="brand"] {
+  --font: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --font-display: 'Tektur', 'JetBrains Mono', sans-serif;
+  --radius: 22px; --radius-sm: 14px; --blur: 0px; --display-spacing: -.01em; --orb-radius: 22.9%;
+  --bg: #0E0F12; --bar: #0E0F12; --surface: #1A1C21; --surface-strong: #1A1C21;
+  --border: #2E323A; --text: #F2F0EA; --muted: #9398A5; --chip: #24272E; --input: #0E0F12;
+  --accent: #4C7DFF; --accent-2: #C8F53C; --on-accent: #0E0F12; --accent-fill: #4C7DFF;
+  --ring: rgba(76, 125, 255, .35); --glow: transparent; --ok: #C8F53C; --warn: #FEBC2E; --bad: #FF5F57;
+  --user-bubble: #4C7DFF; --user-text: #0E0F12; --agent-bubble: #1A1C21;
+  --orb: url("/static/ornaments/brand-wave.svg") center / 64% no-repeat, #4C7DFF;
+  --shadow: none; --title-fill: none;
+  --scene: radial-gradient(rgba(255, 255, 255, .07) 1.6px, transparent 1.7px) 0 0 / 36px 36px, #0E0F12;
+}
+html[data-theme="brand"] body { font-size: 14px; }
+/* Курсор ▮ — один на экран, «приклеен» к имени. */
+[data-theme="brand"] .brand-name { font-weight: 500; font-size: 21px; }
+[data-theme="brand"] .brand-name span { white-space: nowrap; }
+[data-theme="brand"] .brand-name span::after {
+  content: ''; display: inline-block; width: .4em; height: .74em; margin-left: .1em; vertical-align: -.02em;
+  background: #C8F53C; animation: blink 1.2s steps(1) infinite;
+}
+[data-theme="brand"] .brand img { border-radius: 22.9%; }
+/* Подпись — метка кода вместо украшений. */
+[data-theme="brand"] .brand small { font-size: 0; }
+[data-theme="brand"] .brand small::before {
+  content: '// голос вместо клавиатуры'; font: 700 11px/1.4 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+[data-theme="brand"] .settings-app .brand small::before { content: '// настройки · ' attr(data-version); }
+[data-theme="brand"] .topbar { border-bottom: 2px solid var(--border); }
+[data-theme="brand"] .card { border-width: 2px; }
+[data-theme="brand"] .pill { border-radius: 10px; font: 700 11px/1.3 var(--font); letter-spacing: .04em; text-transform: uppercase; }
+[data-theme="brand"] .pill .dot { border-radius: 2px; box-shadow: none; }
+[data-theme="brand"] .btn { font-weight: 700; font-size: 13px; letter-spacing: .02em; border-width: 2px; }
+[data-theme="brand"] .btn.primary { text-transform: uppercase; letter-spacing: .06em; }
+[data-theme="brand"] .btn:hover { box-shadow: none; border-color: var(--accent); }
+[data-theme="brand"] .btn.primary:hover { background: #6A93FF; }
+[data-theme="brand"] .chip { border-radius: 10px; border-width: 2px; font-size: 12.5px; }
+[data-theme="brand"] .chip:hover { color: var(--text); }
+[data-theme="brand"] .kbd { border-radius: 6px; }
+/* Заголовки разделов — рубрика «// ДИАЛОГ». */
+[data-theme="brand"] .chat-head { border-bottom-width: 2px; }
+[data-theme="brand"] .chat-head h2 { font: 700 12px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+[data-theme="brand"] .chat-head h2::before { content: '// '; color: var(--accent); }
+[data-theme="brand"] .page > h1 { font-weight: 500; font-size: 30px; line-height: 1.06; }
+[data-theme="brand"] .page > h2.section-title { font-weight: 500; }
+[data-theme="brand"] .voice-title { font-weight: 500; font-size: 24px; line-height: 1.06; }
+[data-theme="brand"] .empty-chat b { font-weight: 500; font-size: 22px; }
+/* «Пузырь команды»: Graphite, хвост слева снизу; ответ пользователя — синим, текст Ink. */
+[data-theme="brand"] .msg { border-radius: 18px; }
+[data-theme="brand"] .msg.agent { border-width: 2px; border-bottom-left-radius: 5px; }
+[data-theme="brand"] .msg.user { border-bottom-right-radius: 5px; font-weight: 700; }
+[data-theme="brand"] .msg.streaming::after { content: ''; display: inline-block; width: .4em; height: .9em; vertical-align: -.1em; background: #C8F53C; }
+[data-theme="brand"] .composer textarea:focus, [data-theme="brand"] input:focus, [data-theme="brand"] select:focus { box-shadow: none; }
+[data-theme="brand"] .nav-item.active { box-shadow: inset 3px 0 0 var(--accent); }
+/* Сфера → фирменная иконка-волна; вокруг — «уголки кадра». */
+[data-theme="brand"] .orb { width: 138px; height: 138px; box-shadow: none; }
+[data-theme="brand"] .voice-panel[data-state="thinking"] .orb, [data-theme="brand"] .voice-panel[data-state="transcribing"] .orb { animation: brand-think 1.1s ease-in-out infinite; }
+[data-theme="brand"] .orb-ring {
+  inset: 6px; border: 0; border-radius: 0; opacity: 1;
+  --c: var(--accent); --l: 30px; --t: 4px;
+  background:
+    linear-gradient(var(--c), var(--c)) 0 0 / var(--l) var(--t), linear-gradient(var(--c), var(--c)) 0 0 / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) 100% 0 / var(--l) var(--t), linear-gradient(var(--c), var(--c)) 100% 0 / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) 0 100% / var(--l) var(--t), linear-gradient(var(--c), var(--c)) 0 100% / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) 100% 100% / var(--l) var(--t), linear-gradient(var(--c), var(--c)) 100% 100% / var(--t) var(--l);
+  background-repeat: no-repeat;
+}
+[data-theme="brand"] .orb-ring.r2 { display: none; }
+[data-theme="brand"] .voice-panel[data-state="off"] .orb-ring, [data-theme="brand"] .voice-panel[data-state="error"] .orb-ring { --c: var(--border); }
+[data-theme="brand"] .voice-panel[data-state="listening"] .orb-ring { animation: brand-frame 1.4s ease-in-out infinite; }
+[data-theme="brand"] .voice-panel[data-state="hearing"] .orb-ring { inset: -2px; }
+[data-theme="brand"] .theme-preview .mini-orb { box-shadow: none; }
+[data-theme="brand"] .pause-btn { border-radius: 14px; }
+[data-theme="brand"] .toast, [data-theme="brand"] .task-progress { border-width: 2px; border-radius: 14px; }
+[data-theme="brand"] .task-progress .tp-bar { border-radius: 3px; }
+[data-theme="brand"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-theme="brand"] ::-webkit-scrollbar-thumb { background: #2E323A; border-radius: 6px; border: 2px solid #1A1C21; }
 
 /* ===== 1. АВРОРА — северное сияние над ночным небом ===== */
 [data-theme="aurora"] {

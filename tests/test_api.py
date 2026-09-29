@@ -29,7 +29,7 @@ class APIv5Tests(unittest.TestCase):
     def test_defaults(self):
         settings = self.client.get('/api/settings', headers=self.headers).json['settings']
         self.assertEqual(settings['wake_word'], 'Андрей')
-        self.assertEqual(settings['theme'], 'aurora')
+        self.assertEqual(settings['theme'], 'brand')
         self.assertEqual(settings['llm_provider'], 'local')
 
     def test_old_claude_setting_falls_back_to_local(self):
@@ -44,7 +44,7 @@ class APIv5Tests(unittest.TestCase):
         self.assertEqual((settings['wake_word'], settings['theme']), ('Андрей', 'dark'))
 
     def test_themes_validated(self):
-        for theme in ('aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', 'dark', 'light'):
+        for theme in ('brand', 'aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', 'dark', 'light'):
             self.assertEqual(self.post('settings', {'theme': theme}).status_code, 200)
         self.assertEqual(self.post('settings', {'theme': 'matrix'}).status_code, 400)
         self.assertEqual(self.post('settings', {'silence_ms': 100}).status_code, 400)

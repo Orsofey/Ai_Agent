@@ -118,7 +118,7 @@ class APITests(unittest.TestCase):
         self.assertIn('/static/settings.js',settings)
         with self.client.get('/static/themes.css') as response:
             css=response.text
-        for theme in ('aurora','cyberpunk','sakura','ocean','luxe','gzhel','slavic'):
+        for theme in ('brand','aurora','cyberpunk','sakura','ocean','luxe','gzhel','slavic'):
             self.assertIn('[data-theme="'+theme+'"]',css)
         with self.client.get('/static/icon-192.png') as response:
             self.assertEqual(response.status_code,200)

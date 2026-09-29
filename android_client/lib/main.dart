@@ -22,7 +22,7 @@ class Appearance extends ChangeNotifier {
   Appearance._();
   static final instance = Appearance._();
 
-  Palette palette = paletteOf('aurora');
+  Palette palette = paletteOf('brand');
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -430,7 +430,14 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Андрей', style: TextStyle(fontWeight: FontWeight.w700, color: p.accent)),
+          if (p.isBrand)
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('Андрей', style: TextStyle(fontFamily: p.displayFont, fontWeight: FontWeight.w500, color: p.text)),
+              // Курсор ▮ «приклеен» к имени.
+              Container(width: 8, height: 15, margin: const EdgeInsets.only(left: 2), color: brandLime),
+            ])
+          else
+            Text('Андрей', style: TextStyle(fontWeight: FontWeight.w700, color: p.accent)),
           Text(widget.api.route, style: TextStyle(fontSize: 12, color: p.muted)),
         ]),
         actions: [
