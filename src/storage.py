@@ -20,11 +20,11 @@ def data_root():
     return Path.home() / '.local' / 'share' / 'LocalAIAgent'
 
 
-THEMES = ('brand', 'aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', 'dark', 'light')
+THEMES = ('aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', 'dark', 'light')
 
 DEFAULTS = {
     # Внешний вид
-    'theme': 'brand', 'animations': True, 'show_hud': True,
+    'theme': 'aurora', 'animations': True, 'show_hud': True,
     # Голос: ввод
     'voice_language': 'auto', 'stt_engine': 'auto', 'microphone': '',
     'microphone_label': '', 'native_microphone': '', 'auto_send': True,

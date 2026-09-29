@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ru" data-theme="brand">
+<html lang="ru" data-theme="aurora">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Настройки — Local AI Agent</title>
 <script>
-  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'brand';
+  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'aurora';
         document.documentElement.dataset.animations = localStorage.getItem('agent_animations') || 'on'; } catch (e) {}
 </script>
 <link rel="icon" href="/static/icon-192.png">
@@ -17,7 +17,7 @@
 <div class="scene" aria-hidden="true"></div>
 <div class="settings-app">
   <nav class="side" aria-label="Разделы настроек">
-    <div class="brand"><img src="/static/icon-192.png" alt=""><div><div class="brand-name"><span>Настройки</span></div><small data-version="{{ version }}">Local AI Agent {{ version }}</small></div></div>
+    <div class="brand"><img src="/static/icon-192.png" alt=""><div><div class="brand-name"><span>Настройки</span></div><small>Local AI Agent {{ version }}</small></div></div>
     <button class="nav-item" data-page="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>Аккаунт и подписка</button>
     <button class="nav-item active" data-page="general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Общие</button>
     <button class="nav-item" data-page="commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg>Все команды</button>
@@ -334,7 +334,7 @@
 
     <!-- ОФОРМЛЕНИЕ -->
     <section class="page" id="page-appearance">
-      <h1>Оформление</h1><p class="lead">Фирменная тема AI Agent (по умолчанию), семь авторских тем с живым фоном — среди них «Гжель» и «Славянская» — и две классические. Тема применяется сразу во всех окнах.</p>
+      <h1>Оформление</h1><p class="lead">Семь авторских тем с живым фоном — среди них русские «Гжель» и «Славянская» — и две классические. Тема применяется сразу во всех окнах.</p>
       <div class="card paywall">
         <div class="paywall-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1.2"/></svg></div>
         <div><b>Раздел доступен по подписке</b><small>Оформление, настройки распознавания и озвучки открываются после оплаты. Команды, ответы и голосовое управление работают бесплатно.</small></div>

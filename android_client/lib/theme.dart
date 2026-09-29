@@ -6,26 +6,16 @@ import 'ornaments.dart';
 class Palette {
   const Palette(this.id, this.title, {required this.bg, required this.surface, required this.surfaceStrong,
       required this.text, required this.muted, required this.accent, required this.accent2, required this.onAccent,
-      required this.border, required this.chip, required this.bad, required this.glows, this.dark = true,
-      this.font, this.displayFont});
+      required this.border, required this.chip, required this.bad, required this.glows, this.dark = true});
 
   final String id;
   final String title;
   final Color bg, surface, surfaceStrong, text, muted, accent, accent2, onAccent, border, chip, bad;
   final List<Color> glows; // цветные пятна фона («северное сияние», неон…)
   final bool dark;
-  final String? font, displayFont; // фирменная тема: JetBrains Mono и Tektur
-
-  bool get isBrand => id == 'brand';
 }
 
 const palettes = <String, Palette>{
-  // Фирменная тема по умолчанию (дизайн-код AI Agent): Ink, Graphite, один акцент Voice Blue, курсор лаймом.
-  'brand': Palette('brand', 'AI Agent',
-      bg: Color(0xFF0E0F12), surface: Color(0xFF1A1C21), surfaceStrong: Color(0xFF1A1C21), text: Color(0xFFF2F0EA),
-      muted: Color(0xFF9398A5), accent: Color(0xFF4C7DFF), accent2: Color(0xFFC8F53C), onAccent: Color(0xFF0E0F12),
-      border: Color(0xFF2E323A), chip: Color(0xFF24272E), bad: Color(0xFFFF5F57), glows: [],
-      font: 'JetBrainsMono', displayFont: 'Tektur'),
   'aurora': Palette('aurora', 'Аврора',
       bg: Color(0xFF040817), surface: Color(0x850E1630), surfaceStrong: Color(0xFF111A38), text: Color(0xFFEAF2FF),
       muted: Color(0xFF97A8CC), accent: Color(0xFF5EF2C2), accent2: Color(0xFF7AA2FF), onAccent: Color(0xFF03141A),
@@ -71,10 +61,7 @@ const palettes = <String, Palette>{
       border: Color(0xFFDDE3EC), chip: Color(0xFFEEF2F8), bad: Color(0xFFDC2626), glows: [], dark: false),
 };
 
-Palette paletteOf(String? id) => palettes[id] ?? palettes['brand']!;
-
-/// Лаймовый курсор ▮ — знак бренда.
-const brandLime = Color(0xFFC8F53C);
+Palette paletteOf(String? id) => palettes[id] ?? palettes['aurora']!;
 
 ThemeData themeFor(Palette p) {
   final scheme = ColorScheme(
@@ -84,24 +71,14 @@ ThemeData themeFor(Palette p) {
     surfaceContainerHighest: p.chip, outline: p.border,
   );
   final radius = BorderRadius.circular(14);
-  final base = Typography.material2021().black.apply(bodyColor: p.text, displayColor: p.text, fontFamily: p.font);
-  final text = p.displayFont == null
-      ? base
-      : base.copyWith(
-          headlineSmall: base.headlineSmall?.copyWith(fontFamily: p.displayFont, fontWeight: FontWeight.w500),
-          titleLarge: base.titleLarge?.copyWith(fontFamily: p.displayFont, fontWeight: FontWeight.w500),
-          titleMedium: base.titleMedium?.copyWith(fontFamily: p.displayFont, fontWeight: FontWeight.w500),
-        );
   return ThemeData(
     useMaterial3: true,
-    fontFamily: p.font,
     colorScheme: scheme,
     scaffoldBackgroundColor: Colors.transparent,
     appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, foregroundColor: p.text, elevation: 0,
         scrolledUnderElevation: 0, centerTitle: false),
     cardTheme: CardThemeData(color: p.surface, elevation: 0, margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(p.isBrand ? 22 : 18),
-            side: BorderSide(color: p.border, width: p.isBrand ? 2 : 1))),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: p.border))),
     inputDecorationTheme: InputDecorationTheme(
       filled: true, fillColor: p.chip, hintStyle: TextStyle(color: p.muted), labelStyle: TextStyle(color: p.muted),
       border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: p.border)),
@@ -123,7 +100,7 @@ ThemeData themeFor(Palette p) {
         indicatorColor: p.accent.withValues(alpha: 0.22),
         labelTextStyle: WidgetStatePropertyAll(TextStyle(color: p.text, fontSize: 12))),
     dividerColor: p.border,
-    textTheme: text,
+    textTheme: Typography.material2021().black.apply(bodyColor: p.text, displayColor: p.text),
   );
 }
 
@@ -140,7 +117,6 @@ class Scene extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(color: palette.bg),
       child: Stack(children: [
-        if (palette.isBrand) const Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: DotGridPainter()))),
         if (glows.isNotEmpty) ...[
           _glow(glows[0], const Alignment(-1.1, -1.0), 1.4),
           if (glows.length > 1) _glow(glows[1], const Alignment(1.2, -0.2), 1.2),
@@ -182,23 +158,6 @@ class Orb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (palette.isBrand) {
-      // Фирменная иконка: волна из 5 столбиков в синем скруглённом квадрате, вокруг — «уголки кадра».
-      return SizedBox(
-        width: size * 1.35,
-        height: size * 1.35,
-        child: CustomPaint(
-          painter: CornersPainter(active ? brandLime : palette.accent),
-          child: Center(
-            child: AnimatedScale(
-              duration: const Duration(milliseconds: 300),
-              scale: active ? 1.05 : 1,
-              child: SizedBox(width: size, height: size, child: const CustomPaint(painter: WaveIconPainter())),
-            ),
-          ),
-        ),
-      );
-    }
     final style = OrnamentStyle.of(palette.id);
     if (style != null) {
       final porcelain = palette.id == 'gzhel';
@@ -239,62 +198,4 @@ class Orb extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Точечная сетка — фон тёмных экранов бренда.
-class DotGridPainter extends CustomPainter {
-  const DotGridPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final dot = Paint()..color = const Color(0x12FFFFFF);
-    for (double y = 18; y < size.height; y += 36) {
-      for (double x = 18; x < size.width; x += 36) {
-        canvas.drawCircle(Offset(x, y), 1.6, dot);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(DotGridPainter old) => false;
-}
-
-/// Иконка проекта (как static/icon.svg): квадрат 24×24, радиус 5.5, пять столбиков Ink.
-class WaveIconPainter extends CustomPainter {
-  const WaveIconPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 24);
-    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 24, 24), const Radius.circular(5.5)),
-        Paint()..color = const Color(0xFF4C7DFF));
-    final ink = Paint()..color = const Color(0xFF0E0F12);
-    for (final (x, y, h) in const [(4.6, 9.0, 6.0), (7.8, 6.5, 11.0), (11.0, 4.0, 16.0), (14.2, 6.5, 11.0), (17.4, 9.0, 6.0)]) {
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, 2, h), const Radius.circular(1)), ink);
-    }
-  }
-
-  @override
-  bool shouldRepaint(WaveIconPainter old) => false;
-}
-
-/// «Уголки кадра»: четыре угловые скобки цветом акцента.
-class CornersPainter extends CustomPainter {
-  const CornersPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final l = size.width * .16, t = 4.0;
-    final paint = Paint()..color = color;
-    for (final (x, y, dx, dy) in [(0.0, 0.0, 1.0, 1.0), (size.width, 0.0, -1.0, 1.0), (0.0, size.height, 1.0, -1.0),
-        (size.width, size.height, -1.0, -1.0)]) {
-      canvas.drawRect(Rect.fromPoints(Offset(x, y), Offset(x + dx * l, y + dy * t)), paint);
-      canvas.drawRect(Rect.fromPoints(Offset(x, y), Offset(x + dx * t, y + dy * l)), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(CornersPainter old) => old.color != color;
 }

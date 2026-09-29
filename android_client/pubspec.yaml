@@ -25,22 +25,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # Фирменная тема AI Agent: Tektur (заголовки) и JetBrains Mono (текст), лицензия OFL.
-  fonts:
-    - family: Tektur
-      fonts:
-        - asset: assets/fonts/Tektur-Medium.ttf
-          weight: 500
-    - family: JetBrainsMono
-      fonts:
-        - asset: assets/fonts/JetBrainsMono-Regular.ttf
-        - asset: assets/fonts/JetBrainsMono-Bold.ttf
-          weight: 700
 
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: assets/icon.png
-  adaptive_icon_background: "#4C7DFF"
-  adaptive_icon_foreground: assets/icon-foreground.png
   min_sdk_android: 23

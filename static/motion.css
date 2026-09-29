@@ -26,5 +26,3 @@ html[data-animations="off"] .particle { display: none; }
   .particle { display: none; }
 }
 @keyframes bloom { from { transform: rotate(-1.5deg) scale(.985); } to { transform: rotate(1deg) scale(1.02); } }
-@keyframes brand-think { 0%, 100% { transform: scale(.96); } 50% { transform: scale(1.03); } }
-@keyframes brand-frame { 0%, 100% { inset: 6px; } 50% { inset: -4px; } }
