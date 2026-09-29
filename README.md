@@ -14,6 +14,8 @@ Discord и других. Можно спросить что угодно, от �
 | ![](docs/screenshots/theme-aurora.png) | ![](docs/screenshots/theme-cyberpunk.png) | ![](docs/screenshots/theme-sakura.png) |
 | **Бездна** | **Люкс** | **Окно настроек** |
 | ![](docs/screenshots/theme-ocean.png) | ![](docs/screenshots/theme-luxe.png) | ![](docs/screenshots/settings-window.png) |
+| **Гжель** | **Славянская** | **На телефоне** |
+| ![](docs/screenshots/theme-gzhel.png) | ![](docs/screenshots/theme-slavic.png) | ![](docs/screenshots/mobile-folk-themes.png) |
 
 **Новое в 5.1:** кнопка «Пауза», YouTube голосом в одном окне («Открой первое видео»),
 ответы «Да, сэр, включаю…», уточняющие вопросы («Что открыть, сэр?»), любые чаты и группы Telegram,

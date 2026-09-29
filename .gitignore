@@ -14,3 +14,10 @@ models/**/*.download/
 # Готовые сборки Android
 release/*.apk
 release/*.aab
+
+# Flutter: создаются при pub get / analyze
+android_client/.dart_tool/
+android_client/.flutter-plugins-dependencies
+android_client/android/app/
+android_client/android/local.properties
+android_client/test/goldens/

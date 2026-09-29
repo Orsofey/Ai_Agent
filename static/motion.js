@@ -1,4 +1,4 @@
-/* Living backgrounds: petals for Sakura, bubbles for Ocean. */
+/* Living backgrounds: petals for Sakura, bubbles for Ocean, cobalt petals for Gzhel, embers for Slavic. */
 (() => {
   'use strict';
   const random = (a, b) => a + Math.random() * (b - a);
@@ -16,6 +16,28 @@
         p.style.animationDuration = `${fall}s, ${sway}s`;
         p.style.animationDelay = `${-random(0, fall)}s, ${-random(0, sway)}s`;
         scene.appendChild(p);
+      }
+    } else if (theme === 'gzhel') {
+      for (let i = 0; i < (compact ? 3 : 10); i++) {
+        const p = document.createElement('i');
+        p.className = 'particle gz-petal';
+        const fall = random(16, 30), sway = random(4, 7);
+        p.style.left = random(0, 100) + '%';
+        p.style.transform = `scale(${random(.6, 1.2)}) rotate(${random(0, 360)}deg)`;
+        p.style.animationDuration = `${fall}s, ${sway}s`;
+        p.style.animationDelay = `${-random(0, fall)}s, ${-random(0, sway)}s`;
+        scene.appendChild(p);
+      }
+    } else if (theme === 'slavic') {
+      for (let i = 0; i < (compact ? 6 : 22); i++) {
+        const e = document.createElement('i');
+        e.className = 'particle ember';
+        const size = random(2, compact ? 4 : 6), rise = random(12, 28), wobble = random(2, 5);
+        e.style.width = e.style.height = size + 'px';
+        e.style.left = random(0, 100) + '%';
+        e.style.animationDuration = `${rise}s, ${wobble}s, ${random(1, 2.4)}s`;
+        e.style.animationDelay = `${-random(0, rise)}s, ${-random(0, wobble)}s, ${-random(0, 2)}s`;
+        scene.appendChild(e);
       }
     } else if (theme === 'ocean') {
       for (let i = 0; i < (compact ? 7 : 26); i++) {
