@@ -4,6 +4,8 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH)
+import re
+VERSION = re.search(r"^VERSION = '([\d.]+)'", (root / 'app.py').read_text(encoding='utf-8'), re.M).group(1)
 datas = [(str(root / 'static'), 'static'), (str(root / 'templates'), 'templates'),
          (str(root / 'browser_extension'), 'browser_extension')]
 binaries = []
@@ -41,7 +43,7 @@ if MAC:
                  bundle_identifier='ru.andrey.assistant',
                  info_plist={
                      'CFBundleName': 'Андрей', 'CFBundleDisplayName': 'Андрей',
-                     'CFBundleShortVersionString': '5.0', 'LSMinimumSystemVersion': '12.0',
+                     'CFBundleShortVersionString': VERSION, 'CFBundleVersion': VERSION, 'LSMinimumSystemVersion': '12.0',
                      'NSHighResolutionCapable': True,
                      'NSMicrophoneUsageDescription': 'Андрей слушает голосовые команды. Речь распознаётся на этом Mac и никуда не отправляется.',
                      'NSAppleEventsUsageDescription': 'Андрей открывает, переключает и закрывает приложения по вашей команде.',

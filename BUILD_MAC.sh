@@ -5,6 +5,12 @@
 set -e
 cd "$(dirname "$0")"
 ./SETUP_MAC.sh
+# На Mac с M1–M5 Python должен быть arm64, иначе получится Intel-приложение (через Rosetta, медленно).
+PY_ARCH=$(.venv/bin/python -c "import platform; print(platform.machine())")
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ] && [ "$PY_ARCH" != "arm64" ]; then
+  echo "Python собран для $PY_ARCH, а Mac на Apple Silicon. Установите Python 3.12 с python.org"
+  echo "(universal2) или brew в /opt/homebrew, удалите папку .venv и запустите сборку снова."; exit 1
+fi
 .venv/bin/python -m unittest discover -s tests
 # Иконка .icns из PNG
 mkdir -p build/icon.iconset
