@@ -29,7 +29,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14          # Apple Silicon (M1–M4)
+          - runner: macos-15          # Apple Silicon (M1–M5)
             name: AppleSilicon
           - runner: macos-15-intel    # старые Mac на Intel
             name: Intel
@@ -94,9 +94,21 @@ jobs:
           packaging/macos/package.sh
           mv dist/Andrey.dmg "dist/Andrey-${{ matrix.name }}.dmg"
 
+      - name: Проверка образа как у друга (скопировать из .dmg и запустить)
+        run: |
+          MOUNT=$(hdiutil attach -nobrowse -readonly "dist/Andrey-${{ matrix.name }}.dmg" | awk -F'\t' '/\/Volumes\//{print $NF}')
+          rm -rf "$RUNNER_TEMP/Андрей.app"
+          ditto "$MOUNT/Андрей.app" "$RUNNER_TEMP/Андрей.app"
+          hdiutil detach "$MOUNT"
+          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/Андрей.app"
+          "$RUNNER_TEMP/Андрей.app/Contents/MacOS/LocalAIAgent" --self-test
+          shasum -a 256 "dist/Andrey-${{ matrix.name }}.dmg" | tee "dist/Andrey-${{ matrix.name }}.dmg.sha256"
+
       - name: Файл в релиз
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name || format('mac-build-{0}', github.run_number) }}
           name: ${{ github.event.release.name || format('Андрей для macOS (сборка {0})', github.run_number) }}
-          files: dist/Andrey-${{ matrix.name }}.dmg
+          files: |
+            dist/Andrey-${{ matrix.name }}.dmg
+            dist/Andrey-${{ matrix.name }}.dmg.sha256

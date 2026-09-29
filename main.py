@@ -145,7 +145,23 @@ def start_tray(ui, voice, store):
     return icon
 
 
+def self_test():
+    """Проверка собранного приложения: все модули грузятся (без окна, микрофона и моделей)."""
+    import importlib
+    names = ['app', 'waitress', 'webview', 'numpy', 'onnxruntime', 'onnx_asr', 'sounddevice', 'src.speech.voice_loop',
+             'src.local_tts_service', 'src.brain']
+    if sys.platform == 'darwin':
+        names += ['Quartz', 'AppKit', 'src.macos', 'src.desktop.macapi']
+    for name in names:
+        importlib.import_module(name)
+    if sys.stdout is not None:
+        print('self-test ok:', len(names), 'modules')
+    return 0
+
+
 def main():
+    if '--self-test' in sys.argv:
+        sys.exit(self_test())
     store = Store()
     logs = store.root / 'logs'
     logs.mkdir(exist_ok=True)
