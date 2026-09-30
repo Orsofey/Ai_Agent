@@ -1,4 +1,5 @@
-/* Living backgrounds: petals for Sakura, bubbles for Ocean, cobalt petals for Gzhel, embers for Slavic. */
+/* Living backgrounds: petals for Sakura, bubbles for Ocean, cobalt petals for Gzhel, embers for Slavic,
+   floating glass shapes for Glass. */
 (() => {
   'use strict';
   const random = (a, b) => a + Math.random() * (b - a);
@@ -39,6 +40,25 @@
         e.style.animationDelay = `${-random(0, rise)}s, ${-random(0, wobble)}s, ${-random(0, 2)}s`;
         scene.appendChild(e);
       }
+    } else if (theme === 'glass') {
+      // Стеклянные фигуры по краям окна (как 3D-иконки из стекла), в середине — не мешают читать.
+      const kinds = ['sun', 'note', 'word', 'sheet', 'ribbon', 'clear', 'shield', 'mint'];
+      const spots = compact
+        ? [[70, 8, 46], [82, 58, 38], [4, 70, 30]]
+        : [[4, 14, 150], [84, 10, 130], [88, 56, 170], [3, 62, 120], [42, 80, 110], [58, 4, 90], [24, 40, 80], [70, 76, 96]];
+      spots.forEach(([x, y, size], i) => {
+        const g = document.createElement('i');
+        g.className = `particle glass-shape gs-${kinds[i % kinds.length]}`;
+        g.style.left = x + '%';
+        g.style.top = y + '%';
+        g.style.width = g.style.height = (compact ? size : size * random(.85, 1.15)) + 'px';
+        g.style.setProperty('--r', random(-24, 24).toFixed(1) + 'deg');
+        g.style.setProperty('--s', '1');
+        const float = random(7, 13);
+        g.style.animationDuration = float + 's';
+        g.style.animationDelay = -random(0, float) + 's';
+        scene.appendChild(g);
+      });
     } else if (theme === 'ocean') {
       for (let i = 0; i < (compact ? 7 : 26); i++) {
         const b = document.createElement('i');

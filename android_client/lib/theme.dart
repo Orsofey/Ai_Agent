@@ -51,6 +51,11 @@ const palettes = <String, Palette>{
       muted: Color(0xFFC6A67A), accent: Color(0xFFE7B545), accent2: Color(0xFFD2342A), onAccent: Color(0xFF1A0B04),
       border: Color(0x57D6A43A), chip: Color(0x14D6A43A), bad: Color(0xFFFF5A4A),
       glows: [Color(0x55BE281E), Color(0x33E7B545), Color(0x22D2342A)]),
+  'glass': Palette('glass', 'Стекло',
+      bg: Color(0xFFF3EEE7), surface: Color(0x8CFFFFFF), surfaceStrong: Color(0xFFFBF9F6), text: Color(0xFF1C2033),
+      muted: Color(0xFF686D82), accent: Color(0xFF6A5CFF), accent2: Color(0xFFE061D4), onAccent: Color(0xFFFFFFFF),
+      border: Color(0xD9FFFFFF), chip: Color(0x80FFFFFF), bad: Color(0xFFE0445E),
+      glows: [Color(0x8CFFC496), Color(0x73D6AAFF), Color(0x8096D6FF)], dark: false),
   'dark': Palette('dark', 'Тёмная',
       bg: Color(0xFF0F141C), surface: Color(0xFF161D28), surfaceStrong: Color(0xFF1B2330), text: Color(0xFFE9EEF6),
       muted: Color(0xFF98A4B6), accent: Color(0xFF5AA8FF), accent2: Color(0xFF7EE0C3), onAccent: Color(0xFF06121F),
@@ -122,6 +127,7 @@ class Scene extends StatelessWidget {
           if (glows.length > 1) _glow(glows[1], const Alignment(1.2, -0.2), 1.2),
           if (glows.length > 2) _glow(glows[2], const Alignment(-0.4, 1.3), 1.3),
         ],
+        if (palette.id == 'glass') ...glassShapes(),
         if (OrnamentStyle.of(palette.id) case final style?) ...[
           // Букет в правом нижнем углу и малый — в левом верхнем, как на ПК.
           Positioned(right: -12, bottom: 40, width: 260, height: 260,
@@ -137,6 +143,23 @@ class Scene extends StatelessWidget {
     );
   }
 
+  /// Парящие стеклянные фигуры темы «Стекло» — как на ПК: по краям, с бликом и цветной тенью.
+  static List<Widget> glassShapes() {
+    const shapes = [
+      // left, top, right, bottom, size, angle, colors, radius
+      (-18.0, 70.0, null, null, 96.0, -0.3, [Color(0xFFFF6A3D), Color(0xFFFF9D4A), Color(0xD9FFD66E)], 0.5),
+      (null, 40.0, -14.0, null, 84.0, 0.25, [Color(0xF2F6AAEE), Color(0xFFB46CF0), Color(0xFF7B3FD8)], 0.26),
+      (null, null, -20.0, 170.0, 104.0, -0.2, [Color(0xF27EE8FF), Color(0xE6A096FF), Color(0xFF4A7DFF)], 0.24),
+      (-16.0, null, null, 110.0, 72.0, 0.35, [Color(0xFFD9FF7A), Color(0xFF7FD65A), Color(0xFF1F9A4B)], 0.22),
+      (130.0, 8.0, null, null, 44.0, 0.5, [Color(0x8CFFFFFF), Color(0x33FFFFFF), Color(0x1FFFFFFF)], 0.3),
+    ];
+    return [
+      for (final (left, top, right, bottom, size, angle, colors, round) in shapes)
+        Positioned(left: left, top: top, right: right, bottom: bottom, width: size, height: size,
+            child: IgnorePointer(child: Transform.rotate(angle: angle, child: GlassShape(colors: colors, round: round)))),
+    ];
+  }
+
   Widget _glow(Color color, Alignment at, double radius) => Positioned.fill(
         child: IgnorePointer(
           child: DecoratedBox(
@@ -146,6 +169,31 @@ class Scene extends StatelessWidget {
           ),
         ),
       );
+}
+
+class GlassShape extends StatelessWidget {
+  const GlassShape({super.key, required this.colors, required this.round});
+
+  final List<Color> colors;
+  final double round;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        final radius = BorderRadius.circular(box.maxWidth * round);
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+            border: Border.all(color: const Color(0xCCFFFFFF), width: 1.5),
+            boxShadow: [BoxShadow(color: colors.last.withValues(alpha: 0.35), blurRadius: 30, offset: const Offset(0, 18),
+                spreadRadius: -10)],
+          ),
+          child: Align(alignment: const Alignment(-0.3, -0.55), child: FractionallySizedBox(widthFactor: 0.6, heightFactor: 0.3,
+              child: DecoratedBox(decoration: BoxDecoration(borderRadius: radius,
+                  gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                      colors: [Color(0xB3FFFFFF), Color(0x00FFFFFF)]))))),
+        );
+      });
 }
 
 /// Сфера ассистента — как на ПК: градиент акцентных цветов, пульсирует во время записи.
@@ -181,6 +229,30 @@ class Orb extends StatelessWidget {
           ],
         ),
         child: CustomPaint(painter: OrbPainter(style)),
+      );
+    }
+    if (palette.id == 'glass') {
+      // Радужная стеклянная сфера с бликом.
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const RadialGradient(colors: [Color(0xFFF4ECFF), Color(0xFFD9D0FF)]),
+          border: Border.all(color: const Color(0xD9FFFFFF), width: 1.5),
+          boxShadow: [BoxShadow(color: (active ? palette.bad : palette.accent).withValues(alpha: active ? 0.55 : 0.4),
+              blurRadius: active ? 60 : 40, spreadRadius: active ? 8 : 0, offset: const Offset(0, 14))],
+        ),
+        child: ClipOval(child: Stack(fit: StackFit.expand, children: [
+          for (final (x, y, color, r) in const [
+            (-0.48, -0.32, Color(0xF2FFB06E), 0.62), (0.56, -0.4, Color(0xF26FCFFF), 0.66),
+            (0.4, 0.56, Color(0xF2B98CFF), 0.7), (-0.48, 0.52, Color(0xE6FF78B6), 0.62),
+            (0.04, 0.04, Color(0xB386F0B4), 0.5), (-0.36, -0.56, Color(0xF2FFFFFF), 0.34),
+          ])
+            DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(x, y), radius: r,
+                colors: [color, color.withValues(alpha: 0)]))),
+        ])),
       );
     }
     return AnimatedContainer(

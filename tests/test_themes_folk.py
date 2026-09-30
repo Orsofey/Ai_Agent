@@ -26,6 +26,18 @@ class FolkThemeTests(unittest.TestCase):
             root = ET.parse(ROOT / 'static/ornaments' / name).getroot()
             self.assertTrue(root.tag.endswith('svg'), name)
 
+    def test_glass_theme(self):
+        self.assertIn('glass', THEMES)
+        self.assertIn('glass', dict(SCHEMA_THEMES))
+        self.assertIn("id: 'glass'", (ROOT / 'static/core.js').read_text(encoding='utf-8'))
+        self.assertIn("'glass': Palette('glass'", (ROOT / 'android_client/lib/theme.dart').read_text(encoding='utf-8'))
+        css = (ROOT / 'static/themes.css').read_text(encoding='utf-8')
+        motion = (ROOT / 'static/motion.js').read_text(encoding='utf-8')
+        self.assertIn("theme === 'glass'", motion)
+        for kind in re.findall(r"'(\w+)'", re.search(r'const kinds = \[(.*?)\]', motion)[1]):
+            self.assertIn(f'.glass-shape.gs-{kind}', css)
+        self.assertIn('@keyframes glass-float', (ROOT / 'static/motion.css').read_text(encoding='utf-8'))
+
     def test_particles(self):
         motion = (ROOT / 'static/motion.js').read_text(encoding='utf-8')
         self.assertIn("theme === 'gzhel'", motion)

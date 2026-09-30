@@ -25,4 +25,6 @@ html[data-animations="off"] .particle { display: none; }
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .particle { display: none; }
 }
+@keyframes glass-float { from { transform: translateY(0) rotate(var(--r)) scale(var(--s)); } to { transform: translateY(-22px) rotate(calc(var(--r) + 9deg)) scale(var(--s)); } }
+@keyframes glass-hue { to { filter: hue-rotate(360deg); } }
 @keyframes bloom { from { transform: rotate(-1.5deg) scale(.985); } to { transform: rotate(1deg) scale(1.02); } }
