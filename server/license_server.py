@@ -387,7 +387,7 @@ class LicenseServer:
             return 'succeeded'
 
 
-def create_app(server=None):
+def create_app(server=None, support=None):
     if server is None:
         # Постоянная папка: на Amvera это /data (persistenceMount), локально — рядом с сервером.
         data = Path(os.environ.get('DATA_DIR') or ('/data' if Path('/data').is_dir() else '.'))
@@ -414,9 +414,17 @@ def create_app(server=None):
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024  # голосовые команды через мост (аудио в base64)
     app.extensions['license_server'] = server
+    if support is not None:
+        app.extensions['support'] = support
     from relay import Relay, RelayError
     relay = Relay()
     app.extensions['relay'] = relay
+
+    # Поддержка: «Ваши предложения» → владельцу в Telegram (server/support.py).
+    from support import Support, register as register_support
+    support = app.extensions.get('support') or Support.from_env(server)
+    app.extensions['support'] = support
+    register_support(app, server, support)
 
     @app.errorhandler(RelayError)
     def relay_error(exc):

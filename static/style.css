@@ -475,3 +475,55 @@ input[type=time], input[type=datetime-local] { color-scheme: dark; }
 .conn-row input { flex: 1; min-width: 0; }
 .conn-code { font-size: 20px; letter-spacing: 3px; }
 details.more summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+/* ---------- 6.0: «Ваши предложения», документы в чате, мгновенный поиск ---------- */
+.suggest-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--chip); color: var(--text); font-weight: 600; font-size: 13.5px;
+  transition: box-shadow .2s, transform .15s; white-space: nowrap;
+}
+.suggest-chip svg { width: 18px; height: 18px; color: var(--accent); }
+.suggest-chip:hover { box-shadow: 0 0 0 3px var(--ring), 0 0 18px var(--glow); }
+.suggest-chip:active { transform: scale(.97); }
+.support-card { width: min(520px, 94vw) !important; }
+.support-card textarea { resize: vertical; min-height: 110px; }
+.support-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+#support-close { margin-left: auto; }
+
+.doc-card {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; align-items: center; margin-top: 10px;
+  padding: 10px 12px; border-radius: var(--radius-sm); background: var(--chip); border: 1px solid var(--border); white-space: normal;
+}
+.doc-icon {
+  grid-row: span 2; width: 44px; height: 52px; border-radius: 8px; display: grid; place-items: center;
+  font: 700 11px var(--font); color: #fff; background: #64748b; letter-spacing: .5px;
+}
+.doc-icon.kind-pdf { background: #d9464b; } .doc-icon.kind-word { background: #2f6fd6; } .doc-icon.kind-table { background: #1f8f55; }
+.doc-icon.kind-image { background: #9a50d8; } .doc-icon.kind-text { background: #6b7280; } .doc-icon.kind-archive { background: #b7791f; }
+.doc-info { min-width: 0; }
+.doc-info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-info small { color: var(--muted); font-size: 12px; }
+.doc-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.doc-actions .btn { padding: 4px 10px; font-size: 12.5px; }
+.doc-send { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.doc-send select { width: auto; }
+.doc-send input { flex: 1; min-width: 160px; }
+
+.file-search { position: relative; display: flex; align-items: center; gap: 6px; margin-left: 12px; flex: 0 1 320px;
+  padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--input); }
+.file-search svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.file-search input { border: 0; background: transparent; padding: 7px 0; min-width: 0; width: 100%; box-shadow: none !important; }
+.file-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.fs-results { position: absolute; top: calc(100% + 6px); left: 0; width: min(520px, 80vw); max-height: 60vh; overflow-y: auto;
+  z-index: 60; padding: 6px; background: var(--surface-strong) !important; }
+.fs-head { padding: 4px 8px 6px; color: var(--muted); font-size: 12px; }
+.fs-row { display: block; width: 100%; text-align: left; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--text); cursor: pointer; }
+.fs-row:hover, .fs-row:focus { background: var(--chip); outline: none; }
+.fs-row b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-row small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) { .suggest-chip span { display: none; } .file-search { flex-basis: 180px; } }
+.found-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.found-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 10px;
+  border-radius: var(--radius-sm); background: var(--chip); }
+#gm-text { width: 100%; font-family: Consolas, 'Cascadia Mono', monospace; font-size: 13px; }

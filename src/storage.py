@@ -102,6 +102,9 @@ class Store:
             ''')
             for key in ('pairing_token', 'session_secret'):
                 db.execute('INSERT OR IGNORE INTO meta VALUES (?,?)', (key, secrets.token_urlsafe(32)))
+            columns = {row[1] for row in db.execute('PRAGMA table_info(history)')}
+            if 'attachment' not in columns:
+                db.execute('ALTER TABLE history ADD COLUMN attachment TEXT')  # документ в чате (6.0)
 
     @contextmanager
     def connect(self):
@@ -201,14 +204,25 @@ class Store:
             return self.settings(owner)
 
     # ---- история ----
-    def add(self, owner, role, text):
+    def add(self, owner, role, text, attachment=None):
         with self.connect() as db:
-            db.execute('INSERT INTO history(owner,role,text) VALUES (?,?,?)', (owner, role, text))
+            db.execute('INSERT INTO history(owner,role,text,attachment) VALUES (?,?,?,?)',
+                       (owner, role, text, json.dumps(attachment, ensure_ascii=False) if attachment else None))
 
     def history(self, owner, limit=1000):
         with self.connect() as db:
-            rows = db.execute('SELECT role,text,created FROM history WHERE owner=? ORDER BY id DESC LIMIT ?', (owner, limit)).fetchall()
-        return [dict(role=r, text=t, created=c) for r, t, c in reversed(rows)]
+            rows = db.execute('SELECT role,text,created,attachment FROM history WHERE owner=? ORDER BY id DESC LIMIT ?',
+                              (owner, limit)).fetchall()
+        result = []
+        for role, text, created, attachment in reversed(rows):
+            item = dict(role=role, text=text, created=created)
+            if attachment:
+                try:
+                    item['attachment'] = json.loads(attachment)
+                except ValueError:
+                    pass
+            result.append(item)
+        return result
 
     def clear(self, owner):
         with self.connect() as db:

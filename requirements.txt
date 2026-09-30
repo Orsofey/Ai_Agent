@@ -34,6 +34,9 @@ yt-dlp>=2025.3.31
 # Чтение PDF для «проштудируй папку» (BSD)
 pypdf>=4.3,<7
 
+# Телевизоры LG и Samsung (WebSocket), Apache 2.0
+websocket-client>=1.8,<2
+
 # QR-код для подключения телефона
 segno>=1.6,<2
 

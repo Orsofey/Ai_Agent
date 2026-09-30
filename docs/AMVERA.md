@@ -78,3 +78,7 @@
   проект запущен.
 - **Нужно сменить пароль владельца** — поменяйте `OWNER_PASSWORD` и перезапустите проект.
 - **Не терять аккаунты** — всё хранится в `/data`; не удаляйте хранилище проекта.
+
+## «Ваши предложения» в Telegram
+
+Переменные `TELEGRAM_BOT_TOKEN` (секрет), `TELEGRAM_CHAT_ID`, `SUPPORT_TELEGRAM` — см. [SUPPORT_TELEGRAM.md](SUPPORT_TELEGRAM.md).

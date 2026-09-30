@@ -30,6 +30,10 @@
       <div><div class="brand-name"><span id="agent-name">Андрей</span></div><small>Голосовой ассистент · работает в любом приложении</small></div>
     </div>
     <div class="spacer"></div>
+    <button class="suggest-chip" id="suggest-btn" title="Написать разработчику лично: идея, пожелание, ошибка">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>
+      <span>Ваши предложения</span></button>
+    <div class="spacer"></div>
     <span class="pill warn" id="download-pill" hidden title="Установка моделей"><span class="dot"></span><span id="download-status"></span></span>
     <span class="pill" id="engine-pill" title="Распознавание речи"><span class="dot"></span><span id="engine">Загрузка…</span></span>
     <span class="pill" id="ai-pill" title="Ответы на вопросы"><span class="dot"></span><span id="ai-status">ИИ</span></span>
@@ -57,7 +61,13 @@
 
     <section class="card chat-panel" aria-label="Диалог">
       <div class="chat-head">
-        <h2>Диалог</h2><div class="spacer"></div>
+        <h2>Диалог</h2>
+        <div class="file-search" role="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="file-search" type="search" placeholder="Мгновенный поиск файлов…" autocomplete="off" aria-label="Поиск файлов">
+          <div class="fs-results card" id="fs-results" hidden></div>
+        </div>
+        <div class="spacer"></div>
         <button class="btn ghost" id="clear">Очистить</button>
       </div>
       <div class="messages" id="messages" aria-live="polite"></div>
@@ -84,6 +94,20 @@
   </main>
 </div>
 
+<div class="pairing" id="support" hidden>
+  <div class="card support-card" role="dialog" aria-labelledby="support-title">
+    <h2 id="support-title">Ваши предложения</h2>
+    <p class="hint">Идея, пожелание или ошибка — сообщение придёт разработчику лично в Telegram.</p>
+    <textarea id="support-text" class="field" rows="5" maxlength="3000" placeholder="Например: добавьте управление кондиционером"></textarea>
+    <input id="support-contact" type="text" maxlength="200" placeholder="Как с вами связаться (необязательно): @ник или почта">
+    <div class="support-actions">
+      <button class="btn primary" id="support-send">Отправить</button>
+      <button class="btn" id="support-tg">Написать в Telegram лично</button>
+      <button class="btn ghost" id="support-close">Закрыть</button>
+    </div>
+  </div>
+</div>
+
 <div class="pairing" id="pair" hidden>
   <div class="card">
     <h2>Подключение к агенту</h2>
@@ -97,6 +121,7 @@
 <script src="/static/core.js?v={{ version }}"></script>
 <script src="/static/voice-output.js?v={{ version }}"></script>
 <script src="/static/speech.js?v={{ version }}"></script>
+<script src="/static/extras.js?v={{ version }}"></script>
 <script src="/static/app.js?v={{ version }}"></script>
 </body>
 </html>

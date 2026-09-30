@@ -18,7 +18,7 @@ else:
                      'pystray._win32', 'PIL.Image', 'pyttsx3.drivers', 'pyttsx3.drivers.sapi5']
 packages = ('onnx_asr', 'onnxruntime', 'faster_whisper', 'ctranslate2', 'av', 'tokenizers', 'playwright',
             'webview', 'piper', 'sounddevice', '_sounddevice_data', 'ddgs', 'primp', 'pyperclip',
-            'huggingface_hub', 'yt_dlp', 'segno', 'cryptography', 'pypdf')
+            'huggingface_hub', 'yt_dlp', 'segno', 'cryptography', 'pypdf', 'websocket')
 packages += ('Quartz', 'AppKit', 'ApplicationServices') if MAC else ('pythonnet', 'clr_loader', 'pystray')
 for package in packages:
     try:
