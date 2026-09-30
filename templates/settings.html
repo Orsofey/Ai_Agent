@@ -29,6 +29,9 @@
     <button class="nav-item" data-page="scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Сценарии</button>
     <button class="nav-item" data-page="reminders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Напоминания</button>
     <button class="nav-item" data-page="macros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 4l14 8-14 8z"/></svg>Макросы</button>
+    <button class="nav-item" data-page="files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="2.5"/><path d="m14 15 2 2"/></svg>Файлы и поиск</button>
+    <button class="nav-item" data-page="games"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3M15 12h.01M18 12h.01"/></svg>Игры</button>
+    <button class="nav-item" data-page="smarthome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>Умный дом</button>
     <button class="nav-item" data-page="integrations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Интеграции</button>
     <button class="nav-item premium" data-page="appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.5-.8 1.5-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></svg>Оформление<span class="lock-badge" title="Доступно по подписке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></button>
     <button class="nav-item" data-page="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Телефон</button>
@@ -141,6 +144,15 @@
           <div class="control"><div class="range"><input type="range" min="60" max="200" step="5" data-setting="tts_rate" data-unit="%"><output data-for="tts_rate"></output></div></div></div>
         <div class="row stack"><div class="control"><button class="btn" id="test-voice">Проверить голос</button></div></div>
       </div>
+      <div class="card group">
+        <h2 class="section-title">Добавить голос</h2>
+        <div class="row"><div class="label"><b>Каталог голосов Piper</b><small>Десятки языков. У каждого голоса своя лицензия — карточка сохраняется рядом с голосом.</small></div>
+          <div class="control"><select id="vc-lang"><option value="ru">Русский</option></select><button class="btn" id="vc-load">Показать голоса</button></div></div>
+        <div id="vc-list" class="found-list"></div>
+        <div class="row"><div class="label"><b>Свой голос</b><small>Файлы «имя.onnx» и «имя.onnx.json» (обученный или купленный с правами).</small></div>
+          <div class="control"><input type="file" id="vc-files" multiple accept=".onnx,.json"><button class="btn" id="vc-upload">Загрузить</button></div></div>
+        <span class="hint" id="vc-hint"></span>
+      </div>
     </section>
 
     <!-- ИИ -->
@@ -181,6 +193,11 @@
         <div class="row"><div class="label"><b>Длина ответов</b></div>
           <div class="control"><select data-setting="answer_style"><option value="short">Коротко, для голоса</option><option value="detailed">Подробнее</option></select></div></div>
         <div class="row stack"><div class="control"><button class="btn primary" id="test-ai">Проверить нейросеть</button><span class="hint" id="ai-test-result"></span></div></div>
+      </div>
+      <div class="card group">
+        <h2 class="section-title">Зрение</h2>
+        <div class="row"><div class="label"><b>Модель зрения Qwen3-VL</b><small id="vision-state">«Что это?» — описание того, что под курсором или в выделенной области. Работает на этом ПК, ≈2 ГБ.</small></div>
+          <div class="control"><select id="vision-model"><option value="qwen3-vl-2b">Qwen3-VL 2B (рекомендуется)</option><option value="qwen3-vl-4b">Qwen3-VL 4B (точнее, 8+ ГБ ОЗУ)</option></select><button class="btn" id="vision-download">Скачать</button></div></div>
       </div>
     </section>
 
@@ -304,6 +321,84 @@
             <li><b>«Запиши макрос работа»</b> … команды … <b>«Сохрани макрос»</b> — я запомню, что вы делали</li>
             <li><b>«Запусти макрос утро»</b> или своя фраза запуска, например <b>«Доброе утро»</b></li>
             <li><b>«Мои макросы»</b>, <b>«Удали макрос утро»</b>, <b>«Стоп»</b> — прервать выполнение</li>
+          </ul></div>
+      </div>
+    </section>
+
+    <!-- ФАЙЛЫ -->
+    <section class="page" id="page-files">
+      <h1>Файлы и поиск</h1><p class="lead">Мгновенный поиск по именам и тексту файлов (как Everything): поле над чатом или Ctrl+K. Индекс строится в фоне и хранится только на этом ПК.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Индекс файлов</b><small id="fi-state">—</small></div>
+          <div class="control"><button class="btn" id="fi-reindex">Обновить сейчас</button></div></div>
+        <div class="row stack"><div class="label"><b>Голосом</b></div>
+          <ul class="examples">
+            <li><b>«Найди файл отчёт»</b>, <b>«найди документы про аренду»</b>, затем <b>«открой второй»</b></li>
+            <li><b>«Что в договоре сказано про сроки?»</b> — ответ по тексту файла</li>
+            <li><b>«Наведи порядок в загрузках»</b> → «да»; <b>«отмени»</b> — вернуть как было</li>
+            <li><b>«Переименуй сканы по дате»</b>, <b>«найди дубликаты везде»</b>, <b>«удали дубликаты»</b> (в Корзину)</li>
+            <li><b>«Сделай из этих файлов PDF»</b> — выделите файлы в Проводнике</li>
+            <li><b>«Отправь этот файл Милане в Телеграм»</b>, <b>«отправь справку на почту ivan@mail.ru»</b>, <b>«скопируй документ»</b></li>
+            <li><b>«Что это?»</b> — наведите мышку; <b>«сейчас обведу»</b> — выделите область; <b>«что на экране?»</b></li>
+          </ul></div>
+      </div>
+    </section>
+
+    <!-- ИГРЫ -->
+    <section class="page" id="page-games">
+      <h1>Игры</h1><p class="lead">«<span class="name-ref">Андрей</span>, включи игровой режим» — и короткие фразы («прыжок», «перезарядка», «беги вперёд») нажимают клавиши в игре без имени ассистента. Остальную речь ассистент в этом режиме игнорирует. В сетевых играх с античитом используйте только там, где макросы разрешены.</p>
+      <div class="card group">
+        <div class="row"><div class="label"><b>Игровой режим</b><small id="gm-state">—</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" id="gm-active"><span></span></label></div></div>
+        <div class="row"><div class="label"><b>Профиль</b><small>Выбирается сам по запущенной игре; здесь — редактирование.</small></div>
+          <div class="control"><select id="gm-profile"></select><button class="btn ghost" id="gm-new">+ Новый профиль</button></div></div>
+        <div class="row stack"><div class="label"><b>Команды профиля</b><small>Строка: «фраза | синоним = клавиши». Примеры: «прыжок = space», «беги = hold shift+w 2», «стреляй = click left», «гг = chat t гг».</small></div>
+          <textarea id="gm-text" class="field" rows="14" spellcheck="false"></textarea></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="gm-save">Сохранить</button><span class="hint" id="gm-hint"></span></div></div>
+      </div>
+    </section>
+
+    <!-- УМНЫЙ ДОМ -->
+    <section class="page" id="page-smarthome">
+      <h1>Умный дом</h1><p class="lead">Телевизор, роутер и лампочки голосом. Пароли и токены хранятся только на этом ПК.</p>
+      <div class="card group">
+        <h2 class="section-title">Телевизор</h2>
+        <div class="row"><div class="label"><b>Тип</b></div>
+          <div class="control"><select id="sh-tv-type"><option value="">Не подключён</option><option value="lg">LG (webOS)</option><option value="samsung">Samsung (Tizen)</option><option value="android">Android TV / Google TV (Xiaomi, Sber, TCL, Haier…)</option><option value="yandex">Телевизор в «Доме с Алисой»</option></select></div></div>
+        <div class="row"><div class="label"><b>Адрес в сети</b><small>IP телевизора, например 192.168.1.40</small></div>
+          <div class="control"><input id="sh-tv-ip" placeholder="192.168.1.40"><button class="btn ghost" id="sh-tv-find">Найти в сети</button></div></div>
+        <div class="row"><div class="label"><b>MAC-адрес</b><small>Чтобы включать телевизор голосом (Wake-on-LAN). Есть в настройках сети ТВ.</small></div>
+          <div class="control"><input id="sh-tv-mac" placeholder="AA:BB:CC:DD:EE:FF"></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="sh-tv-save">Сохранить и подключить</button><button class="btn ghost" id="sh-adb" hidden>Скачать ADB</button><span class="hint" id="sh-tv-hint">Первое подключение нужно разрешить на экране телевизора. Android TV: «Настройки → Для разработчиков → Отладка по сети».</span></div></div>
+        <div id="sh-tv-found" class="found-list"></div>
+      </div>
+      <div class="card group">
+        <h2 class="section-title">Освещение</h2>
+        <div class="row"><div class="label"><b>«Дом с Алисой»</b><small>Все лампы и розетки из приложения «Дом с Алисой». <a href="#" id="sh-ya-link" hidden>Получить токен</a></small></div>
+          <div class="control"><input id="sh-ya-token" type="password" placeholder="Токен" autocomplete="off"></div></div>
+        <div class="row"><div class="label"><b>Home Assistant</b><small>Адрес и долгосрочный токен (Профиль → Токены).</small></div>
+          <div class="control"><input id="sh-ha-url" placeholder="http://homeassistant.local:8123"><input id="sh-ha-token" type="password" placeholder="Токен" autocomplete="off"></div></div>
+        <div class="row"><div class="label"><b>Philips Hue</b><small>Нажмите кнопку на мосту, затем «Подключить».</small></div>
+          <div class="control"><input id="sh-hue-bridge" placeholder="Адрес моста"><button class="btn ghost" id="sh-hue-find">Найти</button><button class="btn ghost" id="sh-hue-pair">Подключить</button></div></div>
+        <div class="row"><div class="label"><b>Yeelight</b><small>В приложении Yeelight включите «Управление по локальной сети».</small></div>
+          <div class="control"><button class="btn ghost" id="sh-yee-find">Найти лампы</button><span class="hint" id="sh-yee-hint"></span></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="sh-light-save">Сохранить</button><button class="btn" id="sh-light-test">Проверить</button><span class="hint" id="sh-light-hint"></span></div></div>
+      </div>
+      <div class="card group">
+        <h2 class="section-title">Роутер</h2>
+        <div class="row"><div class="label"><b>Модель</b></div>
+          <div class="control"><select id="sh-r-type"><option value="">Не подключён</option><option value="keenetic">Keenetic</option><option value="mikrotik">MikroTik (RouterOS 7)</option></select></div></div>
+        <div class="row"><div class="label"><b>Адрес, логин, пароль</b></div>
+          <div class="control"><input id="sh-r-address" placeholder="192.168.1.1"><input id="sh-r-login" placeholder="admin"><input id="sh-r-password" type="password" placeholder="Пароль" autocomplete="off"></div></div>
+        <div class="row stack"><div class="control"><button class="btn primary" id="sh-r-save">Сохранить</button><button class="btn" id="sh-r-test">Проверить</button><span class="hint" id="sh-r-hint"></span></div></div>
+      </div>
+      <div class="card group">
+        <div class="row stack"><div class="label"><b>Голосом</b></div>
+          <ul class="examples">
+            <li><b>«Включи телевизор»</b>, <b>«громкость телевизора 20»</b>, <b>«переключи на 5 канал»</b>, <b>«открой на телевизоре Кинопоиск»</b>, <b>«включи на телевизоре Интерстеллар на YouTube»</b></li>
+            <li><b>«Включи свет в спальне»</b>, <b>«яркость 40 процентов»</b>, <b>«сделай свет синим»</b>, <b>«тёплый свет»</b>, <b>«выключи свет везде»</b></li>
+            <li><b>«Кто подключён к Wi-Fi»</b>, <b>«перезагрузи роутер»</b> → «да», <b>«отключи интернет у планшета»</b>, <b>«проверь интернет»</b></li>
+            <li><b>«Закажи пиццу»</b>, <b>«купи билет на самолёт из Москвы в Сочи на 5 октября на двоих»</b>, <b>«забронируй столик в Пушкине на 19:00 на троих»</b> — оплату подтверждаете вы</li>
           </ul></div>
       </div>
     </section>
@@ -462,5 +557,6 @@
 <script src="/static/settings.js?v={{ version }}"></script>
 <script src="/static/scenarios.js?v={{ version }}"></script>
 <script src="/static/tools.js?v={{ version }}"></script>
+<script src="/static/tools60.js?v={{ version }}"></script>
 </body>
 </html>

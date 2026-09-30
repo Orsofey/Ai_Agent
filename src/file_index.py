@@ -86,6 +86,8 @@ class FileIndex:
         try:
             db.execute('PRAGMA journal_mode=WAL')
             db.execute('PRAGMA synchronous=NORMAL')
+            # SQLite lower() знает только латиницу — для «Отчёт» в середине имени нужен свой.
+            db.create_function('ru_lower', 1, lambda v: _yo(str(v or '').casefold()), deterministic=True)
             with db:
                 yield db
         finally:
@@ -239,7 +241,7 @@ class FileIndex:
         def work(item):
             file_id, path, name = item
             try:
-                return file_id, name, (reader(Path(path)) or '')[:BODY_LIMIT], 2
+                return file_id, name, _yo((reader(Path(path)) or '')[:BODY_LIMIT]), 2
             except Exception as exc:
                 log.debug('No text for %s: %s', path, exc)
                 return file_id, name, '', 1
@@ -280,9 +282,9 @@ class FileIndex:
                                     'snippet': re.sub(r'\s+', ' ', snippet or '').strip()})
             if len(results) < limit:
                 # Подстрока в середине имени («годовойотчет»), когда FTS не нашёл по началу слова.
-                needle = str(query).strip().casefold()
+                needle = _yo(str(query).strip().casefold())
                 if needle:
-                    rows = db.execute('SELECT path,name,folder,size,mtime FROM files WHERE lower(name) LIKE ? '
+                    rows = db.execute('SELECT path,name,folder,size,mtime FROM files WHERE ru_lower(name) LIKE ? '
                                       'ORDER BY mtime DESC LIMIT ?', ('%' + needle.replace('%', '') + '%', limit)).fetchall()
                     have = {r['path'] for r in results}
                     for path, name, folder, size, mtime in rows:
@@ -302,8 +304,13 @@ class FileIndex:
 
 
 def _name_words(name):
-    """Имя для поиска: «Годовой_отчёт-2025.pdf» → «Годовой отчёт 2025 pdf»."""
-    return re.sub(r'[_\-.()\[\]]+', ' ', name)
+    """Имя для поиска: «Годовой_отчёт-2025.pdf» → «Годовой отчет 2025 pdf»."""
+    return _yo(re.sub(r'[_\-.()\[\]]+', ' ', name))
+
+
+def _yo(text):
+    """FTS5 не считает «ё» и «е» одной буквой — приводим к «е», как и запросы."""
+    return text.replace('ё', 'е').replace('Ё', 'Е')
 
 
 def _chunks(items, size):

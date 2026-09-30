@@ -52,7 +52,8 @@ def languages(catalog):
         code = lang.get('family') or (lang.get('code') or '')[:2]
         if code:
             found[code] = lang.get('name_native') or lang.get('name_english') or code
-    return dict(sorted(found.items(), key=lambda x: (x[0] not in ('ru', 'en', 'uk'), x[1])))
+    first = ('ru', 'en', 'uk', 'kk')
+    return dict(sorted(found.items(), key=lambda x: (first.index(x[0]) if x[0] in first else 9, x[1])))
 
 
 def list_voices(catalog, language='ru', root=None):

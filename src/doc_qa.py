@@ -136,4 +136,6 @@ class DocumentQA:
         request = parse(text)
         if request is None:
             return None
+        if not (request['this'] or MARKERS.search(request['question'])) and self.find_document(request) is None:
+            return None  # «какой счёт по матчу» — не про документ: пусть отвечает нейросеть
         return self.answer(request, settings)

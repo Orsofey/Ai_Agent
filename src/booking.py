@@ -82,7 +82,7 @@ def parse_date(text, today=None):
 
 def people(text, default=1):
     low = text.casefold()
-    match = re.search(r'на\s+(\d{1,2})\s*(?:человек|персон|гост|взросл|пассажир)?', low)
+    match = re.search(r'на\s+(\d{1,2})\s*(?:человек|персон|гост|взросл|пассажир|чел\b)', low)
     if match:
         return max(1, min(9, int(match[1])))
     match = re.search(r'на\s+(' + '|'.join(COUNT) + r')\b', low)

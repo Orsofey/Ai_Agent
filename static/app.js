@@ -31,13 +31,14 @@
       'Или дайте команду: «' + name + ', напиши текст привет, Милана» — в Word, Telegram или любом другом окне.'));
     m.appendChild(box);
   }
-  function bubble(text, role, meta) {
+  function bubble(text, role, meta, attachment) {
     const empty = $('messages').querySelector('.empty-chat');
     if (empty) empty.remove();
     const el = document.createElement('div');
     el.className = 'msg ' + role;
     el.textContent = text;
     if (meta) { const s = document.createElement('span'); s.className = 'meta'; s.textContent = meta; el.appendChild(s); }
+    if (attachment && window.AgentExtras) AgentExtras.card(el, attachment);  // документ: открыть, отправить…
     $('messages').appendChild(el);
     scrollDown();
     return el;
@@ -51,7 +52,7 @@
   async function loadHistory() {
     const data = await Agent.api('history');
     $('messages').replaceChildren();
-    data.history.forEach(m => bubble(m.text, m.role));
+    data.history.forEach(m => bubble(m.text, m.role, null, m.attachment));
     emptyState();
   }
 
@@ -167,7 +168,7 @@
           else if (voiceBubble) { setBubbleText(voiceBubble, e.text); voiceBubble.classList.remove('streaming'); voiceBubble = null; }
           else bubble(e.text, 'agent');
         } else if (e.source === 'system') {
-          bubble(e.text, 'agent', '🔔');  // напоминание, сценарий, результат изучения файлов
+          bubble(e.text, 'agent', e.attachment ? null : '🔔', e.attachment);  // напоминание, сценарий, документ
         } else if (!localRequest && e.owner && e.owner.startsWith('device:') && e.owner !== 'device:desktop') {
           bubble(e.text, e.role, '📱 с телефона');
         }
@@ -195,6 +196,9 @@
         break;
       case 'account':
         loadAccountChip();
+        break;
+      case 'support':
+        if (window.AgentExtras) AgentExtras.openSupport();
         break;
       case 'settings':
         Agent.settings = e.settings;
