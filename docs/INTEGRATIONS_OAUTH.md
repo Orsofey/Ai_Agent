@@ -1,4 +1,4 @@
-# Кнопка «Подключить»: GitHub, Google Документы и Таблицы, Miro, Трекер
+# Кнопка «Подключить»: как зарегистрировать приложения (разработчику)
 
 Пользователь открывает Настройки → **Интеграции** → нажимает **«Подключить»** на карточке приложения
 → входит в свой аккаунт в браузере → готово. Для этого разработчик (вы) один раз регистрирует
@@ -12,6 +12,13 @@
 | GitHub | код устройства: открывается github.com/login/device, вводится код | `GITHUB_CLIENT_ID` |
 | Google Документы и Таблицы | браузер → аккаунт Google → «Разрешить» (один вход на оба) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Miro | браузер → аккаунт Miro → «Разрешить» | `MIRO_CLIENT_ID`, `MIRO_CLIENT_SECRET` |
+| Google Календарь, Gmail | то же приложение Google, добавить API и доступы | — (те же ключи Google) |
+| Яндекс: Диск, Календарь, Почта | браузер → Яндекс ID → «Разрешить» | `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET` |
+| Microsoft 365 (Outlook, OneDrive, To Do) | браузер → аккаунт Microsoft → «Принять» | `MS_CLIENT_ID` |
+| Notion | браузер → выбрать страницы/базы → «Разрешить» (или ключ интеграции) | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
+| Spotify | браузер → аккаунт Spotify → «Принять» | `SPOTIFY_CLIENT_ID` |
+| Dropbox | браузер → аккаунт Dropbox → «Разрешить» | `DROPBOX_APP_KEY` |
+| Почта IMAP, Todoist, YouGile, Kaiten, Weeek, Т-Инвестиции, Битрикс24, amoCRM, GitLab, Jira, Linear | пользователь вставляет ключ из настроек сервиса в карточку | ничего |
 
 Пока ключей нет, для GitHub и Miro работает запасной путь — **личный токен** (поле под кнопкой).
 Для проверки ключи можно задать переменными окружения: `ANDREY_GITHUB_CLIENT_ID` и т. п.
@@ -137,8 +144,91 @@ def agent_token():
 
 И впишите адрес Трекера в `src/connector_config.py`: `TRACKER_URL = 'https://ваш-трекер'`.
 
+## Google Календарь и Gmail (5 минут, в том же проекте Google)
+
+1. console.cloud.google.com → ваш проект «Андрей» → APIs & Services → **Library** → включите **Google Calendar API**
+   и **Gmail API**.
+2. **OAuth consent screen → Data access → Add scopes**: `calendar.events` и `gmail.readonly`.
+3. Ключи те же (`GOOGLE_CLIENT_ID`/`SECRET`). Каждая карточка просит только свои доступы и добавляет их к уже выданным
+   (`include_granted_scopes`) — пользователю, у которого уже подключены Документы, достаточно нажать «Подключить» на
+   карточке Календаря.
+4. `gmail.readonly` у Google — «restricted scope»: без платной проверки (CASA) работает только у вас и тестовых
+   пользователей (до 100, в режиме Testing токен живёт 7 дней). Всем остальным подойдёт карточка
+   **«Почта (IMAP)»** с паролем приложения Gmail — бесплатно и без проверки.
+
+## Яндекс: Диск, Календарь, Почта (10 минут)
+
+1. oauth.yandex.ru → **Создать приложение** → «Для авторизации пользователей» → платформа **«Веб-сервисы»**.
+2. Redirect URI: `http://127.0.0.1:5000/oauth/yandex/callback`.
+3. Доступы: **Яндекс Диск REST API** — `cloud_api:disk.read`, `cloud_api:disk.write`, `cloud_api:disk.info`;
+   **Календарь** — `calendar:all`; **Почта** — `mail:imap_ro`; **Яндекс ID** — `login:email`, `login:info`.
+4. ClientID → `YANDEX_CLIENT_ID`, Client secret → `YANDEX_CLIENT_SECRET`.
+5. Пользователю в Яндекс Почте нужно разрешить IMAP: Почта → ⚙ → «Почтовые программы» → «С сервера imap.yandex.ru
+   по протоколу IMAP» + «Портальный пароль» / OAuth-токены.
+
+Календарь работает по CalDAV (caldav.yandex.ru), почта — по IMAP с токеном (XOAUTH2), файлы попадают в папку
+«Андрей» на Диске.
+
+## Microsoft 365 / Outlook.com (10 минут)
+
+1. entra.microsoft.com → **App registrations → New registration**, «Accounts in any organizational directory and
+   personal Microsoft accounts».
+2. **Authentication → Add a platform → Mobile and desktop applications** → свой Redirect URI:
+   `http://localhost:5000/oauth/microsoft/callback` (Microsoft пускает http только для `localhost` — программа сама
+   подставляет localhost вместо 127.0.0.1). «Allow public client flows» — Yes.
+3. **API permissions** → Microsoft Graph → Delegated: `User.Read`, `Calendars.ReadWrite`, `Mail.Read`,
+   `Tasks.ReadWrite`, `Files.ReadWrite`, `offline_access`.
+4. Application (client) ID → `MS_CLIENT_ID`. Секрет не нужен (PKCE).
+
+## Notion (5 минут, по желанию)
+
+Без регистрации пользователь сам создаёт **внутреннюю интеграцию** (notion.so/profile/integrations), вставляет её
+ключ в карточку и в своей базе задач: ••• → «Подключения» → добавляет интеграцию. Для кнопки «Подключить»:
+notion.so/profile/integrations → **Новая интеграция → Публичная**, Redirect URI
+`http://127.0.0.1:5000/oauth/notion/callback`, OAuth client ID/secret → `NOTION_CLIENT_ID`/`NOTION_CLIENT_SECRET`.
+База задач выбирается сама: та, в названии которой есть «задачи», «дела», «to do» или «tasks», иначе первая.
+
+## Spotify (5 минут)
+
+1. developer.spotify.com/dashboard → **Create app**, API — **Web API**.
+2. Redirect URI: `http://127.0.0.1:5000/oauth/spotify/callback` (Spotify не принимает `localhost`, только 127.0.0.1).
+3. Client ID → `SPOTIFY_CLIENT_ID`. Секрет не нужен (PKCE).
+4. Новое приложение в «Development mode» пускает до 25 пользователей, которых вы добавляете в Users Management;
+   для всех — заявка на Extended Quota. Управление воспроизведением Spotify даёт только пользователям Premium —
+   без Premium «Андрей» откроет плейлист в приложении Spotify.
+
+## Dropbox (5 минут)
+
+1. dropbox.com/developers/apps → **Create app** → Scoped access → **Full Dropbox**.
+2. Permissions: `files.content.write`, `files.content.read`, `files.metadata.read`, `account_info.read`.
+3. Redirect URI: `http://127.0.0.1:5000/oauth/dropbox/callback`.
+4. App key → `DROPBOX_APP_KEY` (секрет не нужен — PKCE). Для более 500 пользователей — «Apply for production».
+
+## Приложения по ключу — ничего регистрировать не нужно
+
+Пользователь вставляет ключ прямо в карточку (подсказка, где его взять, — в самой карточке):
+
+| Карточка | Что вставить |
+|---|---|
+| Почта (IMAP) | адрес и **пароль приложения** (Mail.ru, Яндекс, Gmail, Rambler, iCloud; сервер определяется сам) |
+| Todoist | Настройки → Интеграции → Для разработчиков → токен API |
+| YouGile | логин и пароль один раз — программа сама создаёт ключ API и хранит только его |
+| Kaiten | адрес company.kaiten.ru и ключ API из профиля |
+| Weeek | Настройки пространства → API → токен |
+| Т-Инвестиции | токен T-Invest API **только для чтения** (приложение Т-Банка → Инвестиции → Настройки → Токены) |
+| Битрикс24 | адрес входящего вебхука с правами CRM |
+| amoCRM | адрес company.amocrm.ru и долгосрочный токен внешней интеграции |
+| GitLab | адрес (для своего сервера) и personal access token |
+| Jira | адрес, почта и API token (Cloud) или personal access token (свой сервер) |
+| Linear | Personal API key |
+
+Т-Инвестиции работают только на чтение: «Андрей» не отправляет заявки, даже если токен с правом торговли.
+
 ## Как добавить ещё одно приложение
 
-Новый класс в `src/connectors.py` (по образцу `MiroConnector`): адреса OAuth, `handle()` с голосовыми
-фразами — и приложение появится карточкой в «Интеграциях». Для приложений без OAuth — JSON-интеграция или
-Python-плагин (docs/INTEGRATIONS.md).
+Новый класс в `src/connectors_apps.py`: для входа через браузер — наследник `OAuthConnector` (адреса OAuth,
+`client_id`), для входа по ключу — `KeyConnector` с `fields` и `whoami_with()`. Голос — готовые «умения»
+(`CalendarSkill`, `MailSkill`, `TasksSkill`, `FilesSkill`, `CrmSkill`, `DevSkill`): достаточно написать методы
+`calendar_events`/`calendar_create`, `mail_unread`/`mail_search`, `tasks_list`/`tasks_add`, `files_upload`/…,
+и добавить класс в `APPS`. Приложение появится карточкой в «Интеграциях». Для приложений без API — JSON-интеграция
+или Python-плагин (docs/INTEGRATIONS.md).

@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '6.0'
+VERSION = '6.1'
 
 
 def local_ip():
@@ -191,6 +191,7 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     files.publish = lambda path, text: documents.publish(path, text)
     file_index = FileIndex(store.root, background=background)
     agent.documents = documents
+    connectors.documents = documents   # «загрузи этот файл на Яндекс Диск / в Dropbox / в OneDrive»
     agent.file_search = FileSearch(file_index, publish=lambda path, text: documents.publish(path, text),
                                    opener=oshelp.open_path, revealer=oshelp.reveal)
     agent.doc_qa = DocumentQA(file_index, brain=getattr(agent, 'brain', None), documents=documents)
@@ -200,6 +201,7 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     agent.booking = Booking(open_link, settings=lambda: store.settings('device:desktop'))
     smarthome = SmartHome(store, opener=open_link)
     agent.smarthome = smarthome
+    smarthome.documents = documents   # снимки с камер Home Assistant — карточкой в чат
     support = Support(store, license, VERSION, opener=open_link, events=events)
     agent.support = support
     app.extensions.update(documents=documents, file_index=file_index, smarthome=smarthome, support=support)
@@ -968,6 +970,9 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     def connectors_connect(connector_id):
         data = request.get_json(silent=True) or {}
         connector = connectors.get(connector_id)
+        if isinstance(data.get('fields'), dict):
+            user = connector.use_fields(data['fields'])
+            return jsonify(success=True, connected=True, user=user)
         if data.get('token'):
             user = connector.use_token(str(data['token']))
             return jsonify(success=True, connected=True, user=user)

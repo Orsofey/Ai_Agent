@@ -240,9 +240,10 @@
       const off = el('button', { className: 'btn ghost', textContent: 'Отключить' });
       off.onclick = async () => { render((await Agent.post(`connectors/${item.id}/disconnect`)).items); };
       actions.append(off);
-    } else {
+    } else if (item.auth !== 'token') {
       const on = el('button', { className: 'btn primary', textContent: 'Подключить' });
-      on.disabled = !item.configured && !item.token_hint && item.id !== 'tracker';
+      on.disabled = !item.configured && item.id !== 'tracker';
+      if (on.disabled) on.title = 'Разработчику нужно вписать ключ приложения (docs/INTEGRATIONS_OAUTH.md)';
       on.onclick = () => connect(item, extra);
       actions.append(on);
     }
@@ -256,15 +257,21 @@
       extra.append(el('small', { textContent: 'Разработчик может вписать адрес Трекера в программу — тогда это поле не понадобится.' }),
         el('div', { className: 'conn-row' }, url, save));
     }
-    if (!item.connected && item.token_hint) {
-      const token = el('input', { type: 'password', placeholder: 'или вставьте личный токен', autocomplete: 'off' });
-      const use = el('button', { className: 'btn', textContent: 'Войти по токену' });
+    if (!item.connected && item.fields && item.fields.length) {
+      const inputs = item.fields.map(f => el('input', { type: f.type || 'text', name: f.name, autocomplete: 'off',
+        placeholder: f.label + (f.placeholder ? ' — ' + f.placeholder : '') + (f.optional ? ' (необязательно)' : '') }));
+      const use = el('button', { className: 'btn' + (item.auth === 'token' ? ' primary' : ''),
+        textContent: item.auth === 'token' ? 'Подключить' : 'Войти по ключу' });
       use.onclick = async () => {
-        try { await Agent.post(`connectors/${item.id}/connect`, { token: token.value.trim() }); Agent.toast(item.title + ' подключён.'); load(); }
-        catch (e) { Agent.toast(e.message, 5000); }
+        const fields = Object.fromEntries(inputs.map(i => [i.name, i.value.trim()]));
+        use.disabled = true;
+        try { await Agent.post(`connectors/${item.id}/connect`, { fields }); Agent.toast(item.title + ' подключён.'); load(); }
+        catch (e) { Agent.toast(e.message, 6000); }
+        finally { use.disabled = false; }
       };
-      extra.append(el('details', { className: 'more' }, el('summary', { textContent: 'Войти по личному токену' }),
-        el('small', { textContent: item.token_hint }), el('div', { className: 'conn-row' }, token, use)));
+      const form = [el('small', { textContent: item.token_hint }), el('div', { className: 'conn-form' }, ...inputs), el('div', { className: 'conn-row' }, use)];
+      if (item.auth === 'token') extra.append(...form);
+      else extra.append(el('details', { className: 'more' }, el('summary', { textContent: 'Войти по личному ключу' }), ...form));
     }
     const examples = el('ul', { className: 'examples' }, ...item.examples.map(e => el('li', {}, el('b', { textContent: '«' + e + '»' }))));
     return el('div', { className: 'card conn-card' + (item.connected ? ' connected' : '') },
@@ -297,7 +304,15 @@
     } catch (e) { Agent.toast(e.message, 7000); }
   }
 
-  function render(items) { $('connectors').replaceChildren(...items.map(card)); }
+  const GROUPS = ['Заметки и задачи', 'Google', 'Яндекс', 'Microsoft', 'Почта и календарь', 'Файлы', 'Финансы', 'CRM',
+    'Музыка', 'Разработка', 'Другое'];
+  function render(items) {
+    const groups = [...new Set(items.map(i => i.group || 'Другое'))]
+      .sort((a, b) => (GROUPS.indexOf(a) + 1 || 99) - (GROUPS.indexOf(b) + 1 || 99));
+    $('connectors').replaceChildren(...groups.flatMap(g => [
+      el('h3', { className: 'conn-group', textContent: g }),
+      ...items.filter(i => (i.group || 'Другое') === g).map(card)]));
+  }
   async function load() {
     try { const d = await Agent.api('connectors'); trackerUrl = d.tracker_url || ''; render(d.items); }
     catch (e) { $('connectors').textContent = e.message; }

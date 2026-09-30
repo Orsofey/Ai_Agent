@@ -133,7 +133,7 @@ class LocalComputerAgent:
         self.integrations = integrations
         self.scenarios = None  # ScenarioManager: подключает app.py
         self.tracker = None    # TrackerClient: подключает app.py
-        self.connectors = None # Connectors: GitHub, Google, Miro
+        self.connectors = None # Connectors: Google, Яндекс, Microsoft, Notion, Todoist, Spotify, GitHub…
         self.reminders = None  # Reminders: подключает app.py
         self.power = None      # Power: выключение и перезагрузка ПК
         self.macros = None     # Macros: подключает app.py
@@ -264,6 +264,17 @@ class LocalComputerAgent:
         """Игры, поддержка, файлы (порядок, отправка, PDF), зрение, вопросы по документам, мгновенный поиск."""
         if self.smarthome is not None and self.smarthome.awaiting(owner):
             reply = self.smarthome.handle(text, owner)  # «да» на «перезагрузить роутер?»
+            if reply is not None:
+                return reply
+        if self.connectors is not None:
+            # Приложение названо прямо: «загрузи этот файл на Яндекс Диск», «добавь в Notion задачу…» —
+            # раньше локальных файлов и Трекера, чтобы фразу не перехватили.
+            try:
+                reply = self.connectors.handle(text, named_only=True)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).exception('Connector failed')
+                reply = f'Не получилось: {str(exc)[:160]}'
             if reply is not None:
                 return reply
         steps = (
@@ -397,7 +408,7 @@ class LocalComputerAgent:
             if result is not None:
                 return result, 'info'
 
-        # 1г. Подключённые приложения: GitHub, Google Документы и Таблицы, Miro.
+        # 1г. Подключённые приложения: календари, почта, задачи, облака, CRM, Spotify, GitHub, Google…
         if self.connectors is not None:
             result = self.connectors.handle(text)
             if result is not None:

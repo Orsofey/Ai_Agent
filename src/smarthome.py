@@ -8,6 +8,10 @@
             «отключи интернет у планшета», «открой настройки роутера», «проверь интернет».
 Лампочки:   «Дом с Алисой» (все лампы, добавленные в приложение «Дом с Алисой»), Home Assistant, Philips Hue, Yeelight.
             «Включи свет в спальне», «выключи свет везде», «яркость 40 процентов», «сделай свет синим», «тёплый свет».
+Home Assistant, кроме света:
+            кондиционеры и обогреватели — «включи кондиционер в спальне», «поставь кондиционер на 22», «режим охлаждения»,
+            «сделай теплее»; датчики — «какая температура в детской», «какая влажность дома», «что показывают датчики»;
+            пылесосы — «запусти пылесос», «верни пылесос на базу», «что с пылесосом»; камеры — «покажи камеру у двери».
 
 Пароли и токены хранятся только на этом ПК (папка данных) и не показываются в окне настроек.
 """
@@ -190,6 +194,70 @@ def parse_lights(text):
     for stem, rgb in COLORS.items():
         if re.search(r'\b' + stem + r'\w*\b', value):
             return ('color', (rgb, where))
+    return None
+
+
+CLIMATE = r'(?:кондиционер\w*|кондей\w*|кондер\w*|сплит\w*|климат\w*|обогревател\w*|термостат\w*|отоплени\w*|батаре\w*)'
+VACUUM = r'(?:(?:робот\w*[\s-]*)?пылесос\w*)'
+CAMERA = r'(?:камер\w*|видеокамер\w*)'
+HVAC_MODES = {'охлажд': 'cool', 'холод': 'cool', 'обогрев': 'heat', 'нагрев': 'heat', 'тепл': 'heat', 'осуш': 'dry',
+              'вентиля': 'fan_only', 'проветр': 'fan_only', 'авто': 'heat_cool'}
+SENSOR_KINDS = {'температур': 'temperature', 'градус': 'temperature', 'тепло ли': 'temperature', 'холодно ли': 'temperature',
+                'влажност': 'humidity', 'co2': 'carbon_dioxide', 'углекисл': 'carbon_dioxide', 'со2': 'carbon_dioxide',
+                'качество воздуха': 'carbon_dioxide', 'давлени': 'pressure'}
+
+
+def _place(value, drop):
+    """«в спальне», «у двери», «на кухне» → «спальне»; без слов из drop."""
+    match = re.search(r'(?:^|\s)(?:в|во|на|у|около|возле)\s+(?!\d)([\wё -]+?)$', value)
+    if not match:
+        return ''
+    words = [w for w in match[1].split() if not re.match(drop, w) and number(w) is None
+             and w not in ('на', 'до', 'в', 'во', 'и', 'по')]
+    return ' '.join(words).strip()
+
+
+def parse_home(text):
+    """Home Assistant: ('climate'|'sensor'|'vacuum'|'camera', action, value, where) или None."""
+    value = re.sub(r'\s+', ' ', str(text).casefold().replace('ё', 'е')).strip().strip('.!?')
+    if re.search(CLIMATE, value):
+        where = _place(value, r'(?:' + CLIMATE + r'|градус\w*|режим\w*|\d)')
+        if re.match(r'^(?:включи|вруби|запусти)\s+' + CLIMATE, value) and not re.search(r'\d|режим|охлажд|обогрев|осуш', value):
+            return ('climate', 'on', None, where)
+        if re.match(r'^(?:выключи|выруби|отключи|останови)\s+' + CLIMATE, value):
+            return ('climate', 'off', None, where)
+        match = re.search(r'(?:на|до)\s+(\d{2})(?:\s*градус\w*)?', value) or re.search(r'(\d{2})\s*градус', value) or \
+            re.search(r'температур\w*\s+(\d{2})', value)
+        if match and 10 <= int(match[1]) <= 35:
+            return ('climate', 'temp', int(match[1]), where)
+        for stem, mode in HVAC_MODES.items():
+            if re.search(r'режим\w*\s+' + stem + r'|' + stem + r'\w*\s+(?:на\s+)?' + CLIMATE + r'|включи\s+' + stem, value):
+                return ('climate', 'mode', mode, where)
+    match = re.fullmatch(r'(?:сделай|поставь)\s+(?:по)?(теплее|прохладнее|холоднее)(?:\s+(?:в|во|на)\s+.+)?', value)
+    if match:
+        return ('climate', 'step', 1 if match[1] == 'теплее' else -1, _place(value, r'теплее|прохладнее|холоднее'))
+    match = re.fullmatch(r'(?:сделай|поставь|установи)\s+(\d{2})\s*градус\w*(?:\s+(?:в|во|на)\s+.+)?', value)
+    if match and 10 <= int(match[1]) <= 35:
+        return ('climate', 'temp', int(match[1]), _place(value, r'\d|градус'))
+    if re.search(VACUUM, value) or re.fullmatch(r'пропылесос\w*|начни уборку|убери(?:сь)? (?:в )?квартир\w*|сделай уборку', value):
+        if re.search(r'(?:верни|отправь|вернись|домой|на базу|на зарядку|на док)', value):
+            return ('vacuum', 'return', None, '')
+        if re.search(r'(?:останови|стоп|пауза|выключи|хватит)', value):
+            return ('vacuum', 'stop', None, '')
+        if re.search(r'(?:где|что с|статус|заряд|как дела у|чем занят)', value):
+            return ('vacuum', 'status', None, '')
+        if re.search(r'(?:запусти|включи|начни|пропылесос|убер|уборк|пусть)', value):
+            return ('vacuum', 'start', None, '')
+    if re.search(CAMERA, value) and re.match(r'^(?:покажи|открой|что на|что происходит на|кто на|сними с|сделай снимок)', value):
+        return ('camera', 'snapshot', None, _place(value, CAMERA))
+    if re.search(r'датчик', value) and re.match(r'^(?:что|какие|покажи|прочитай)', value):
+        return ('sensor', 'all', None, _place(value, r'датчик\w*'))
+    if re.match(r'^(?:какая|какой|сколько|тепло ли|холодно ли|что с)', value):
+        kind = next((v for k, v in SENSOR_KINDS.items() if k in value), None)
+        where = _place(value, r'(?:температур|влажност|градус|давлени|воздух)\w*')
+        home = re.search(r'\b(?:дома|в квартире|в доме|в комнате|у меня)\b', value)
+        if kind and (where or home) and not re.search(r'улиц|за окном|снаружи|на улице|погод|в городе|в москв|завтра', value):
+            return ('sensor', kind, None, where)
     return None
 
 
@@ -640,6 +708,20 @@ class HomeAssistant:
                                'type': 'devices.types.light', 'provider': 'homeassistant'})
         return result
 
+    def states(self):
+        response = self.session.get(self.url + '/api/states', headers=self._headers(), timeout=15)
+        response.raise_for_status()
+        return response.json()
+
+    def call(self, domain, service, data):
+        self.session.post(f'{self.url}/api/services/{domain}/{service}', headers=self._headers(), json=data,
+                          timeout=15).raise_for_status()
+
+    def snapshot(self, entity):
+        response = self.session.get(f'{self.url}/api/camera_proxy/{entity}', headers=self._headers(), timeout=20)
+        response.raise_for_status()
+        return response.content
+
     def act(self, ids, action, value=None):
         for entity in ids:
             domain = entity.split('.', 1)[0]
@@ -831,6 +913,7 @@ class SmartHome:
         self._session = session
         self.clock = clock
         self.pending = {}
+        self.documents = None     # Documents: снимки с камер — карточкой в чат
         self.lock = threading.Lock()
 
     @property
@@ -930,6 +1013,12 @@ class SmartHome:
                 request = parse_lights(text)
                 if request is not None:
                     return self.lights_command(*request)
+            if (config.get('lights') or {}).get('ha_url'):
+                request = parse_home(text)
+                if request is not None:
+                    reply = self.home_command(*request)
+                    if reply is not None:
+                        return reply
             request = parse_router(text)
             if request is not None and (config.get('router') or request[0] in ('open', 'check')):
                 return self.router_command(owner, *request)
@@ -990,6 +1079,109 @@ class SmartHome:
         place = '' if where in ('', '*') else f' ({where})'
         return {'on': 'Включаю свет', 'off': 'Выключаю свет', 'brightness': f'Яркость {amount}%',
                 'color': 'Меняю цвет', 'temperature': 'Меняю оттенок'}[action] + place + '.'
+
+    # ---- Home Assistant: климат, датчики, пылесосы, камеры ----
+    def home_assistant(self):
+        lights = self.config().get('lights') or {}
+        if lights.get('ha_url') and lights.get('ha_token'):
+            return HomeAssistant(lights['ha_url'], lights['ha_token'], self.session)
+        return None
+
+    @staticmethod
+    def _pick(states, domains, where, device_class=None):
+        found = []
+        for state in states:
+            entity = state.get('entity_id', '')
+            attrs = state.get('attributes') or {}
+            if entity.split('.', 1)[0] not in domains:
+                continue
+            if device_class and attrs.get('device_class') != device_class:
+                continue
+            name = attrs.get('friendly_name', entity)
+            if where and not (name_matches(where, name) or name_matches(where, entity.split('.', 1)[1].replace('_', ' '))):
+                continue
+            found.append(state)
+        return found
+
+    def home_command(self, kind, action, value, where):
+        ha = self.home_assistant()
+        if ha is None:
+            return None
+        states = ha.states()
+        place = f' ({where})' if where else ''
+        if kind == 'climate':
+            devices = self._pick(states, ('climate',), where)
+            if not devices:
+                return f'Не нашёл кондиционер{place} в Home Assistant.'
+            ids = [d['entity_id'] for d in devices]
+            if action in ('on', 'off'):
+                ha.call('climate', 'turn_' + action, {'entity_id': ids})
+                return ('Включаю' if action == 'on' else 'Выключаю') + f' кондиционер{place}.'
+            if action == 'mode':
+                ha.call('climate', 'set_hvac_mode', {'entity_id': ids, 'hvac_mode': value})
+                names = {'cool': 'охлаждение', 'heat': 'обогрев', 'dry': 'осушение', 'fan_only': 'вентиляция',
+                         'heat_cool': 'авто'}
+                return f'Режим «{names.get(value, value)}»{place}.'
+            if action == 'step':
+                current = (devices[0].get('attributes') or {}).get('temperature') or 22
+                value = int(round(float(current))) + value
+            ha.call('climate', 'set_temperature', {'entity_id': ids, 'temperature': value})
+            return f'Ставлю {value} °C{place}.'
+        if kind == 'sensor':
+            classes = ('temperature', 'humidity', 'carbon_dioxide') if action == 'all' else (action,)
+            lines = []
+            for device_class in classes:
+                for state in self._pick(states, ('sensor',), where, device_class):
+                    if state.get('state') in ('unknown', 'unavailable', None):
+                        continue
+                    attrs = state.get('attributes') or {}
+                    lines.append(f"{attrs.get('friendly_name', state['entity_id'])}: {state['state']} "
+                                 f"{attrs.get('unit_of_measurement', '')}".strip())
+            if action == 'all':
+                for state in self._pick(states, ('binary_sensor',), where):
+                    attrs = state.get('attributes') or {}
+                    if state.get('state') == 'on' and attrs.get('device_class') in ('door', 'window', 'moisture', 'smoke',
+                                                                                     'gas', 'opening', 'motion'):
+                        label = {'door': 'открыта', 'window': 'открыто', 'opening': 'открыто', 'moisture': 'ПРОТЕЧКА',
+                                 'smoke': 'ДЫМ', 'gas': 'ГАЗ', 'motion': 'движение'}[attrs['device_class']]
+                        lines.append(f"{attrs.get('friendly_name', state['entity_id'])}: {label}")
+            if not lines:
+                return f'Не нашёл таких датчиков{place} в Home Assistant.'
+            return '; '.join(lines[:10]) + '.'
+        if kind == 'vacuum':
+            devices = self._pick(states, ('vacuum',), where)
+            if not devices:
+                return 'Пылесос не найден в Home Assistant.'
+            ids = [d['entity_id'] for d in devices]
+            if action == 'status':
+                state = devices[0]
+                attrs = state.get('attributes') or {}
+                words = {'cleaning': 'убирает', 'docked': 'на базе', 'returning': 'едет на базу', 'idle': 'ждёт',
+                         'paused': 'на паузе', 'error': 'ошибка'}
+                battery = attrs.get('battery_level')
+                return f"{attrs.get('friendly_name', 'Пылесос')}: {words.get(state.get('state'), state.get('state'))}" + \
+                    (f', заряд {battery}%.' if battery is not None else '.')
+            service = {'start': 'start', 'stop': 'pause', 'return': 'return_to_base'}[action]
+            ha.call('vacuum', service, {'entity_id': ids})
+            return {'start': 'Запускаю уборку.', 'stop': 'Останавливаю пылесос.', 'return': 'Отправляю пылесос на базу.'}[action]
+        if kind == 'camera':
+            cameras = self._pick(states, ('camera',), where)
+            if not cameras:
+                return f'Не нашёл камеру{place} в Home Assistant.'
+            camera = cameras[0]
+            name = (camera.get('attributes') or {}).get('friendly_name', camera['entity_id'])
+            folder = Path(self.store.root) / 'Камеры'
+            folder.mkdir(parents=True, exist_ok=True)
+            safe = re.sub(r'[^\w -]+', '', name).strip() or 'камера'
+            path = folder / f"{safe} {time.strftime('%Y-%m-%d %H-%M-%S')}.jpg"
+            path.write_bytes(ha.snapshot(camera['entity_id']))
+            documents = getattr(self, 'documents', None)
+            if documents is not None:
+                documents.publish(path, f'Снимок с камеры «{name}».')
+            elif self.opener:
+                self.opener(path.as_uri())
+            return f'Показываю камеру «{name}».'
+        return None
 
     def router_command(self, owner, action, value):
         router = self.router()
