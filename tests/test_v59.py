@@ -21,6 +21,24 @@ def make_app(store=None, agent=None):
     return app, store, {'X-Agent-Token': store.meta('pairing_token')}
 
 
+def blank_keys(case):
+    """Тесты не должны зависеть от ключей, которые разработчик вписал в connector_config.py или переменные окружения."""
+    from src import connectors_apps
+    for name in dir(connectors.cfg):
+        if name.isupper():
+            patcher = patch.object(connectors.cfg, name, '')
+            patcher.start()
+            case.addCleanup(patcher.stop)
+    classes = [v for m in (connectors, connectors_apps) for v in vars(m).values()
+               if isinstance(v, type) and issubclass(v, connectors.OAuthConnector) and v is not connectors.TrackerConnector]
+    for cls in classes:
+        for attr in ('client_id', 'client_secret'):
+            if attr in vars(cls):
+                patcher = patch.object(cls, attr, '')
+                patcher.start()
+                case.addCleanup(patcher.stop)
+
+
 class Response:
     def __init__(self, data, status=200):
         self.data, self.status_code = data, status
@@ -53,6 +71,7 @@ class CatalogTests(unittest.TestCase):
 
 class ConnectorTests(unittest.TestCase):
     def setUp(self):
+        blank_keys(self)
         self.store = Store(tempfile.mkdtemp())
         self.http = Mock()
         self.opened = []
@@ -134,6 +153,9 @@ class ConnectorTests(unittest.TestCase):
 
 
 class ConnectorApiTests(unittest.TestCase):
+    def setUp(self):
+        blank_keys(self)
+
     def test_endpoints_and_callback_page(self):
         app, store, headers = make_app()
         client = app.test_client()

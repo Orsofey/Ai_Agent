@@ -11,6 +11,24 @@ from src import connectors, connectors_apps as apps
 from src.smarthome import SmartHome, parse_home
 
 
+def blank_keys(case):
+    """Тесты не должны зависеть от ключей, которые разработчик вписал в connector_config.py или переменные окружения."""
+    from src import connectors_apps
+    for name in dir(connectors.cfg):
+        if name.isupper():
+            patcher = patch.object(connectors.cfg, name, '')
+            patcher.start()
+            case.addCleanup(patcher.stop)
+    classes = [v for m in (connectors, connectors_apps) for v in vars(m).values()
+               if isinstance(v, type) and issubclass(v, connectors.OAuthConnector) and v is not connectors.TrackerConnector]
+    for cls in classes:
+        for attr in ('client_id', 'client_secret'):
+            if attr in vars(cls):
+                patcher = patch.object(cls, attr, '')
+                patcher.start()
+                case.addCleanup(patcher.stop)
+
+
 class Store:
     def __init__(self, root='.'):
         self.data = {}
@@ -24,6 +42,11 @@ class Store:
             self.data.pop(key, None)
         else:
             self.data[key] = value
+
+
+class Isolated(unittest.TestCase):
+    def setUp(self):
+        blank_keys(self)
 
 
 class Response:
@@ -89,7 +112,7 @@ def connect(hub, connector_id, **saved):
 MOMENT = datetime(2026, 9, 30, 10, 0).astimezone()
 
 
-class WhenTests(unittest.TestCase):
+class WhenTests(Isolated):
     def test_split_when(self):
         parts = apps.split_when('с Иваном завтра в 15:00 на полчаса', MOMENT)
         self.assertEqual(parts['day'], date(2026, 10, 1))
@@ -112,7 +135,7 @@ class WhenTests(unittest.TestCase):
         self.assertEqual(end.date(), date(2026, 10, 5))
 
 
-class CalendarTests(unittest.TestCase):
+class CalendarTests(Isolated):
     def test_google_calendar_list_and_create(self):
         today = apps.now().date()
         events = {'items': [{'summary': 'Планёрка', 'start': {'dateTime': f'{today}T10:00:00+03:00'}},
@@ -236,8 +259,9 @@ class FakeImap:
         pass
 
 
-class MailTests(unittest.TestCase):
+class MailTests(Isolated):
     def setUp(self):
+        super().setUp()
         FakeImap.instances.clear()
         patcher = patch.object(apps.Imap, 'factory', FakeImap)
         patcher.start()
@@ -283,7 +307,7 @@ class MailTests(unittest.TestCase):
         self.assertEqual(box.logged, 'user=me@yandex.ru\x01auth=Bearer tok\x01\x01')
 
 
-class TaskTests(unittest.TestCase):
+class TaskTests(Isolated):
     def test_named_but_not_connected(self):
         hub = hub_with()
         reply = hub.handle('Добавь в Notion задачу подготовить отчёт', named_only=True)
@@ -354,8 +378,9 @@ class TaskTests(unittest.TestCase):
         self.assertEqual(hub.http.calls[-1][2]['params']['member_ids'], 5)
 
 
-class FilesTests(unittest.TestCase):
+class FilesTests(Isolated):
     def setUp(self):
+        super().setUp()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.file = Path(self.tmp.name) / 'Договор.pdf'
@@ -408,7 +433,7 @@ class FilesTests(unittest.TestCase):
         self.assertIn('Не вижу файла', hub.handle('Загрузи этот файл в Dropbox'))
 
 
-class MicrosoftTests(unittest.TestCase):
+class MicrosoftTests(Isolated):
     def test_outlook_calendar_mail_todo(self):
         today = apps.now().date()
         start = datetime.combine(today, datetime.min.time()).astimezone().astimezone(apps.timezone.utc) + timedelta(hours=12)
@@ -428,7 +453,7 @@ class MicrosoftTests(unittest.TestCase):
         self.assertTrue(body['dueDateTime']['dateTime'].endswith('T00:00:00'))
 
 
-class InvestTests(unittest.TestCase):
+class InvestTests(Isolated):
     def routes(self):
         portfolio = {'totalAmountPortfolio': {'currency': 'rub', 'units': '150000', 'nano': 0},
                      'expectedYield': {'units': '12', 'nano': 500000000},
@@ -458,7 +483,7 @@ class InvestTests(unittest.TestCase):
         self.assertFalse([c for c in hub.http.calls if 'PostOrder' in c[1]])
 
 
-class CrmTests(unittest.TestCase):
+class CrmTests(Isolated):
     def test_bitrix_webhook_deals_and_contact(self):
         url = 'https://firm.bitrix24.ru/rest/1/abc123/'
         hub = hub_with([('POST', 'profile.json', {'result': {'NAME': 'Олег', 'LAST_NAME': 'Иванов'}}),
@@ -490,7 +515,7 @@ class CrmTests(unittest.TestCase):
         self.assertEqual(body['custom_fields_values'][0]['field_code'], 'EMAIL')
 
 
-class SpotifyTests(unittest.TestCase):
+class SpotifyTests(Isolated):
     def test_playlist_now_playing_and_premium(self):
         hub = hub_with([('GET', '/me/playlists', {'items': [{'name': 'Утро', 'uri': 'spotify:playlist:1'},
                                                              {'name': 'Для бега', 'uri': 'spotify:playlist:2'}]}),
@@ -512,7 +537,7 @@ class SpotifyTests(unittest.TestCase):
         self.assertEqual(hub.opened, ['spotify:playlist:1'])
 
 
-class DevTests(unittest.TestCase):
+class DevTests(Isolated):
     def test_gitlab_merge_requests(self):
         hub = hub_with([('GET', '/merge_requests', [{'id': 1, 'iid': 4, 'title': 'Новый дизайн'}]),
                         ('GET', '/user', {'username': 'ira'})])
@@ -548,7 +573,7 @@ class DevTests(unittest.TestCase):
         self.assertIsNone(hub.get('jira').handle('Мои задачи'))
 
 
-class ApiTests(unittest.TestCase):
+class ApiTests(Isolated):
     def test_status_has_fields_and_groups(self):
         hub = hub_with()
         items = {i['id']: i for i in hub.status()}
