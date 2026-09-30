@@ -12,10 +12,11 @@ binaries = []
 MAC = sys.platform == 'darwin'
 if MAC:
     hiddenimports = ['webview.platforms.cocoa', 'waitress', 'sqlite3', 'PIL.Image', 'Quartz', 'AppKit',
-                     'ApplicationServices', 'segno']
+                     'ApplicationServices', 'segno', 'src.connectors_apps', 'imaplib', 'zoneinfo']
 else:
     hiddenimports = ['webview.platforms.edgechromium', 'waitress', 'sqlite3', 'clr', 'winreg', 'segno',
-                     'pystray._win32', 'PIL.Image', 'pyttsx3.drivers', 'pyttsx3.drivers.sapi5']
+                     'pystray._win32', 'PIL.Image', 'pyttsx3.drivers', 'pyttsx3.drivers.sapi5',
+                     'src.connectors_apps', 'imaplib', 'zoneinfo', 'tzdata']
 packages = ('onnx_asr', 'onnxruntime', 'faster_whisper', 'ctranslate2', 'av', 'tokenizers', 'playwright',
             'webview', 'piper', 'sounddevice', '_sounddevice_data', 'ddgs', 'primp', 'pyperclip',
             'huggingface_hub', 'yt_dlp', 'segno', 'cryptography', 'pypdf', 'websocket')

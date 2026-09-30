@@ -1,10 +1,12 @@
 """Интеграции с приложениями: кнопка «Подключить» → вход в аккаунт → голосовые команды.
 
-Трекер, GitHub, Google Документы, Google Таблицы, Miro. Токены хранятся только на этом ПК; пароли не хранятся.
+Здесь — каркас и первые приложения (Трекер, GitHub, Google Документы и Таблицы, Miro); остальные — в
+src/connectors_apps.py (календари, почта, задачи, CRM, Spotify, Microsoft 365, Dropbox, GitLab, Jira, Linear…).
+Токены хранятся только на этом ПК; пароли от аккаунтов не хранятся (кроме пароля приложения для почты IMAP).
 Способы входа:
-- через браузер с возвратом в программу (OAuth 2.0 + PKCE): Трекер, Google, Miro;
+- через браузер с возвратом в программу (OAuth 2.0 + PKCE): Трекер, Google, Яндекс, Microsoft, Spotify, Dropbox…;
 - по коду устройства (как на телевизорах): GitHub;
-- личный токен (запасной путь, пока разработчик не вписал ключи приложения): GitHub, Miro.
+- ключ/токен из настроек сервиса (поля в карточке): Todoist, Т-Инвестиции, Битрикс24, Jira…
 """
 import base64
 import hashlib
@@ -33,6 +35,29 @@ def pkce():
     return verifier, challenge
 
 
+def error_message(response):
+    try:
+        data = response.json()
+    except ValueError:
+        return (response.text or '')[:160].strip() or None
+    if isinstance(data, list):
+        data = data[0] if data and isinstance(data[0], dict) else {}
+    if not isinstance(data, dict):
+        return None
+    error = data.get('error')
+    if isinstance(error, dict):
+        return error.get('message') or error.get('code')
+    for key in ('message', 'error_description', 'detail', 'errorMessage', 'description', 'title'):
+        if isinstance(data.get(key), str) and data[key]:
+            return data[key][:200]
+    if isinstance(data.get('errorMessages'), list) and data['errorMessages']:
+        return str(data['errorMessages'][0])[:200]
+    if isinstance(data.get('errors'), list) and data['errors']:
+        first = data['errors'][0]
+        return (first.get('message') if isinstance(first, dict) else str(first))[:200]
+    return error if isinstance(error, str) else None
+
+
 def clean(text):
     return re.sub(r'\s+', ' ', str(text)).strip().strip('.!?').strip(' «»"')
 
@@ -42,9 +67,13 @@ class Connector:
     title = ''
     icon = ''
     auth = 'oauth'           # oauth | device | token
+    group = 'Другое'         # раздел в настройках
     description = ''
     examples = ()
-    token_hint = ''          # как получить личный токен (если поддерживается)
+    token_hint = ''          # как получить личный токен/ключ (если поддерживается)
+    fields = ()              # поля формы входа по ключу: ({'name', 'label', 'type', 'placeholder'}, …)
+    names = ''               # как сервис называют голосом (регулярное выражение): «в Notion», «в Тудуисте»
+    auth_scheme = 'Bearer'
 
     def __init__(self, hub):
         self.hub = hub
@@ -73,7 +102,27 @@ class Connector:
         saved = self.saved()
         return {'id': self.id, 'title': self.title, 'icon': self.icon, 'description': self.description,
                 'connected': self.connected(), 'user': saved.get('user', ''), 'configured': self.configured(),
-                'auth': self.auth, 'examples': list(self.examples), 'token_hint': self.token_hint}
+                'auth': self.auth, 'examples': list(self.examples), 'token_hint': self.token_hint,
+                'fields': self.form(), 'group': self.group}
+
+    def form(self):
+        if self.fields:
+            return [dict(f) for f in self.fields]
+        if self.token_hint:
+            return [{'name': 'token', 'label': 'Личный токен', 'type': 'password', 'placeholder': 'вставьте токен'}]
+        return []
+
+    def mentioned(self, text):
+        """Назван ли сервис во фразе («добавь в Notion…»)."""
+        return bool(self.names) and re.search(r'(?<![\w])(?:' + self.names + r')(?![\w])', str(text), re.I) is not None
+
+    def plain(self, text):
+        """Фраза без упоминания сервиса: «добавь в Notion задачу X» → «добавь задачу X»."""
+        value = clean(text)
+        if self.names:
+            value = re.sub(r'\s*(?:(?:в|во|на|из|с|через|по)\s+)?(?<![\w])(?:' + self.names + r')(?![\w])', ' ', value,
+                           flags=re.I)
+        return re.sub(r'\s+', ' ', value).strip(' ,')
 
     def disconnect(self):
         self.save(None)
@@ -90,24 +139,31 @@ class Connector:
     def refresh(self, saved):
         return saved
 
-    def request(self, method, url, **kwargs):
-        headers = dict(kwargs.pop('headers', {}), Authorization='Bearer ' + self.token())
+    def auth_headers(self):
+        return {'Authorization': f'{self.auth_scheme} {self.token()}'}
+
+    def request(self, method, url, raw=False, **kwargs):
+        headers = dict(kwargs.pop('headers', {}), **self.auth_headers())
+        kwargs.setdefault('timeout', TIMEOUT)
         try:
-            response = self.hub.http.request(method, url, headers=headers, timeout=TIMEOUT, **kwargs)
+            response = self.hub.http.request(method, url, headers=headers, **kwargs)
         except requests.RequestException:
             raise ConnectorError(f'{self.title} не отвечает. Проверьте интернет.')
         if response.status_code == 401:
             raise ConnectorError(f'{self.title}: вход устарел. Подключите заново в настройках «Интеграции».')
         if response.status_code >= 400:
-            try:
-                message = response.json().get('message') or response.json().get('error', {}).get('message')
-            except (ValueError, AttributeError):
-                message = None
+            self.failed(response)
+            message = error_message(response)
             raise ConnectorError(f'{self.title}: ошибка {response.status_code}' + (f' — {message}' if message else ''))
+        if raw:
+            return response
         try:
             return response.json()
         except ValueError:
             return {}
+
+    def failed(self, response):
+        """Понятное сообщение для особых ошибок сервиса (переопределяется)."""
 
     # ---- подключение ----
     def start(self, base_url):
@@ -115,6 +171,14 @@ class Connector:
 
     def use_token(self, token):
         raise ConnectorError('Вход по токену не поддерживается')
+
+    def use_fields(self, values):
+        """Вход по форме из карточки (ключ, адрес, логин…)."""
+        values = {k: str(v).strip() for k, v in (values or {}).items()}
+        missing = [f['label'] for f in self.form() if not f.get('optional') and not values.get(f['name'])]
+        if missing:
+            raise ConnectorError('Заполните: ' + ', '.join(missing) + '.')
+        return self.use_token(values.get('token', ''))
 
     # ---- голос ----
     def handle(self, text):
@@ -190,6 +254,7 @@ class OAuthConnector(Connector):
 # ---------------- Трекер ----------------
 class TrackerConnector(OAuthConnector):
     id, title, icon = 'tracker', 'Трекер', '✅'
+    group = 'Заметки и задачи'
     description = 'Задачи и привычки: спрашивайте и добавляйте голосом.'
     examples = ('Что в трекере на сегодня?', 'Добавь в трекер задачу купить молоко на завтра', 'Отметь привычку зарядка')
 
@@ -238,19 +303,31 @@ class TrackerConnector(OAuthConnector):
 
 # ---------------- Google Документы и Таблицы ----------------
 class GoogleConnector(OAuthConnector):
+    group = 'Google'
     authorize_url = 'https://accounts.google.com/o/oauth2/v2/auth'
     token_url = 'https://oauth2.googleapis.com/token'
-    scope = ('https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets '
-             'https://www.googleapis.com/auth/drive.metadata.readonly openid email')
-    extra = {'access_type': 'offline', 'prompt': 'consent'}
+    # Каждое приложение просит только свои доступы; include_granted_scopes сохраняет выданные раньше.
+    needs = ('https://www.googleapis.com/auth/drive.metadata.readonly',)
+    extra = {'access_type': 'offline', 'prompt': 'consent', 'include_granted_scopes': 'true'}
     client_id = cfg.GOOGLE_CLIENT_ID
     client_secret = cfg.GOOGLE_CLIENT_SECRET
     mime = ''
 
-    # Один вход Google на оба приложения.
+    @property
+    def scope(self):
+        return ' '.join(('openid', 'email') + tuple(self.needs))
+
+    # Один вход Google на все приложения Google.
     @property
     def key(self):
         return 'connector:google'
+
+    def connected(self):
+        saved = self.saved()
+        if not saved.get('access_token'):
+            return False
+        granted = saved.get('scope')
+        return granted is None or all(need in granted.split() for need in self.needs)
 
     def whoami(self, tokens):
         try:
@@ -278,6 +355,7 @@ class GoogleDocsConnector(GoogleConnector):
     examples = ('Создай документ план поездки', 'Допиши в документ план поездки: купить билеты',
                 'Прочитай документ план поездки')
     mime = 'application/vnd.google-apps.document'
+    needs = ('https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.metadata.readonly')
 
     def handle(self, text):
         raw = clean(text)
@@ -313,6 +391,7 @@ class GoogleSheetsConnector(GoogleConnector):
     description = 'Добавляйте строки и узнавайте, что в таблице, голосом.'
     examples = ('Добавь в таблицу расходы строку: кофе, 250', 'Прочитай таблицу расходы', 'Создай таблицу покупки')
     mime = 'application/vnd.google-apps.spreadsheet'
+    needs = ('https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.metadata.readonly')
 
     def handle(self, text):
         raw = clean(text)
@@ -352,6 +431,8 @@ class GoogleSheetsConnector(GoogleConnector):
 # ---------------- GitHub ----------------
 class GitHubConnector(Connector):
     id, title, icon, auth = 'github', 'GitHub', '🐙', 'device'
+    group = 'Разработка'
+    names = r'гитхаб\w*|github'
     description = 'Репозитории, pull request’ы, задачи (issues) и коммиты.'
     examples = ('Мои репозитории', 'Мои открытые pull request', 'Создай issue в репозитории ai_agent: не работает звук',
                 'Последние коммиты в ai_agent')
@@ -450,6 +531,8 @@ class GitHubConnector(Connector):
 # ---------------- Miro ----------------
 class MiroConnector(OAuthConnector):
     id, title, icon = 'miro', 'Miro', '🟨'
+    group = 'Заметки и задачи'
+    names = r'миро|miro'
     description = 'Доски и стикеры голосом.'
     examples = ('Создай доску мозговой штурм', 'Добавь стикер на доску мозговой штурм: идея с ботом', 'Мои доски')
     authorize_url = 'https://miro.com/oauth/authorize'
@@ -497,14 +580,16 @@ class MiroConnector(OAuthConnector):
 
 # ---------------- хаб ----------------
 class Connectors:
-    def __init__(self, store, tracker=None, http=None, opener=None):
+    def __init__(self, store, tracker=None, http=None, opener=None, documents=None):
+        from .connectors_apps import APPS
         self.store = store
         self.tracker = tracker
         self.http = http or requests.Session()
         self.opener = opener
+        self.documents = documents   # «загрузи этот файл на Диск» — выделенный в Проводнике или последний из чата
         self.pending = {}
         self.items = [c(self) for c in (TrackerConnector, GitHubConnector, GoogleDocsConnector,
-                                        GoogleSheetsConnector, MiroConnector)]
+                                        GoogleSheetsConnector, MiroConnector) + tuple(APPS)]
 
     def get(self, connector_id):
         found = next((c for c in self.items if c.id == connector_id), None)
@@ -528,16 +613,28 @@ class Connectors:
             raise ConnectorError('Ссылка входа устарела. Нажмите «Подключить» ещё раз.')
         return self.get(connector_id).finish(code, pending)
 
-    def handle(self, text):
+    def _try(self, connector, text):
+        try:
+            return connector.handle(text)
+        except ConnectorError as exc:
+            return str(exc)
+        except requests.RequestException:
+            return f'{connector.title} не отвечает.'
+
+    def handle(self, text, named_only=False):
+        """Сначала — приложения, названные во фразе («в Notion», «на Яндекс Диск»), даже если они не подключены
+        (тогда подскажем, где подключить). Потом (если не named_only) — все подключённые по порядку."""
+        for connector in self.items:
+            if connector.id != 'tracker' and connector.mentioned(text):
+                reply = self._try(connector, text)
+                if reply is not None:
+                    return reply
+        if named_only:
+            return None
         for connector in self.items:
             if connector.id == 'tracker' or not connector.connected():
                 continue
-            try:
-                reply = connector.handle(text)
-            except ConnectorError as exc:
-                return str(exc)
-            except requests.RequestException:
-                return f'{connector.title} не отвечает.'
+            reply = self._try(connector, text)
             if reply is not None:
                 return reply
         return None

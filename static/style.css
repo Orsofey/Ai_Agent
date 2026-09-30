@@ -475,6 +475,9 @@ input[type=time], input[type=datetime-local] { color-scheme: dark; }
 .conn-row input { flex: 1; min-width: 0; }
 .conn-code { font-size: 20px; letter-spacing: 3px; }
 details.more summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 0; }
+.conn-group { grid-column: 1 / -1; margin: 10px 0 -4px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.conn-form { display: grid; gap: 6px; margin-top: 6px; }
+.conn-form input { width: 100%; min-width: 0; }
 
 /* ---------- 6.0: «Ваши предложения», документы в чате, мгновенный поиск ---------- */
 .suggest-chip {

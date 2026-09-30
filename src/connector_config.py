@@ -23,3 +23,22 @@ MIRO_CLIENT_SECRET = os.getenv('ANDREY_MIRO_CLIENT_SECRET', '')
 
 # «Дом с Алисой» (лампы, розетки, телевизоры): приложение на oauth.yandex.ru с доступами iot:view и iot:control.
 YANDEX_IOT_CLIENT_ID = os.getenv('ANDREY_YANDEX_IOT_CLIENT_ID', '')
+
+# Яндекс ID (Диск, Календарь, Почта): oauth.yandex.ru → «Создать приложение» → «Веб-сервисы»,
+# доступы: cloud_api:disk.read, cloud_api:disk.write, cloud_api:disk.info, calendar:all, mail:imap_ro, login:email, login:info.
+YANDEX_CLIENT_ID = os.getenv('ANDREY_YANDEX_CLIENT_ID', '')
+YANDEX_CLIENT_SECRET = os.getenv('ANDREY_YANDEX_CLIENT_SECRET', '')
+
+# Microsoft 365 / Outlook.com: entra.microsoft.com → App registrations → «Личные и рабочие аккаунты»,
+# платформа «Mobile and desktop applications», Redirect URI http://localhost:5000/oauth/microsoft/callback.
+MS_CLIENT_ID = os.getenv('ANDREY_MS_CLIENT_ID', '')
+
+# Notion: notion.so/profile/integrations → «Публичная интеграция» (OAuth). Без неё — вход по ключу внутренней интеграции.
+NOTION_CLIENT_ID = os.getenv('ANDREY_NOTION_CLIENT_ID', '')
+NOTION_CLIENT_SECRET = os.getenv('ANDREY_NOTION_CLIENT_SECRET', '')
+
+# Spotify: developer.spotify.com/dashboard → Create app → Web API; Redirect URI http://127.0.0.1:5000/oauth/spotify/callback.
+SPOTIFY_CLIENT_ID = os.getenv('ANDREY_SPOTIFY_CLIENT_ID', '')
+
+# Dropbox: dropbox.com/developers/apps → Scoped access → Full Dropbox; Redirect URI http://127.0.0.1:5000/oauth/dropbox/callback.
+DROPBOX_APP_KEY = os.getenv('ANDREY_DROPBOX_APP_KEY', '')
