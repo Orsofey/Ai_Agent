@@ -33,6 +33,9 @@ def status(root):
                                installed=find_llm(root, key) is not None) for key, info in LOCAL_MODELS.items()}
     result['llama'] = {flavor: dict(installed=find_binary(root, flavor == 'vulkan')[1] in (flavor, 'system'))
                        for flavor in ('cpu', 'vulkan')}
+    from .vision import VISION_MODELS, find_vision
+    result['vision'] = {key: dict(title=info['title'], size_mb=info['size_mb'], installed=find_vision(root, key)[0] is not None
+                                  and find_vision(root, key)[0].parent.name == key) for key, info in VISION_MODELS.items()}
     result['downloading'] = _running.locked()
     return result
 
@@ -357,6 +360,9 @@ def download(root, items, report=print):
                 download_llm(root, item.split(':', 1)[1], progress=progress)
             elif item == 'speaker':
                 download_speaker(root, progress=progress)
+            elif item.startswith('vision:'):
+                from .vision import download_vision
+                download_vision(root, item.split(':', 1)[1], progress=progress)
             elif item.startswith('piper:'):
                 if not ensure_piper_voice(item.split(':', 1)[1], root)[0]:
                     raise RuntimeError('голос не скачан')

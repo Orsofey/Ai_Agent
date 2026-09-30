@@ -138,6 +138,16 @@ class LocalComputerAgent:
         self.power = None      # Power: выключение и перезагрузка ПК
         self.macros = None     # Macros: подключает app.py
         self.files = None      # FileStudy: подключает app.py
+        # 6.0: документы в чате, мгновенный поиск, порядок в файлах, зрение, игры, заказы, умный дом, поддержка
+        self.documents = None
+        self.file_search = None
+        self.doc_qa = None
+        self.file_ops = None
+        self.vision = None
+        self.games = None
+        self.booking = None
+        self.smarthome = None
+        self.support = None
         self.dialog = Dialog()
         self.chat_until = {}
 
@@ -145,7 +155,9 @@ class LocalComputerAgent:
         """Агент задал вопрос или идёт беседа — голос слушает следующую фразу без имени."""
         return self.dialog.awaiting(owner) is True or self.chatting(owner) \
             or bool(self.reminders is not None and self.reminders.awaiting(owner)) \
-            or bool(self.power is not None and self.power.awaiting(owner))
+            or bool(self.power is not None and self.power.awaiting(owner)) \
+            or bool(self.file_ops is not None and self.file_ops.awaiting(owner)) \
+            or bool(self.smarthome is not None and self.smarthome.awaiting(owner))
 
     # ---- режим «поболтать» ----
     def chatting(self, owner='default'):
@@ -209,8 +221,17 @@ class LocalComputerAgent:
                 return reply
             if self.macros.recording(owner):
                 self.macros.record(owner, text)  # запись макроса: команда выполняется и запоминается
+        reply = self._handle_60(text, owner, settings)
+        if reply is not None:
+            return reply
         if self.files is not None:
             reply = self.files.handle(text, owner, settings)
+            if reply is not None:
+                return reply
+        for handler in (self.booking, self.smarthome):
+            if handler is None:
+                continue
+            reply = handler.handle(text, owner) if handler is self.smarthome else handler.handle(text)
             if reply is not None:
                 return reply
 
@@ -238,6 +259,34 @@ class LocalComputerAgent:
         if kind == 'action' and settings.get('butler', True):
             return butler(result, text, address)
         return result
+
+    def _handle_60(self, text, owner, settings):
+        """Игры, поддержка, файлы (порядок, отправка, PDF), зрение, вопросы по документам, мгновенный поиск."""
+        if self.smarthome is not None and self.smarthome.awaiting(owner):
+            reply = self.smarthome.handle(text, owner)  # «да» на «перезагрузить роутер?»
+            if reply is not None:
+                return reply
+        steps = (
+            (self.games, lambda h: h.handle(text)),
+            (self.support, lambda h: h.handle(text)),
+            (self.file_ops, lambda h: h.handle(text, owner, settings)),
+            (self.documents, lambda h: h.handle(text)),
+            (self.vision, lambda h: h.handle(text, settings)),
+            (self.doc_qa, lambda h: h.handle(text, settings)),
+            (self.file_search, lambda h: h.handle(text, owner)),
+        )
+        for handler, call in steps:
+            if handler is None:
+                continue
+            try:
+                reply = call(handler)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).exception('Handler failed')
+                return f'Не получилось: {str(exc)[:160]}'
+            if reply is not None:
+                return reply
+        return None
 
     def _music_request(self, text):
         from . import music

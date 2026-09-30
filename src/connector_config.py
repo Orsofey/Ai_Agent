@@ -20,3 +20,6 @@ GOOGLE_CLIENT_SECRET = os.getenv('ANDREY_GOOGLE_CLIENT_SECRET', '')
 # Miro: miro.com/app/settings/user-profile/apps → Create new app; Redirect URI — см. документацию.
 MIRO_CLIENT_ID = os.getenv('ANDREY_MIRO_CLIENT_ID', '')
 MIRO_CLIENT_SECRET = os.getenv('ANDREY_MIRO_CLIENT_SECRET', '')
+
+# «Дом с Алисой» (лампы, розетки, телевизоры): приложение на oauth.yandex.ru с доступами iot:view и iot:control.
+YANDEX_IOT_CLIENT_ID = os.getenv('ANDREY_YANDEX_IOT_CLIENT_ID', '')

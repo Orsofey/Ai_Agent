@@ -40,7 +40,7 @@ EXAMPLE_INTEGRATION = {
     ],
     'context': {'phrases': ['трекер', 'задач', 'привычк'], 'file': '~/Documents/tracker-export.json'},
 }
-VERSION = '5.9.1'
+VERSION = '6.0'
 
 
 def local_ip():
@@ -174,6 +174,35 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     from src.files import FileStudy
     files = FileStudy(store, events, brain=getattr(agent, 'brain', None), notify=notify, speak=speak)
     agent.files = files
+
+    # ---- 6.0 ----
+    from src import oshelp
+    from src.documents import Documents
+    from src.file_index import FileIndex, FileSearch
+    from src.doc_qa import DocumentQA
+    from src.file_ops import FileOps
+    from src.vision import Vision
+    from src.games import Games
+    from src.booking import Booking
+    from src.smarthome import SmartHome
+    from src.support import Support
+    desktop = getattr(getattr(agent, 'desktop_commands', None), 'desktop', None)
+    documents = Documents(store, events, desktop=desktop, root=store.root)
+    files.publish = lambda path, text: documents.publish(path, text)
+    file_index = FileIndex(store.root, background=background)
+    agent.documents = documents
+    agent.file_search = FileSearch(file_index, publish=lambda path, text: documents.publish(path, text),
+                                   opener=oshelp.open_path, revealer=oshelp.reveal)
+    agent.doc_qa = DocumentQA(file_index, brain=getattr(agent, 'brain', None), documents=documents)
+    agent.file_ops = FileOps(store, documents=documents, events=events, notify=notify)
+    agent.vision = Vision(store.root)
+    agent.games = Games(store)
+    agent.booking = Booking(open_link, settings=lambda: store.settings('device:desktop'))
+    smarthome = SmartHome(store, opener=open_link)
+    agent.smarthome = smarthome
+    support = Support(store, license, VERSION, opener=open_link, events=events)
+    agent.support = support
+    app.extensions.update(documents=documents, file_index=file_index, smarthome=smarthome, support=support)
 
     def owner():
         device = request.headers.get('X-Device-ID', 'desktop')
@@ -1014,5 +1043,144 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         except TrackerError as exc:
             raise ValueError(str(exc))
         return jsonify(success=True, message=f'Связь есть. Задач на сегодня: {len(items)}.')
+
+    # ---------------- 6.0: поддержка ----------------
+    @app.get('/api/support')
+    def support_info():
+        return jsonify(success=True, **support.info())
+
+    @app.post('/api/support/feedback')
+    def support_feedback():
+        data = request.get_json(silent=True) or {}
+        return jsonify(success=True, **support.send(data.get('text'), data.get('contact', '')))
+
+    @app.post('/api/support/telegram')
+    def support_telegram():
+        data = request.get_json(silent=True) or {}
+        return jsonify(success=True, **support.open_telegram(str(data.get('text', ''))[:3000]))
+
+    # ---------------- 6.0: документы в чате ----------------
+    @app.post('/api/documents/<doc_id>/<action>')
+    def document_action(doc_id, action):
+        path = documents.get(doc_id)
+        data = request.get_json(silent=True) or {}
+        if action == 'open':
+            message = documents.open([path])
+        elif action == 'reveal':
+            message = documents.reveal([path])
+        elif action == 'copy':
+            message = documents.copy([path])
+        elif action == 'telegram':
+            who = str(data.get('who', '')).strip()
+            if not who:
+                raise ValueError('Кому отправить?')
+            message = documents.to_messenger([path], str(data.get('app', 'telegram')), who)
+        elif action == 'email':
+            message = documents.to_email([path], str(data.get('to', '')))
+        elif action == 'save':
+            message = documents.save_to([path], str(data.get('folder', 'рабочий стол')))
+        else:
+            raise ValueError('Неизвестное действие')
+        return jsonify(success=True, message=message)
+
+    @app.get('/api/documents/<doc_id>/file')
+    def document_file(doc_id):
+        return send_file(documents.get(doc_id), as_attachment=True)
+
+    # ---------------- 6.0: мгновенный поиск ----------------
+    @app.get('/api/files/search')
+    def files_search():
+        query = request.args.get('q', '').strip()[:200]
+        found = file_index.search(query, limit=30) if query else []
+        return jsonify(success=True, results=found, elapsed_ms=getattr(file_index, 'last_elapsed', 0),
+                       status=file_index.status())
+
+    @app.get('/api/files/status')
+    def files_status():
+        return jsonify(success=True, status=file_index.status())
+
+    @app.post('/api/files/reindex')
+    def files_reindex():
+        threading.Thread(target=file_index.scan, daemon=True, name='file-index-manual').start()
+        return jsonify(success=True, status=file_index.status())
+
+    @app.post('/api/files/open')
+    def files_open():
+        data = request.get_json(silent=True) or {}
+        path = Path(str(data.get('path', '')))
+        if not path.exists() or not file_index.contains(path):
+            raise ValueError('Файл не найден')
+        (oshelp.reveal if data.get('reveal') else oshelp.open_path)(path)
+        return jsonify(success=True)
+
+    # ---------------- 6.0: игры ----------------
+    @app.get('/api/games')
+    def games_status():
+        return jsonify(success=True, **agent.games.status())
+
+    @app.post('/api/games')
+    def games_save():
+        data = request.get_json(silent=True) or {}
+        if 'profiles' in data:
+            agent.games.save_profiles(data['profiles'])
+        if 'active' in data:
+            agent.games.active = bool(data['active'])
+            agent.games.forced = data.get('profile') or None
+        return jsonify(success=True, **agent.games.status())
+
+    # ---------------- 6.0: голоса ----------------
+    @app.get('/api/voices/catalog')
+    def voices_catalog():
+        from src import voice_catalog
+        catalog = voice_catalog.load_catalog(store.root)
+        language = request.args.get('lang', 'ru')[:5]
+        return jsonify(success=True, languages=voice_catalog.languages(catalog),
+                       voices=voice_catalog.list_voices(catalog, language, store.root))
+
+    @app.post('/api/voices/install')
+    def voices_install():
+        from src import voice_catalog
+        key = str((request.get_json(silent=True) or {}).get('key', ''))
+        voice = voice_catalog.install(store.root, key, voice_catalog.load_catalog(store.root))
+        return jsonify(success=True, voice=voice, assistant=local_tts.assistant_voices())
+
+    @app.post('/api/voices/import')
+    def voices_import():
+        from src import voice_catalog
+        voice = voice_catalog.import_files(store.root, request.files.getlist('files'))
+        return jsonify(success=True, voice=voice, assistant=local_tts.assistant_voices())
+
+    @app.post('/api/voices/remove')
+    def voices_remove():
+        from src import voice_catalog
+        voice_catalog.remove(store.root, str((request.get_json(silent=True) or {}).get('id', '')))
+        return jsonify(success=True, assistant=local_tts.assistant_voices())
+
+    # ---------------- 6.0: умный дом ----------------
+    @app.get('/api/smarthome')
+    def smarthome_get():
+        from src.connector_config import YANDEX_IOT_CLIENT_ID
+        return jsonify(success=True, config=smarthome.public(),
+                       yandex_token_url=('https://oauth.yandex.ru/authorize?response_type=token&client_id=' +
+                                         YANDEX_IOT_CLIENT_ID) if YANDEX_IOT_CLIENT_ID else '')
+
+    @app.post('/api/smarthome/save')
+    def smarthome_save():
+        data = request.get_json(silent=True) or {}
+        return jsonify(success=True, config=smarthome.save(str(data.get('section', '')), data.get('data') or {}))
+
+    @app.post('/api/smarthome/<action>')
+    def smarthome_action(action):
+        what = str((request.get_json(silent=True) or {}).get('what', ''))
+        if action == 'discover':
+            return jsonify(success=True, found=smarthome.discover(what))
+        if action == 'pair':
+            return jsonify(success=True, message=smarthome.pair(what), config=smarthome.public())
+        if action == 'test':
+            return jsonify(success=True, message=smarthome.test(what))
+        if action == 'adb':
+            from src.smarthome import download_adb
+            return jsonify(success=True, message=f'ADB установлен: {download_adb(store.root)}')
+        raise ValueError('Неизвестное действие')
 
     return app

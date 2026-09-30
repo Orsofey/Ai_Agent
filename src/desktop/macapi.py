@@ -92,6 +92,30 @@ def press(key, times=1):
         hotkey(key)
 
 
+MODIFIER_KEYCODES = {'shift': 56, 'ctrl': 59, 'alt': 58, 'cmd': 55}
+
+
+def key_state(key, down):
+    """Нажать или отпустить одну клавишу (игры: «держи W две секунды»). Ctrl здесь — настоящий Control."""
+    Q = _quartz()
+    key = key.casefold()
+    code = MODIFIER_KEYCODES.get(key, KEYCODES.get(key))
+    if code is None:
+        raise ValueError('Неизвестная клавиша: ' + key)
+    _post(Q.CGEventCreateKeyboardEvent(None, code, down))
+
+
+def mouse_button(button, down):
+    """Кнопка мыши в текущей позиции курсора."""
+    Q = _quartz()
+    location = Q.CGEventGetLocation(Q.CGEventCreate(None))
+    kinds = {'left': (Q.kCGEventLeftMouseDown, Q.kCGEventLeftMouseUp, Q.kCGMouseButtonLeft),
+             'right': (Q.kCGEventRightMouseDown, Q.kCGEventRightMouseUp, Q.kCGMouseButtonRight),
+             'middle': (Q.kCGEventOtherMouseDown, Q.kCGEventOtherMouseUp, Q.kCGMouseButtonCenter)}
+    press_kind, release_kind, number = kinds.get(button, kinds['left'])
+    _post(Q.CGEventCreateMouseEvent(None, press_kind if down else release_kind, location, number))
+
+
 def type_unicode(text, newline=('enter',)):
     """Печать любого текста (кириллица, эмодзи) порциями по 16 символов."""
     Q = _quartz()

@@ -255,6 +255,13 @@ class VoiceAssistant:
                 self.events.emit('voice_error', message=str(exc))
             return None
 
+        # Игровой режим: короткие игровые фразы нажимают клавиши сразу, без имени и без ответа голосом.
+        games = getattr(agent, 'games', None)
+        if games is not None and getattr(games, 'active', False) is True and not during_speech:
+            if games.run_phrase(rest if matched else text):
+                self._set_state('idle')
+                return None
+
         explicit = now < self.once_until
         armed = now < self.armed_until
         follow_up = now < self.follow_up_until and not during_speech

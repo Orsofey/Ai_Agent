@@ -424,6 +424,7 @@ class FileStudy:
         self.open_path = open_path or _system_open
         self.running = None
         self.last_report = None
+        self.publish = None       # (путь, текст) → документ в чате (6.0)
         self.lock = threading.Lock()
 
     def handle(self, text, owner=None, settings=None):
@@ -515,6 +516,7 @@ class FileStudy:
                              title=title)
 
     def _run(self, kind, folder, files, args, settings):
+        report_before = self.last_report
         task = f'{kind}-{int(time.time())}'
         title = {'study': 'Изучаю файлы', 'calc': 'Считаю таблицы', 'grep': 'Ищу в файлах'}[kind] + f' · {folder.name}'
         try:
@@ -529,7 +531,9 @@ class FileStudy:
             log.exception('File study failed')
             text = f'Не получилось изучить файлы: {exc}'
         self._progress(task, len(files), len(files), finished=True, title=title)
-        if self.notify:
+        if self.publish and self.last_report and self.last_report != report_before:
+            self.publish(self.last_report, text)  # справка сразу появляется в чате карточкой
+        elif self.notify:
             self.notify(text)
         if self.speak:
             self.speak(text.split('\n')[0][:600])
