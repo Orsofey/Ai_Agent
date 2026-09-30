@@ -459,7 +459,8 @@ input[readonly] { opacity: .8; cursor: default; }
 input[type=time], input[type=datetime-local] { color-scheme: dark; }
 :root[data-theme=light] input[type=time], :root[data-theme=light] input[type=datetime-local],
 :root[data-theme=sakura] input[type=time], :root[data-theme=sakura] input[type=datetime-local],
-:root[data-theme=gzhel] input[type=time], :root[data-theme=gzhel] input[type=datetime-local] { color-scheme: light; }
+:root[data-theme=gzhel] input[type=time], :root[data-theme=gzhel] input[type=datetime-local],
+:root[data-theme=glass] input[type=time], :root[data-theme=glass] input[type=datetime-local] { color-scheme: light; }
 
 /* Интеграции: карточки приложений */
 .connectors { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin-bottom: 18px; }
