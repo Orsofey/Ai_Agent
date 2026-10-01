@@ -1059,6 +1059,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         data = request.get_json(silent=True) or {}
         return jsonify(success=True, **support.send(data.get('text'), data.get('contact', '')))
 
+    @app.post('/api/support/check')
+    def support_check():
+        return jsonify(success=True, **support.check())
+
     @app.post('/api/support/telegram')
     def support_telegram():
         data = request.get_json(silent=True) or {}

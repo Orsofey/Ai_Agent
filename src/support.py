@@ -143,6 +143,59 @@ class Support:
             path.unlink(missing_ok=True)
         return sent
 
+    def check(self):
+        """Пошаговая проверка: где именно ломается доставка предложений. [{'ok', 'text'}], всё ли хорошо."""
+        steps = []
+
+        def step(ok, text):
+            steps.append({'ok': bool(ok), 'text': text})
+            return ok
+
+        license = self.license
+        server = getattr(license, 'server_url', '') if license is not None else ''
+        if not step(server, f'Адрес сервера аккаунтов: {server}' if server else
+                    'Не задан адрес сервера аккаунтов: Настройки → «Аккаунт» → «Адрес сервера» (или SERVER_URL в '
+                    'src/license_config.py перед сборкой).'):
+            return {'ok': False, 'steps': steps}
+        try:
+            response = license.session.request('GET', server + '/api/support/check', json=None, headers={}, timeout=15)
+        except Exception as exc:
+            step(False, f'Сервер не отвечает ({exc.__class__.__name__}). Проверьте интернет и что проект на Amvera запущен.')
+            return {'ok': False, 'steps': steps}
+        if response.status_code == 404:
+            step(True, 'Сервер отвечает.')
+            step(False, 'На сервере старая версия без «Ваших предложений». Загрузите на Amvera заново всё содержимое '
+                        'папки server/ (support.py, license_server.py и др.) и дождитесь сборки — пересобрать .exe '
+                        'недостаточно.')
+            return {'ok': False, 'steps': steps}
+        try:
+            data = response.json()
+        except ValueError:
+            step(False, f'Сервер ответил не так, как ожидалось (код {response.status_code}). Проверьте адрес сервера.')
+            return {'ok': False, 'steps': steps}
+        step(True, 'Сервер отвечает, «Ваши предложения» на нём есть.')
+        if not step(data.get('token'), 'Бот подключён (TELEGRAM_BOT_TOKEN задан).' if data.get('token') else
+                    'На сервере не задан TELEGRAM_BOT_TOKEN: Amvera → проект → «Переменные/Секреты», затем '
+                    'перезапустите проект.'):
+            return {'ok': False, 'steps': steps}
+        if not step(data.get('bot_ok'), f"Бот @{data.get('bot_name')} работает." if data.get('bot_ok') else
+                    (data.get('error') or 'Telegram не принял токен бота.')):
+            return {'ok': False, 'steps': steps}
+        if not step(data.get('chat'), 'Бот знает, куда вам писать.' if data.get('chat') else
+                    (data.get('error') or f"Откройте @{data.get('bot_name')} в Telegram и нажмите «Старт».")):
+            return {'ok': False, 'steps': steps}
+        step(data.get('telegram'), f"Кнопка «Написать лично» ведёт в @{data['telegram']}." if data.get('telegram') else
+             'Не задан SUPPORT_TELEGRAM — кнопка «Написать лично» не появится (отправка работает и без неё).')
+        waiting = 0
+        if self._outbox().exists():
+            waiting = sum(1 for line in self._outbox().read_text(encoding='utf-8').splitlines() if line.strip())
+        if waiting:
+            sent = self.flush()
+            step(sent == waiting, f'Отправлено {sent} из {waiting} сохранённых ранее предложений.')
+        with self.lock:
+            self._info = None
+        return {'ok': all(s['ok'] for s in steps[:5]), 'steps': steps}
+
     def open_telegram(self, text=''):
         """Открыть личный чат с разработчиком; текст — в буфер обмена, чтобы вставить Ctrl+V."""
         info = self.info()
