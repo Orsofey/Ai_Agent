@@ -107,6 +107,21 @@
     return () => source && source.close();
   };
 
+  // ---- расширение просит подключиться (установлено из магазина) ----
+  Agent.askExtension = browser => {
+    if (document.querySelector('.ext-ask')) return;
+    const box = document.createElement('div');
+    box.className = 'ext-ask card';
+    box.innerHTML = '<b></b><p>Разрешить ему открывать сайты и управлять вкладками по вашим командам?</p>' +
+      '<div><button class="btn primary">Разрешить</button> <button class="btn ghost">Отклонить</button></div>';
+    box.querySelector('b').textContent = `${browser} хочет подключиться к ассистенту`;
+    const answer = allow => { Agent.post('ext/pair-answer', { browser, allow }).catch(() => {}); box.remove(); };
+    const [yes, no] = box.querySelectorAll('button');
+    yes.onclick = () => answer(true);
+    no.onclick = () => answer(false);
+    document.body.appendChild(box);
+  };
+
   // ---- мелочи ----
   Agent.toast = (text, ms = 2600) => {
     let el = document.querySelector('.toast');

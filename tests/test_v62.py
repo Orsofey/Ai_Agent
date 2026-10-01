@@ -374,3 +374,49 @@ class SmartHomeTvTests(Temp):
             self.assertIn('Телевизора 5 нет', home.handle('включи телевизор номер 5'))
             home.handle('телевизор громче')          # без номера — последний использованный
             self.assertEqual(ran[-1], (2, 'volume_step', 1))
+
+
+# ---------------- браузер одной кнопкой ----------------
+class BrowserSetupTests(Temp):
+    def test_prepare_writes_pairing_code(self):
+        from src import browser_setup
+        folder = browser_setup.prepare(self.root, ROOT, 5000, 'TOKEN123')
+        self.assertTrue((folder / 'manifest.json').exists())
+        self.assertEqual(json.loads((folder / 'pairing.json').read_text()), {'port': 5000, 'token': 'TOKEN123'})
+        background = (ROOT / 'browser_extension' / 'background.js').read_text(encoding='utf-8')
+        self.assertIn("getURL('pairing.json')", background)
+        self.assertIn('/api/ext/pair-request', background)
+
+    def test_connect_opens_extensions_page(self):
+        from src import browser_setup
+        with patch.object(browser_setup, 'pick_browser', return_value=('yandex', 'C:/browser.exe')), \
+                patch.object(browser_setup, 'launch') as launch, patch.object(browser_setup, 'reveal') as reveal, \
+                patch.object(browser_setup, 'store_url', return_value=''):
+            result = browser_setup.connect(self.root, ROOT, 5000, 'T')
+        launch.assert_called_once_with('yandex', 'C:/browser.exe', 'browser://extensions/')
+        reveal.assert_called_once()
+        self.assertEqual(result['mode'], 'folder')
+        self.assertIn('Режим разработчика', result['steps'][0])
+        opened = []
+        with patch.object(browser_setup, 'pick_browser', return_value=('chrome', 'chrome.exe')), \
+                patch.object(browser_setup, 'store_url', return_value='https://chromewebstore.google.com/detail/x'):
+            store = browser_setup.connect(self.root, ROOT, 5000, 'T', opener=opened.append)
+        self.assertEqual((store['mode'], opened), ('store', ['https://chromewebstore.google.com/detail/x']))
+
+    def test_pair_request_needs_approval(self):
+        import threading
+        from app import create_app
+        app = create_app(self.store, Mock(status=Mock(return_value={})), Mock(), license=Mock(is_premium=lambda: True))
+        client = app.test_client()
+        headers = {'X-Agent-Token': self.store.meta('pairing_token')}
+        ext = {'Origin': 'chrome-extension://abcdef'}
+        self.assertEqual(client.post('/api/ext/pair-request', json={}, headers={'Origin': 'https://evil.example'}).status_code, 403)
+        pairs = next(c for c in app.view_functions['ext_pair_answer'].__closure__ or []
+                     if hasattr(c.cell_contents, 'ask')).cell_contents
+        timer = threading.Timer(0.2, lambda: pairs.answer('Google Chrome', True))
+        timer.start()
+        data = client.post('/api/ext/pair-request', json={'browser': 'Google Chrome'}, headers=ext).get_json()
+        self.assertEqual(data['token'], self.store.meta('pairing_token'))
+        pairs.answer('Opera', False)
+        threading.Timer(0.2, lambda: pairs.answer('Opera', False)).start()
+        self.assertEqual(client.post('/api/ext/pair-request', json={'browser': 'Opera'}, headers=ext).status_code, 403)

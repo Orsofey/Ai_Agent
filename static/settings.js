@@ -512,9 +512,11 @@
   }
   $('ext-folder').onclick = async () => {
     try {
-      const r = await Agent.post('ext/open-folder');
-      if (!r.opened) Agent.toast('Папка расширения: ' + r.path, 8000);
-    } catch (e) { Agent.toast(e.message); }
+      const r = await Agent.post('ext/connect');
+      $('ext-steps').replaceChildren(...r.steps.map(t => Object.assign(document.createElement('li'), { textContent: t })));
+      $('ext-steps').hidden = false;
+      if (r.mode === 'folder' && !r.opened) Agent.toast('Откройте страницу расширений браузера. Папка: ' + r.folder, 9000);
+    } catch (e) { Agent.toast(e.message, 6000); }
   };
   refreshExtension();
   setInterval(refreshExtension, 5000);
@@ -545,6 +547,7 @@
   // ---------- живые события ----------
   function onEvent(e) {
     if (e.type === 'network' && window.AgentNetwork) window.AgentNetwork(e.online);
+    if (e.type === 'ext_pair') Agent.askExtension(e.browser);
     if (e.type === 'download') {
       const badge = $('badge-' + e.item);
       if (badge) {

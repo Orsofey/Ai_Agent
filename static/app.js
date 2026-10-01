@@ -197,6 +197,9 @@
       case 'account':
         loadAccountChip();
         break;
+      case 'ext_pair':
+        Agent.askExtension(e.browser);
+        break;
       case 'network':
         if ($('net-pill')) $('net-pill').hidden = !!e.online;
         break;

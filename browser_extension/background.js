@@ -1,13 +1,44 @@
 /* «Андрей» в браузере пользователя: получает команды от ассистента на этом ПК и выполняет их.
    Ассистент слушает на http://127.0.0.1:5000 (порт можно сменить в окне расширения).
-   Связь — долгий опрос /api/ext/next; ответ — /api/ext/result. Код подключения — из настроек ассистента. */
+   Связь — долгий опрос /api/ext/next; ответ — /api/ext/result.
+   Подключение без кода: (1) кнопка «Подключить браузер» в ассистенте кладёт рядом pairing.json с кодом;
+   (2) если расширение установлено из магазина — оно просит ассистента, и вы один раз нажимаете «Разрешить». */
 'use strict';
 
 const state = { running: false, again: false, online: false, error: '' };
 
 async function config() {
-  const { port = 5000, token = '' } = await chrome.storage.local.get(['port', 'token']);
+  let { port = 5000, token = '' } = await chrome.storage.local.get(['port', 'token']);
+  if (!token) ({ port, token } = await autoPair(port));
   return { base: `http://127.0.0.1:${port}`, token };
+}
+
+let asking = null;
+async function autoPair(port) {
+  // 1) Папку расширения подготовил ассистент — код уже лежит в pairing.json.
+  try {
+    const file = await (await fetch(chrome.runtime.getURL('pairing.json'))).json();
+    if (file && file.token) {
+      await chrome.storage.local.set({ token: file.token, port: Number(file.port) || port });
+      return { port: Number(file.port) || port, token: file.token };
+    }
+  } catch (e) { /* нет файла — расширение из магазина */ }
+  // 2) Спросить ассистента: в его окне появится «Разрешить подключение браузера?».
+  if (asking) return asking;
+  asking = (async () => {
+    for (const p of [port, 5000, 5001, 5050, 8765]) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${p}/api/ext/pair-request`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ browser: browserName() }) });
+        if (!response.ok) continue;
+        const data = await response.json();
+        if (data.token) { await chrome.storage.local.set({ token: data.token, port: p }); return { port: p, token: data.token }; }
+        if (data.pending) { state.error = 'Нажмите «Разрешить» в окне ассистента'; return { port: p, token: '' }; }
+      } catch (e) { /* ассистент не на этом порту */ }
+    }
+    return { port, token: '' };
+  })();
+  try { return await asking; } finally { asking = null; }
 }
 
 function browserName() {
@@ -34,12 +65,20 @@ async function loop() {
     for (;;) {
       await chrome.runtime.getPlatformInfo(); // вызов API продлевает жизнь фонового воркера
       const { base, token } = await config();
-      if (!token) { state.error = 'Введите код подключения'; await setBadge(false); break; }
+      if (!token) {
+        if (!state.error) state.error = 'Запустите ассистента и нажмите «Подключить браузер»';
+        await setBadge(false);
+        await new Promise(r => setTimeout(r, 4000));   // ждём «Разрешить» в окне ассистента
+        continue;
+      }
       let data;
       try {
         const response = await fetch(`${base}/api/ext/next?wait=20&browser=${encodeURIComponent(browserName())}`,
           { headers: { 'X-Agent-Token': token } });
-        if (response.status === 401) { state.error = 'Неверный код подключения'; await setBadge(false); break; }
+        if (response.status === 401) {
+          await chrome.storage.local.remove('token');   // код сменился — подключимся заново без кода
+          state.error = 'Переподключаюсь…'; await setBadge(false); continue;
+        }
         data = await response.json();
         state.error = ''; await setBadge(true);
       } catch (e) {

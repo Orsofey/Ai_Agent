@@ -42,3 +42,8 @@ SPOTIFY_CLIENT_ID = os.getenv('ANDREY_SPOTIFY_CLIENT_ID', '')
 
 # Dropbox: dropbox.com/developers/apps → Scoped access → Full Dropbox; Redirect URI http://127.0.0.1:5000/oauth/dropbox/callback.
 DROPBOX_APP_KEY = os.getenv('ANDREY_DROPBOX_APP_KEY', '')
+
+# Расширение «Андрей» в магазинах (после публикации кнопка «Подключить браузер» ведёт сразу на «Установить»):
+# Chrome Web Store (подходит и для Яндекс Браузера, Opera, Brave) и Microsoft Edge Add-ons.
+EXTENSION_STORE_CHROME = os.getenv('ANDREY_EXTENSION_STORE_CHROME', '')
+EXTENSION_STORE_EDGE = os.getenv('ANDREY_EXTENSION_STORE_EDGE', '')

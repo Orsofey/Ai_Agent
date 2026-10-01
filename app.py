@@ -249,6 +249,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             extension = request.path.startswith('/api/ext/') and str(origin).startswith(('chrome-extension://', 'moz-extension://'))
             if origin and not extension and urlparse(origin).netloc != request.host:
                 return jsonify(success=False, message='Чужой Origin запрещён'), 403
+            if request.path == '/api/ext/pair-request':
+                if not extension:
+                    return jsonify(success=False, message='Только для расширения «Андрей»'), 403
+                return None     # код ещё не известен расширению — подтверждение в окне ассистента
             token = request.headers.get('X-Agent-Token', '')
             if request.path == '/api/events' and not token:
                 token = request.args.get('token', '')  # EventSource не умеет заголовки
@@ -738,6 +742,34 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         data = request.get_json(silent=True) or {}
         bridge().complete(data.get('id'), data.get('ok'), data.get('result'), data.get('error'))
         return jsonify(success=True)
+
+    from src.browser_setup import PairRequests
+    pair_requests = PairRequests(events)
+
+    @app.post('/api/ext/connect')
+    def ext_connect():
+        """Кнопка «Подключить браузер»: расширение с готовым кодом + страница расширений в браузере."""
+        from src import browser_setup
+        port = int(request.host.rsplit(':', 1)[1]) if ':' in request.host else 80
+        pair_requests.expect()
+        result = browser_setup.connect(store.root, root, port, store.meta('pairing_token'),
+                                       opener=open_link if is_desktop() else None)
+        return jsonify(success=True, **result)
+
+    @app.post('/api/ext/pair-request')
+    def ext_pair_request():
+        data = request.get_json(silent=True) or {}
+        allowed = pair_requests.ask(data.get('browser', ''), wait=20)
+        if allowed:
+            return jsonify(success=True, token=store.meta('pairing_token'))
+        if allowed is False:
+            return jsonify(success=False, message='Подключение браузера отклонено'), 403
+        return jsonify(success=True, pending=True)
+
+    @app.post('/api/ext/pair-answer')
+    def ext_pair_answer():
+        data = request.get_json(silent=True) or {}
+        return jsonify(success=pair_requests.answer(data.get('browser', ''), bool(data.get('allow'))))
 
     @app.get('/api/ext/status')
     def ext_status():
