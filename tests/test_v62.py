@@ -176,3 +176,201 @@ class NetworkTests(Temp):
         agent.network = self.network.Network(self.store)
         self.assertIn('Отключился', agent.process_command('Андрей, отключись от сети', {'wake_word': 'Андрей'}))
         self.assertIn('Подключился', agent.process_command('Андрей, подключись к сети', {'wake_word': 'Андрей'}))
+
+
+# ---------------- телевизоры ----------------
+class TvParseTests(unittest.TestCase):
+    TVS = [{'number': 1, 'name': 'Гостиная'}, {'number': 2, 'name': 'Спальня'}]
+
+    def run_phrase(self, text):
+        from src.smarthome import parse_tv
+        from src.tv import pick_target
+        target, cleaned = pick_target(text, self.TVS)
+        return target, parse_tv(cleaned)
+
+    def test_numbered_commands(self):
+        self.assertEqual(self.run_phrase('Включи телевизор 1'), (1, ('power', True)))
+        self.assertEqual(self.run_phrase('Переключи канал на телевизоре 1'), (1, ('channel_step', 1)))
+        self.assertEqual(self.run_phrase('Включи Дюну 1 на телевизоре 2'), (2, ('search', ('дюну 1', 'youtube'))))
+        self.assertEqual(self.run_phrase('Включи 5 канал на втором телевизоре'), (2, ('channel', 5)))
+        self.assertEqual(self.run_phrase('выключи все телевизоры'), ('all', ('power', False)))
+        self.assertEqual(self.run_phrase('на всех телевизорах выключи звук'), ('all', ('mute', True)))
+        self.assertEqual(self.run_phrase('телевизор в спальне громче'), (2, ('volume_step', 1)))
+        self.assertEqual(self.run_phrase('громкость на телевизоре 20'), (None, ('volume', 20)))   # это громкость
+        self.assertEqual(self.run_phrase('нажми ок на телевизоре'), (None, ('key', 'ok')))
+        self.assertEqual(self.run_phrase('включи на телевизоре 2 кинопоиск'), (2, ('app', 'kinopoisk')))
+
+
+class Session:
+    def __init__(self, routes):
+        self.routes, self.calls = routes, []
+
+    def _hit(self, method, url, **kw):
+        self.calls.append((method, url, kw))
+        full = url + '?' + '&'.join(f'{k}={v}' for k, v in (kw.get('params') or {}).items())
+        for part, answer in self.routes:
+            if part in full:
+                return answer
+        return Reply({}, 404)
+
+    def get(self, url, **kw):
+        return self._hit('GET', url, **kw)
+
+    def post(self, url, **kw):
+        return self._hit('POST', url, **kw)
+
+
+class FakeCast:
+    log = []
+
+    def __init__(self, ip):
+        self.ip = ip
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass
+
+    def set_volume(self, level):
+        FakeCast.log.append(('volume', round(level, 2)))
+
+    def volume(self):
+        return 0.5
+
+    def mute(self, muted):
+        FakeCast.log.append(('mute', muted))
+
+    def launch(self, app):
+        FakeCast.log.append(('launch', app))
+
+    def stop(self):
+        FakeCast.log.append(('stop',))
+
+    def status(self):
+        return {}
+
+
+class TvDeviceTests(unittest.TestCase):
+    def setUp(self):
+        FakeCast.log = []
+
+    def test_xiaomi_without_codes(self):
+        from src.tv import XiaomiTV
+        apps = Reply({'data': {'AppInfo': [{'PackageName': 'ru.kinopoisk.tv', 'AppName': 'Кинопоиск'},
+                                           {'PackageName': 'com.google.android.youtube.tv', 'AppName': 'YouTube'}]}})
+        session = Session([('isalive', Reply({'status': 0, 'data': {'devicename': 'Mi TV'}})),
+                           ('getinstalledapp', apps), ('/controller', Reply({}))])
+        tv = XiaomiTV({'ip': '192.168.1.50'}, session, cast_factory=FakeCast)
+        self.assertIn('коды не нужны', tv.pair())
+        self.assertEqual(tv.run('power', False), 'Выключаю телевизор.')
+        self.assertEqual(session.calls[-1][2]['params'], {'action': 'keyevent', 'keycode': 'power'})
+        tv.run('volume_step', 1)
+        self.assertEqual([c[2]['params']['keycode'] for c in session.calls[-2:]], ['volumeup', 'volumeup'])
+        self.assertEqual(tv.run('volume', 30), 'Громкость телевизора 30.')
+        self.assertEqual(FakeCast.log, [('volume', 0.3)])
+        self.assertIn('Кинопоиск', tv.run('app', 'kinopoisk'))
+        self.assertEqual(session.calls[-1][2]['params']['packagename'], 'ru.kinopoisk.tv')
+        tv.run('key', 'ok')
+        self.assertEqual(session.calls[-1][2]['params']['keycode'], 'enter')
+
+    def test_android_cast_volume_and_youtube(self):
+        from src import tv as tvmod
+        session = Session([('/apps/YouTube', Reply({}, 201))])
+        device = tvmod.CastTV({'ip': '192.168.1.60'}, session, cast_factory=FakeCast)
+        self.assertEqual(device.run('volume', 25), 'Громкость телевизора 25.')
+        self.assertEqual(device.run('volume_step', 1), 'Громче.')
+        self.assertEqual(FakeCast.log, [('volume', 0.25), ('volume', 0.56)])
+        with patch.object(tvmod, 'youtube_video', return_value='abc123'):
+            self.assertIn('Дюну', device.run('search', ('Дюну', 'youtube')))
+        self.assertEqual(session.calls[-1][2]['data'], 'v=abc123')
+        self.assertIn('Отладкой по сети', device.run('channel', 5))       # честно: каналы — только с ADB
+
+    def test_cast_protocol_roundtrip(self):
+        import struct
+        from src.tv import cast_message, parse_cast
+        frame = cast_message('sender-0', 'receiver-0', 'urn:x-cast:com.google.cast.receiver', {'type': 'GET_STATUS'})
+        length = struct.unpack('>I', frame[:4])[0]
+        message = parse_cast(frame[4:4 + length])
+        self.assertEqual(message['namespace'], 'urn:x-cast:com.google.cast.receiver')
+        self.assertEqual(json.loads(message['payload']), {'type': 'GET_STATUS'})
+
+    def test_mdns_answer_parsed(self):
+        import socket
+        import struct
+        from src.tv import _qname, parse_mdns
+
+        def record(name, rtype, body):
+            return _qname(name) + struct.pack('>HHIH', rtype, 0x8001, 120, len(body)) + body
+        txt = b''.join(bytes([len(x)]) + x for x in ('fn=Mi TV Гостиная'.encode(), b'md=MiTV-AXFR0'))
+        packet = struct.pack('>HHHHHH', 0, 0x8400, 0, 1, 0, 2) + \
+            record('_googlecast._tcp.local', 12, _qname('Mi-TV-1._googlecast._tcp.local')) + \
+            record('Mi-TV-1._googlecast._tcp.local', 16, txt) + \
+            record('mitv.local', 1, socket.inet_aton('192.168.1.50'))
+        info = parse_mdns(packet)
+        self.assertEqual(info['services'], {'_googlecast._tcp.local'})
+        self.assertEqual(info['txt']['fn'], 'Mi TV Гостиная')
+        self.assertEqual(info['ips'], ['192.168.1.50'])
+
+    def test_discover_merges_and_classifies(self):
+        from src import tv as tvmod
+        session = Session([('192.168.1.50:6095', Reply({'status': 0, 'data': {'devicename': 'Mi TV'}})),
+                           ('eureka_info', Reply({'name': 'Sony Bravia', 'device_info': {'manufacturer': 'Sony'}}))])
+        with patch.object(tvmod, 'local_ipv4s', return_value=['192.168.1.10']), \
+                patch.object(tvmod, 'mdns_search', return_value={'192.168.1.60': {'services': {'_googlecast._tcp.local'},
+                                                                                 'name': '', 'model': '', 'maker': ''}}), \
+                patch.object(tvmod, 'ssdp_search', return_value={}), \
+                patch.object(tvmod, 'port_scan', return_value={'192.168.1.50': [6095, 8009], '192.168.1.70': [3001],
+                                                               '192.168.1.60': [8009]}), \
+                patch.object(tvmod, 'arp_table', return_value={'192.168.1.50': 'AA:BB:CC:DD:EE:01'}):
+            found = tvmod.discover(session)
+        by_ip = {f['ip']: f for f in found}
+        self.assertEqual(by_ip['192.168.1.50']['type'], 'xiaomi')
+        self.assertEqual(by_ip['192.168.1.50']['mac'], 'AA:BB:CC:DD:EE:01')
+        self.assertEqual((by_ip['192.168.1.60']['type'], by_ip['192.168.1.60']['name']), ('android', 'Sony Bravia'))
+        self.assertEqual(by_ip['192.168.1.70']['type'], 'lg')
+
+    def test_arp_parsing_windows(self):
+        from src import tv as tvmod
+        out = ('Interface: 192.168.1.10 --- 0x5\r\n  Internet Address      Physical Address      Type\r\n'
+               '  192.168.1.50          aa-bb-cc-dd-ee-01     dynamic\r\n  192.168.1.255         ff-ff-ff-ff-ff-ff     static\r\n')
+        with patch.object(tvmod.sys, 'platform', 'win32'), \
+                patch.object(tvmod.subprocess, 'run', return_value=Mock(stdout=out.encode('cp866'))):
+            self.assertEqual(tvmod.arp_table(), {'192.168.1.50': 'AA:BB:CC:DD:EE:01'})
+
+
+class SmartHomeTvTests(Temp):
+    def test_old_config_migrates_and_numbers_route(self):
+        from src.smarthome import SmartHome
+        home = SmartHome(self.store, session=Mock())
+        self.store.set_meta('smarthome', json.dumps({'tv': {'type': 'lg', 'ip': '192.168.1.70', 'client_key': 'K'}}))
+        self.assertEqual(home.tvs()[0]['number'], 1)
+        home.save('tvs', [dict(home.public()['tvs'][0]),
+                          {'number': 2, 'name': 'Спальня', 'type': 'xiaomi', 'ip': '192.168.1.50', 'mac': 'AA:BB:CC:DD:EE:01'}])
+        saved = json.loads(self.store.meta('smarthome'))
+        self.assertNotIn('tv', saved)
+        self.assertEqual(saved['tvs'][0]['client_key'], 'K')          # секрет не затёрт «••••••» из формы
+        self.assertEqual(home.public()['tvs'][0]['client_key'], '••••••')
+        ran = []
+
+        class Device:
+            def __init__(self, config):
+                self.config = config
+
+            def run(self, action, value):
+                ran.append((self.config['number'], action, value))
+                return 'ок'
+
+            def pair(self):
+                return 'ок'
+        with patch.object(SmartHome, 'device', lambda self, config: Device(config)), \
+                patch('src.smarthome.wake_on_lan') as wol:
+            self.assertEqual(home.handle('Переключи канал на телевизоре 2'), 'Спальня: ок')
+            self.assertEqual(ran[-1], (2, 'channel_step', 1))
+            home.handle('включи телевизор 2')
+            wol.assert_called_with('AA:BB:CC:DD:EE:01')
+            home.handle('выключи все телевизоры')
+            self.assertEqual(ran[-2:], [(1, 'power', False), (2, 'power', False)])
+            self.assertIn('Телевизора 5 нет', home.handle('включи телевизор номер 5'))
+            home.handle('телевизор громче')          # без номера — последний использованный
+            self.assertEqual(ran[-1], (2, 'volume_step', 1))

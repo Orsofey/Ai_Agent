@@ -61,11 +61,9 @@
   // ---------- умный дом ----------
   async function loadHome() {
     const data = await Agent.api('smarthome');
-    const tv = data.config.tv || {}, lights = data.config.lights || {}, router = data.config.router || {};
-    $('sh-tv-type').value = tv.type || '';
-    $('sh-tv-ip').value = tv.ip || '';
-    $('sh-tv-mac').value = tv.mac || '';
-    $('sh-adb').hidden = tv.type !== 'android';
+    const lights = data.config.lights || {}, router = data.config.router || {};
+    tvs = (data.config.tvs || []).map(t => ({ ...t }));
+    paintTvs();
     $('sh-ya-token').value = lights.yandex_token || '';
     $('sh-ha-url').value = lights.ha_url || '';
     $('sh-ha-token').value = lights.ha_token || '';
@@ -79,27 +77,77 @@
   }
   onPage('smarthome', safe(loadHome));
   const save = (section, data) => Agent.post('smarthome/save', { section, data });
-  if ($('sh-tv-save')) {
-    $('sh-tv-type').onchange = () => { $('sh-adb').hidden = $('sh-tv-type').value !== 'android'; };
+  // ---------- телевизоры (несколько, у каждого номер) ----------
+  let tvs = [];
+  const TV_TYPES = [['xiaomi', 'Xiaomi Mi TV'], ['android', 'Android TV / Google TV'], ['lg', 'LG (webOS)'],
+    ['samsung', 'Samsung (Tizen)'], ['yandex', 'Телевизор в «Доме с Алисой»']];
+  const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
+  function nextNumber() { let n = 1; while (tvs.some(t => +t.number === n)) n++; return n; }
+  function paintTvs() {
+    const box = $('sh-tvs');
+    if (!box) return;
+    box.replaceChildren(...tvs.map((tv, i) => {
+      const type = el('select', {}, ...TV_TYPES.map(([v, t]) => el('option', { value: v, textContent: t })));
+      type.value = tv.type || 'android';
+      const field = (key, ph, cls = '') => {
+        const input = el('input', { value: tv[key] || '', placeholder: ph, className: cls });
+        input.oninput = () => { tv[key] = key === 'number' ? (parseInt(input.value, 10) || '') : input.value.trim(); };
+        return input;
+      };
+      type.onchange = () => { tv.type = type.value; paintTvs(); };
+      const adb = el('label', { className: 'tv-adb', title: 'Необязательно: даёт выключение, каналы и любые приложения на Android TV' },
+        el('input', { type: 'checkbox', checked: !!tv.adb, onchange: e => { tv.adb = e.target.checked; $('sh-adb').hidden = !tvs.some(t => t.adb); } }),
+        ' Отладка по сети');
+      adb.hidden = tv.type !== 'android';
+      const test = el('button', { className: 'btn ghost', textContent: 'Проверить' });
+      test.onclick = safe(async () => {
+        await saveTvs();
+        hint('sh-tv-hint', 'Подключаюсь… если на экране телевизора появится запрос — нажмите «Разрешить».');
+        hint('sh-tv-hint', (await Agent.post('smarthome/pair', { what: 'tv', number: tv.number })).message);
+      });
+      const remove = el('button', { className: 'btn ghost', textContent: 'Удалить' });
+      remove.onclick = () => { tvs.splice(i, 1); paintTvs(); };
+      return el('div', { className: 'tv-row card' },
+        el('div', { className: 'tv-num' }, '№', field('number', '1', 'tv-number')),
+        field('name', 'Название: Гостиная'), type, field('ip', 'IP: 192.168.1.40'), field('mac', 'MAC (для включения)'),
+        adb, el('div', { className: 'tv-actions' }, test, remove));
+    }));
+    $('sh-tv-save-row').hidden = !tvs.length;
+    $('sh-adb').hidden = !tvs.some(t => t.adb);
+  }
+  async function saveTvs() {
+    const data = await Agent.post('smarthome/save', { section: 'tvs', data: tvs });
+    tvs = (data.config.tvs || []).map(t => ({ ...t }));
+    paintTvs();
+  }
+  if ($('sh-tv-find')) {
+    $('sh-tv-add').onclick = () => { tvs.push({ number: nextNumber(), name: '', type: 'android', ip: '', mac: '' }); paintTvs(); };
+    $('sh-tv-save').onclick = safe(async () => { await saveTvs(); hint('sh-tv-hint', 'Сохранено.'); });
     $('sh-tv-find').onclick = safe(async () => {
-      hint('sh-tv-hint', 'Ищу телевизоры в сети…');
-      const { found } = await Agent.post('smarthome/discover', { what: 'tv' });
-      const box = $('sh-tv-found');
-      box.replaceChildren(...found.map(tv => {
-        const b = Object.assign(document.createElement('button'), { className: 'btn ghost', textContent: `${tv.name} (${tv.ip})` });
-        b.onclick = () => { $('sh-tv-ip').value = tv.ip; $('sh-tv-type').value = tv.type; $('sh-adb').hidden = tv.type !== 'android'; };
-        return b;
-      }));
-      hint('sh-tv-hint', found.length ? 'Нажмите на свой телевизор.' : 'Не нашёл. Проверьте, что ТВ включён и в той же сети, или введите адрес.');
-    });
-    $('sh-tv-save').onclick = safe(async () => {
-      await save('tv', { type: $('sh-tv-type').value, ip: $('sh-tv-ip').value.trim(), mac: $('sh-tv-mac').value.trim() });
-      if (!$('sh-tv-type').value) { hint('sh-tv-hint', 'Сохранено'); return; }
-      hint('sh-tv-hint', 'Подключаюсь — разрешите подключение на экране телевизора…');
-      const { message } = await Agent.post('smarthome/pair', { what: 'tv' });
-      hint('sh-tv-hint', message);
+      $('sh-tv-find').disabled = true;
+      hint('sh-tv-hint', 'Ищу телевизоры в сети… (до 10 секунд)');
+      try {
+        const { found } = await Agent.post('smarthome/discover', { what: 'tv' });
+        const fresh = found.filter(f => !tvs.some(t => t.ip === f.ip));
+        $('sh-tv-found').replaceChildren(...fresh.map(f => {
+          const b = el('button', { className: 'btn', textContent: `+ ${f.name} · ${f.ip}` });
+          b.onclick = safe(async () => {
+            tvs.push({ number: nextNumber(), name: f.name, type: f.type, ip: f.ip, mac: f.mac || '', cast: !!f.cast,
+              adb: (f.ports || []).includes(5555) });
+            b.remove();
+            await saveTvs();
+            const n = tvs[tvs.length - 1].number;
+            hint('sh-tv-hint', `Добавлен как телевизор ${n}. ` + (await Agent.post('smarthome/pair', { what: 'tv', number: n })).message);
+          });
+          return b;
+        }));
+        hint('sh-tv-hint', found.length ? (fresh.length ? `Найдено: ${found.length}. Нажмите на телевизор, чтобы добавить.` : 'Все найденные телевизоры уже добавлены.')
+          : 'Не нашёл. Проверьте, что телевизор включён и подключён к той же Wi-Fi, что и компьютер, — или добавьте вручную.');
+      } finally { $('sh-tv-find').disabled = false; }
     });
     $('sh-adb').onclick = safe(async () => { hint('sh-tv-hint', 'Скачиваю ADB…'); hint('sh-tv-hint', (await Agent.post('smarthome/adb')).message); });
+  }
+  if ($('sh-hue-find')) {
     $('sh-hue-find').onclick = safe(async () => {
       const { found } = await Agent.post('smarthome/discover', { what: 'hue' });
       if (found.length) $('sh-hue-bridge').value = found[0].ip; else Agent.toast('Мост Hue не найден');

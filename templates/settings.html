@@ -364,15 +364,16 @@
     <section class="page" id="page-smarthome">
       <h1>Умный дом</h1><p class="lead">Телевизор, роутер и лампочки голосом. Пароли и токены хранятся только на этом ПК.</p>
       <div class="card group">
-        <h2 class="section-title">Телевизор</h2>
-        <div class="row"><div class="label"><b>Тип</b></div>
-          <div class="control"><select id="sh-tv-type"><option value="">Не подключён</option><option value="lg">LG (webOS)</option><option value="samsung">Samsung (Tizen)</option><option value="android">Android TV / Google TV (Xiaomi, Sber, TCL, Haier…)</option><option value="yandex">Телевизор в «Доме с Алисой»</option></select></div></div>
-        <div class="row"><div class="label"><b>Адрес в сети</b><small>IP телевизора, например 192.168.1.40</small></div>
-          <div class="control"><input id="sh-tv-ip" placeholder="192.168.1.40"><button class="btn ghost" id="sh-tv-find">Найти в сети</button></div></div>
-        <div class="row"><div class="label"><b>MAC-адрес</b><small>Чтобы включать телевизор голосом (Wake-on-LAN). Есть в настройках сети ТВ.</small></div>
-          <div class="control"><input id="sh-tv-mac" placeholder="AA:BB:CC:DD:EE:FF"></div></div>
-        <div class="row stack"><div class="control"><button class="btn primary" id="sh-tv-save">Сохранить и подключить</button><button class="btn ghost" id="sh-adb" hidden>Скачать ADB</button><span class="hint" id="sh-tv-hint">Первое подключение нужно разрешить на экране телевизора. Android TV: «Настройки → Для разработчиков → Отладка по сети».</span></div></div>
+        <h2 class="section-title">Телевизоры</h2>
+        <p class="hint">Нажмите «Найти телевизоры» — программа сама найдёт все телевизоры в вашей Wi-Fi: Xiaomi Mi TV, Android TV / Google TV, LG, Samsung. Коды вводить не нужно (LG и Samsung один раз попросят «Разрешить» на экране). У каждого телевизора свой номер: «Андрей, включи телевизор 2», «переключи канал на телевизоре 1», «включи Дюну на телевизоре 2», «выключи все телевизоры».</p>
+        <div class="row stack"><div class="control">
+          <button class="btn primary" id="sh-tv-find">Найти телевизоры</button>
+          <button class="btn ghost" id="sh-tv-add">Добавить вручную</button>
+          <button class="btn ghost" id="sh-adb" hidden>Скачать ADB</button>
+          <span class="hint" id="sh-tv-hint"></span></div></div>
         <div id="sh-tv-found" class="found-list"></div>
+        <div id="sh-tvs" class="tv-list"></div>
+        <div class="row stack" id="sh-tv-save-row" hidden><div class="control"><button class="btn primary" id="sh-tv-save">Сохранить</button></div></div>
       </div>
       <div class="card group">
         <h2 class="section-title">Освещение</h2>

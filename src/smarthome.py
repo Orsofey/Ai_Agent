@@ -1,7 +1,9 @@
 """Умный дом голосом: телевизор, роутер, лампочки. Настройка — Настройки → «Умный дом».
 
-Телевизор:  LG (webOS), Samsung (Tizen), Android TV / Google TV (Xiaomi, Sber, TCL, Haier… — «Отладка по сети»),
-            а также телевизоры в «Доме с Алисой». «Включи телевизор», «громче на телевизоре», «громкость телевизора 20»,
+Телевизоры (сколько угодно, у каждого номер): LG (webOS), Samsung (Tizen), Xiaomi Mi TV, Android TV / Google TV
+            (Sber, TCL, Haier, Sony… — без кодов, через Chromecast; «Отладка по сети» — по желанию), телевизоры в
+            «Доме с Алисой». «Включи телевизор 2», «переключи канал на втором телевизоре», «включи Дюну на телевизоре 1»,
+            «выключи все телевизоры», «телевизор в спальне громче». Поиск — src/tv.py (mDNS, SSDP, опрос сети). «Включи телевизор», «громче на телевизоре», «громкость телевизора 20»,
             «выключи звук на телевизоре», «переключи на 5 канал», «следующий канал», «открой на телевизоре Кинопоиск»,
             «включи на телевизоре Интерстеллар на YouTube», «режим изображения кино» (LG), «пауза на телевизоре».
 Роутер:     Keenetic (веб-API RCI), MikroTik (REST). «Кто подключён к Wi-Fi», «перезагрузи роутер» (с подтверждением),
@@ -128,7 +130,7 @@ def parse_tv(text):
         channel = number(match[1] or match[2] or '')
         if channel:
             return ('channel', channel)
-    if re.fullmatch(r'(?:следующий|дальше)\s+канал(?:' + ON_TV + r')?|канал\s+вперед', value):
+    if re.fullmatch(r'(?:следующий|дальше)\s+канал(?:' + ON_TV + r')?|канал\s+вперед|(?:переключи|смени)\s+канал(?:' + ON_TV + r')?', value):
         return ('channel_step', 1)
     if re.fullmatch(r'(?:предыдущий|прошлый)\s+канал(?:' + ON_TV + r')?|канал\s+назад', value):
         return ('channel_step', -1)
@@ -152,6 +154,15 @@ def parse_tv(text):
         app = _app_key(match[1] or match[2] or '')
         if app:
             return ('app', app)
+    # «включи Дюну на телевизоре», «поставь Интерстеллар на телевизоре на кинопоиске»
+    match = re.fullmatch(r'(?:включи|запусти|найди|покажи|поставь)\s+(?:фильм\w*|сериал\w*|видео|мультфильм\w*|мультик\w*)?\s*'
+                         r'(.+?)' + ON_TV + r'(?:\s+(?:на|в)\s+(\S+))?', value)
+    if match and not re.fullmatch(r'(?:звук|телевизор\w*|тв)', match[1]):
+        return ('search', (match[1].strip(), _app_key(match[2] or '') or 'youtube'))
+    match = re.fullmatch(r'(?:нажми|кнопка|нажать)\s+(ок|окей|ok|назад|домой|вверх|вниз|влево|вправо|меню)' + '(?:' + ON_TV + ')?',
+                         value)
+    if match:
+        return ('key', {'ок': 'ok', 'окей': 'ok', 'ok': 'ok'}.get(match[1], match[1]))
     return None
 
 
@@ -931,8 +942,17 @@ class SmartHome:
             return {}
 
     def save(self, section, data):
+        if section == 'tvs':
+            return self.save_tvs(data)
         if section not in ('tv', 'router', 'lights'):
             raise ValueError('Неизвестный раздел')
+        if section == 'tv':                 # старый формат (один телевизор) — это телевизор №1
+            current = self.tvs()
+            first = dict(current[0]) if current else {'number': 1, 'name': 'Телевизор 1'}
+            for key, value in (data or {}).items():
+                if not (is_secret(key) and value in ('', None, '••••••')):
+                    first[key] = value
+            return self.save_tvs([first] + current[1:])
         with self.lock:
             config = self.config()
             current = config.get(section, {})
@@ -946,22 +966,80 @@ class SmartHome:
 
     def public(self):
         """Для окна настроек: без паролей и токенов, только признак «задан»."""
+        mask = lambda values: {k: ('••••••' if is_secret(k) and v else v) for k, v in values.items()}  # noqa: E731
         result = {}
         for section, values in self.config().items():
-            result[section] = {k: ('••••••' if is_secret(k) and v else v) for k, v in values.items()}
+            if section == 'tv':
+                continue
+            result[section] = [mask(v) for v in values] if isinstance(values, list) else mask(values)
+        result['tvs'] = [mask(v) for v in self.tvs()]
         return result
 
-    # ---- устройства ----
-    def tv(self):
-        config = self.config().get('tv') or {}
+    # ---- телевизоры ----
+    def tvs(self):
+        """Список телевизоров [{number, name, type, ip, mac, …}]; старый одиночный «tv» — телевизор №1."""
+        config = self.config()
+        if isinstance(config.get('tvs'), list):
+            return config['tvs']
+        old = config.get('tv') or {}
+        return [dict(old, number=1, name=old.get('name') or 'Телевизор 1')] if old.get('type') else []
+
+    def save_tvs(self, items):
+        if not isinstance(items, list) or len(items) > 12:
+            raise ValueError('Список телевизоров не подходит')
+        with self.lock:
+            config = self.config()
+            old = {(t.get('ip') or t.get('number')): t for t in self.tvs()}
+            result, used = [], set()
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                prev = old.get(item.get('ip') or item.get('number'), {})
+                tv = dict(prev)
+                for key, value in item.items():
+                    if is_secret(key) and value in ('', None, '••••••'):
+                        continue
+                    tv[key] = value
+                number = int(tv.get('number') or 0)
+                while number <= 0 or number in used:
+                    number += 1
+                used.add(number)
+                tv['number'] = number
+                tv['name'] = str(tv.get('name') or f'Телевизор {number}')[:60]
+                result.append(tv)
+            config['tvs'] = sorted(result, key=lambda t: t['number'])
+            config.pop('tv', None)
+            self.store.set_meta('smarthome', json.dumps(config, ensure_ascii=False))
+        return self.public()
+
+    def update_tv(self, number, data):
+        items = [dict(t, **data) if t['number'] == number else t for t in self.tvs()]
+        self.save_tvs(items)
+
+    def tv(self, number=None):
+        tvs = self.tvs()
+        if not tvs:
+            return None
+        config = next((t for t in tvs if t['number'] == number), None) if number is not None else tvs[0]
+        if config is None:
+            return None
+        return self.device(config)
+
+    def device(self, config):
+        from .tv import CastTV, XiaomiTV
         kind = config.get('type')
-        save = lambda data: self.save('tv', data)  # noqa: E731
+        save = lambda data, n=config['number']: self.update_tv(n, data)  # noqa: E731
         if kind == 'lg' and config.get('ip'):
             return LGTV(config, save)
         if kind == 'samsung' and config.get('ip'):
             return SamsungTV(config, save)
+        if kind == 'xiaomi' and config.get('ip'):
+            return XiaomiTV(config, self.session)
         if kind == 'android' and config.get('ip'):
-            return AndroidTV(config, save, self.store.root)
+            adb = AndroidTV(config, save, self.store.root) if config.get('adb') else None
+            if config.get('cast', True):
+                return CastTV(config, self.session, adb)
+            return adb or AndroidTV(config, save, self.store.root)
         if kind == 'yandex':
             return _YandexTV(self, config)
         return None
@@ -1005,10 +1083,13 @@ class SmartHome:
                 return 'Хорошо, не трогаю.'
         config = self.config()
         try:
-            if config.get('tv'):
-                request = parse_tv(text)
+            tvs = self.tvs()
+            if tvs:
+                from .tv import pick_target
+                target, cleaned = pick_target(text, tvs)
+                request = parse_tv(cleaned)
                 if request is not None:
-                    return self.tv_command(*request)
+                    return self.tv_command(*request, target=target)
             if config.get('lights'):
                 request = parse_lights(text)
                 if request is not None:
@@ -1029,23 +1110,45 @@ class SmartHome:
             return f'Устройство не ответило: {str(exc)[:120]}'
         return None
 
-    def tv_command(self, action, value):
-        config = self.config().get('tv') or {}
-        tv = self.tv()
+    def tv_command(self, action, value, target=None):
+        tvs = self.tvs()
+        if not tvs:
+            return 'Телевизор не подключён: Настройки → «Умный дом» → «Найти телевизоры».'
+        if target == 'all':
+            chosen = tvs
+        elif target is not None:
+            chosen = [t for t in tvs if t['number'] == target]
+            if not chosen:
+                numbers = ', '.join(str(t['number']) for t in tvs)
+                return f'Телевизора {target} нет. Подключены: {numbers}.'
+        else:
+            last = getattr(self, 'last_tv', None)
+            chosen = [next((t for t in tvs if t['number'] == last), tvs[0])]
+        replies = []
+        for config in chosen:
+            self.last_tv = config['number']
+            reply = self._tv_one(config, action, value)
+            label = f"{config['name']}: " if len(tvs) > 1 else ''
+            replies.append(label + reply)
+        return ' '.join(replies)
+
+    def _tv_one(self, config, action, value):
+        tv = self.device(config)
         if action == 'power' and value:
+            done = None
+            if tv is not None and not isinstance(tv, (LGTV, SamsungTV)):
+                try:
+                    done = tv.run('power', True)
+                except RuntimeError:
+                    done = None
             if config.get('mac'):
                 wake_on_lan(config['mac'])
-                if isinstance(tv, AndroidTV):
-                    try:
-                        tv.run('power', True)
-                    except RuntimeError:
-                        pass
-                return 'Включаю телевизор.'
-            if tv is not None and not isinstance(tv, (LGTV, SamsungTV)):
-                return tv.run('power', True)
-            return 'Чтобы включать телевизор, укажите его MAC-адрес: Настройки → «Умный дом».'
+                return done or 'Включаю телевизор.'
+            if done:
+                return done
+            return 'Чтобы включать этот телевизор голосом, нужен его MAC-адрес — нажмите «Найти телевизоры» в настройках, пока он включён.'
         if tv is None:
-            return 'Телевизор не подключён: Настройки → «Умный дом» → «Телевизор».'
+            return 'Телевизор не настроен: Настройки → «Умный дом».'
         return tv.run(action, value) or 'Готово.'
 
     def _lights(self, where):
@@ -1217,7 +1320,8 @@ class SmartHome:
     # ---- настройка из окна ----
     def discover(self, what):
         if what == 'tv':
-            return [describe_tv(item, self.session) for item in ssdp_search()]
+            from .tv import discover
+            return discover(self.session)
         if what == 'hue':
             return [{'ip': ip, 'name': 'Мост Philips Hue'} for ip in Hue.discover(self.session)]
         if what == 'yeelight':
@@ -1226,12 +1330,20 @@ class SmartHome:
             return [{'ip': default_gateway(), 'name': 'Роутер (основной шлюз)'}]
         raise ValueError('Неизвестное устройство')
 
-    def pair(self, what):
+    def pair(self, what, number=None):
         if what == 'tv':
-            tv = self.tv()
+            tv = self.tv(number)
             if tv is None or not hasattr(tv, 'pair'):
                 raise ValueError('Сначала выберите тип телевизора и адрес.')
-            return tv.pair()
+            message = tv.pair()
+            adb = getattr(tv, 'adb', None)
+            if adb is not None:          # «Отладка по сети» включена — один раз «Разрешить» на экране ТВ
+                try:
+                    adb.pair()
+                    message += ' Расширенное управление (ADB) тоже работает.'
+                except RuntimeError as exc:
+                    message += f' ADB: {exc}'
+            return message
         if what == 'hue':
             bridge = (self.config().get('lights') or {}).get('hue_bridge')
             if not bridge:
@@ -1240,7 +1352,7 @@ class SmartHome:
             return 'Мост Philips Hue подключён.'
         raise ValueError('Неизвестное устройство')
 
-    def test(self, what):
+    def test(self, what, number=None):
         if what == 'lights':
             names = [d['name'] for provider in self.light_providers() for d in provider.devices()]
             return f'Найдено устройств: {len(names)}. ' + ', '.join(names[:10])
@@ -1250,7 +1362,7 @@ class SmartHome:
                 raise ValueError('Роутер не настроен.')
             return f'Устройств в сети: {len([d for d in router.devices() if d["active"]])}.'
         if what == 'tv':
-            return self.pair('tv')
+            return self.pair('tv', number)
         raise ValueError('Неизвестное устройство')
 
 

@@ -535,3 +535,13 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 13px; pa
 .diag-steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .diag-steps li.ok { color: var(--ok); }
 .diag-steps li.bad { color: var(--bad); }
+/* Телевизоры: список с номерами */
+.tv-list { display: grid; gap: 10px; margin-top: 10px; }
+.tv-row { display: grid; grid-template-columns: 70px minmax(120px, 1.2fr) minmax(150px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) auto auto;
+  gap: 8px; align-items: center; padding: 10px 12px; }
+.tv-row input, .tv-row select { min-width: 0; width: 100%; }
+.tv-num { display: flex; align-items: center; gap: 4px; font-weight: 700; color: var(--muted); }
+.tv-number { width: 44px !important; text-align: center; font-weight: 700; }
+.tv-adb { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.tv-actions { display: flex; gap: 6px; }
+@media (max-width: 1100px) { .tv-row { grid-template-columns: 70px 1fr 1fr; } }

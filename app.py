@@ -1195,13 +1195,15 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
 
     @app.post('/api/smarthome/<action>')
     def smarthome_action(action):
-        what = str((request.get_json(silent=True) or {}).get('what', ''))
+        data = request.get_json(silent=True) or {}
+        what = str(data.get('what', ''))
+        number = int(data['number']) if str(data.get('number', '')).isdigit() else None
         if action == 'discover':
             return jsonify(success=True, found=smarthome.discover(what))
         if action == 'pair':
-            return jsonify(success=True, message=smarthome.pair(what), config=smarthome.public())
+            return jsonify(success=True, message=smarthome.pair(what, number), config=smarthome.public())
         if action == 'test':
-            return jsonify(success=True, message=smarthome.test(what))
+            return jsonify(success=True, message=smarthome.test(what, number))
         if action == 'adb':
             from src.smarthome import download_adb
             return jsonify(success=True, message=f'ADB установлен: {download_adb(store.root)}')
