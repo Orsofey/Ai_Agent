@@ -22,12 +22,13 @@ void main() {
     });
   }
 
-  testWidgets('тема glass: стеклянные фигуры и радужная сфера', (tester) async {
+  for (final id in ['glass', 'glassdark'])
+  testWidgets('тема $id: стеклянные фигуры и радужная сфера', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final palette = paletteOf('glass');
-    expect(palette.dark, isFalse);
+    final palette = paletteOf(id);
+    expect(palette.id, id);
     await tester.pumpWidget(MaterialApp(
       theme: themeFor(palette),
       home: Scene(palette: palette, child: Center(child: Orb(palette: palette, active: true))),
@@ -35,7 +36,7 @@ void main() {
     expect(find.byType(GlassShape), findsNWidgets(5));
     expect(tester.takeException(), isNull);
     if (const bool.fromEnvironment('GOLDEN')) {
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/glass.png'));
+      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/$id.png'));
     }
   });
 }

@@ -20,7 +20,7 @@ def data_root():
     return Path.home() / '.local' / 'share' / 'LocalAIAgent'
 
 
-THEMES = ('aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', 'glass', 'dark', 'light')
+THEMES = ('aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', 'glass', 'glassdark', 'dark', 'light')
 
 DEFAULTS = {
     # Внешний вид

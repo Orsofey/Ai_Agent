@@ -1,4 +1,4 @@
-/* Ten themes: eight signature themes + classic dark/light.
+/* Eleven themes: nine signature themes + classic dark/light.
    Each theme = variables + its own living background (.scene). */
 
 /* Общая база: каждая тема (и карточка-превью) начинает с одинаковых значений. */
@@ -266,99 +266,204 @@
   animation: bubble-rise linear infinite, bubble-wobble ease-in-out infinite alternate, twinkle 1.6s ease-in-out infinite alternate;
 }
 
-/* ===== 8. СТЕКЛО — жидкое стекло: парящие стеклянные фигуры, радужные переливы, матовые панели ===== */
+/* ===== 8–9. СТЕКЛО и СТЕКЛО: НОЧЬ — жидкое стекло ============================================
+   Толстое стекло с настоящим преломлением фона у кромки (static/glass.js → SVG feDisplacementMap с радужной
+   дисперсией), френелевская кромка, блик, бегущий за курсором, объёмные стеклянные фигуры с параллаксом.
+   Переменные --g-* задают «материал»; всё остальное общее для дневной и ночной версии. */
 [data-theme="glass"] {
   --font-display: 'Segoe UI Variable Display', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
-  --radius: 26px; --radius-sm: 16px; --blur: 30px; --display-spacing: -.2px;
-  --bg: #f3eee7; --bar: rgba(255, 255, 255, .42); --surface: rgba(255, 255, 255, .42); --surface-strong: #fbf9f6;
-  --border: rgba(255, 255, 255, .82); --text: #1c2033; --muted: #686d82; --chip: rgba(255, 255, 255, .5);
-  --input: rgba(255, 255, 255, .62); --accent: #6a5cff; --accent-2: #ff8a3d; --on-accent: #fff;
-  --accent-fill: linear-gradient(135deg, #52c3ff 0%, #6f63ff 48%, #e061d4 100%); --ring: rgba(111, 99, 255, .2);
-  --glow: rgba(123, 108, 255, .32); --ok: #22a06b; --warn: #d9861c; --bad: #e0445e;
-  --user-bubble: linear-gradient(135deg, rgba(82, 195, 255, .92), rgba(111, 99, 255, .94) 55%, rgba(224, 97, 212, .92));
-  --user-text: #fff; --agent-bubble: rgba(255, 255, 255, .58);
-  --orb: radial-gradient(circle at 32% 22%, rgba(255, 255, 255, .95) 0 7%, rgba(255, 255, 255, 0) 26%),
-         radial-gradient(circle at 26% 34%, rgba(255, 176, 110, .95), rgba(255, 176, 110, 0) 46%),
-         radial-gradient(circle at 78% 30%, rgba(111, 207, 255, .95), rgba(111, 207, 255, 0) 48%),
-         radial-gradient(circle at 70% 78%, rgba(185, 140, 255, .95), rgba(185, 140, 255, 0) 50%),
-         radial-gradient(circle at 26% 76%, rgba(255, 120, 182, .9), rgba(255, 120, 182, 0) 46%),
-         radial-gradient(circle at 52% 52%, rgba(134, 240, 180, .7), rgba(134, 240, 180, 0) 40%),
-         radial-gradient(circle, #f4ecff, #d9d0ff);
-  --shadow: inset 0 1px 0 #fff, 0 24px 60px -18px rgba(76, 64, 140, .28), 0 2px 6px rgba(76, 64, 140, .06);
-  --title-fill: linear-gradient(90deg, #ff8a3d, #e061d4, #6f63ff, #3fb8ff, #ff8a3d);
-  --scene: radial-gradient(ellipse 60% 45% at 12% 8%, rgba(255, 196, 150, .55), transparent 70%),
-           radial-gradient(ellipse 55% 45% at 92% 18%, rgba(214, 170, 255, .45), transparent 70%),
-           radial-gradient(ellipse 60% 50% at 80% 100%, rgba(150, 214, 255, .5), transparent 70%),
-           radial-gradient(ellipse 50% 40% at 6% 96%, rgba(190, 240, 190, .45), transparent 70%),
-           linear-gradient(165deg, #faf6f1 0%, #f1ebe3 55%, #ece6f2 100%);
+  --radius: 28px; --radius-sm: 16px; --blur: 16px; --display-spacing: -.3px;
+  --bg: #f2ede6; --bar: rgba(255, 255, 255, .3); --surface: rgba(255, 255, 255, .3); --surface-strong: #fbf9f7;
+  --border: rgba(255, 255, 255, .7); --text: #171a2c; --muted: #636882; --chip: rgba(255, 255, 255, .42);
+  --input: rgba(255, 255, 255, .5); --accent: #6557ff; --accent-2: #ff8a3d; --on-accent: #fff;
+  --accent-fill: linear-gradient(135deg, #43bfff 0%, #6557ff 46%, #d85ad0 100%); --ring: rgba(101, 87, 255, .2);
+  --glow: rgba(123, 108, 255, .34); --ok: #1f9d68; --warn: #d9861c; --bad: #e0445e;
+  --user-bubble: linear-gradient(135deg, rgba(67, 191, 255, .9), rgba(101, 87, 255, .92) 52%, rgba(216, 90, 208, .9));
+  --user-text: #fff; --agent-bubble: rgba(255, 255, 255, .44);
+  --shadow: 0 30px 70px -28px rgba(66, 54, 140, .38), 0 3px 10px rgba(66, 54, 140, .07);
+  --title-fill: linear-gradient(90deg, #ff8a3d, #d85ad0, #6557ff, #3fb8ff, #ff8a3d);
+  --g-top: rgba(255, 255, 255, .62); --g-mid: rgba(255, 255, 255, .16); --g-low: rgba(255, 255, 255, .34);
+  --g-rim: rgba(255, 255, 255, .95); --g-rim-low: rgba(255, 255, 255, .28); --g-hair: rgba(60, 50, 120, .10);
+  --g-inner: rgba(255, 255, 255, .55); --g-deep: rgba(40, 30, 100, .07); --g-light: rgba(255, 255, 255, .95);
+  --g-well: rgba(40, 30, 100, .08); --g-sat: 185%; --g-shape-glow: .42;
+  --scene: radial-gradient(ellipse 60% 45% at 12% 8%, rgba(255, 190, 140, .6), transparent 70%),
+           radial-gradient(ellipse 55% 45% at 92% 16%, rgba(210, 165, 255, .5), transparent 70%),
+           radial-gradient(ellipse 60% 50% at 82% 100%, rgba(140, 210, 255, .55), transparent 70%),
+           radial-gradient(ellipse 50% 40% at 6% 96%, rgba(180, 240, 190, .5), transparent 70%),
+           linear-gradient(165deg, #fbf7f2 0%, #f1ebe3 55%, #ebe5f3 100%);
 }
-[data-theme="glass"] .brand-name span { color: transparent; background-size: 200% 100%; animation: sheen 10s linear infinite; }
-[data-theme="glass"] .topbar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .34));
-  border-bottom-color: rgba(255, 255, 255, .9); box-shadow: 0 10px 30px -18px rgba(76, 64, 140, .35);
-  backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+[data-theme="glassdark"] {
+  --font-display: 'Segoe UI Variable Display', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  --radius: 28px; --radius-sm: 16px; --blur: 18px; --display-spacing: -.3px;
+  --bg: #06070f; --bar: rgba(16, 18, 34, .3); --surface: rgba(255, 255, 255, .05); --surface-strong: #141626;
+  --border: rgba(255, 255, 255, .16); --text: #f3f4ff; --muted: #9ea5c6; --chip: rgba(255, 255, 255, .07);
+  --input: rgba(0, 0, 10, .28); --accent: #9a8cff; --accent-2: #ff9d5c; --on-accent: #fff;
+  --accent-fill: linear-gradient(135deg, #36b5ff 0%, #7b6bff 46%, #e35ad6 100%); --ring: rgba(154, 140, 255, .28);
+  --glow: rgba(140, 120, 255, .5); --ok: #3ddc97; --warn: #ffc35c; --bad: #ff5c7a;
+  --user-bubble: linear-gradient(135deg, rgba(54, 181, 255, .78), rgba(123, 107, 255, .82) 52%, rgba(227, 90, 214, .78));
+  --user-text: #fff; --agent-bubble: rgba(255, 255, 255, .06);
+  --shadow: 0 34px 80px -30px rgba(0, 0, 0, .85), 0 3px 12px rgba(0, 0, 0, .3);
+  --title-fill: linear-gradient(90deg, #ffb07a, #ff7ad9, #a393ff, #62cfff, #ffb07a);
+  --g-top: rgba(255, 255, 255, .13); --g-mid: rgba(255, 255, 255, .025); --g-low: rgba(255, 255, 255, .06);
+  --g-rim: rgba(255, 255, 255, .6); --g-rim-low: rgba(255, 255, 255, .1); --g-hair: rgba(0, 0, 0, .5);
+  --g-inner: rgba(255, 255, 255, .14); --g-deep: rgba(0, 0, 0, .35); --g-light: rgba(210, 220, 255, .75);
+  --g-well: rgba(0, 0, 0, .3); --g-sat: 200%; --g-shape-glow: .75;
+  --scene: radial-gradient(ellipse 55% 45% at 10% 10%, rgba(255, 110, 60, .38), transparent 70%),
+           radial-gradient(ellipse 55% 45% at 92% 14%, rgba(150, 80, 255, .42), transparent 70%),
+           radial-gradient(ellipse 60% 50% at 84% 100%, rgba(40, 150, 255, .4), transparent 70%),
+           radial-gradient(ellipse 50% 40% at 4% 96%, rgba(40, 220, 170, .3), transparent 70%),
+           linear-gradient(165deg, #0b0c1c 0%, #06070f 60%, #0a0716 100%);
 }
-[data-theme="glass"] .card {
-  background: linear-gradient(155deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .22) 60%, rgba(255, 255, 255, .36));
-  border-color: rgba(255, 255, 255, .88);
-  backdrop-filter: blur(14px) saturate(170%); -webkit-backdrop-filter: blur(14px) saturate(170%);
+
+/* --- материал: толстое стекло --- */
+[data-theme^="glass"] .card, [data-theme^="glass"] .topbar, [data-theme^="glass"] .side,
+[data-theme^="glass"] .msg.agent, [data-theme^="glass"] .pill, [data-theme^="glass"] .chip, [data-theme^="glass"] .suggest-chip,
+[data-theme^="glass"] .btn:not(.primary):not(.ghost), [data-theme^="glass"] .dd-list, [data-theme^="glass"] .account-chip,
+[data-theme^="glass"] .pause-btn, [data-theme^="glass"] .doc-card {
+  isolation: isolate;
+  background: linear-gradient(160deg, var(--g-top) 0%, var(--g-mid) 48%, var(--g-low) 100%);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 var(--g-inner), inset 0 -18px 30px -18px var(--g-deep), inset 0 0 0 1px var(--g-rim-low),
+              0 0 0 .5px var(--g-hair), var(--shadow);
+  backdrop-filter: blur(var(--blur)) saturate(var(--g-sat)); -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--g-sat));
 }
-/* блик по верхней кромке стеклянной панели */
-[data-theme="glass"] .card::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(170deg, rgba(255, 255, 255, .75) 0%, rgba(255, 255, 255, 0) 22%);
-  -webkit-mask: linear-gradient(#000, transparent 40%); mask: linear-gradient(#000, transparent 40%); opacity: .7;
+/* настоящее преломление (Chromium): фон у кромки изгибается, как в линзе, с радужной дисперсией */
+html.lg-refract[data-theme^="glass"] :is(.card, .topbar, .side, .btn.primary, .pill, .chip, .suggest-chip, .dd-list,
+  .pause-btn, .account-chip, .doc-card) {
+  backdrop-filter: var(--lg-filter, blur(0)) blur(var(--blur)) saturate(var(--g-sat));
 }
-[data-theme="glass"] .card > * { position: relative; }
-[data-theme="glass"] .btn {
-  background: linear-gradient(180deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, .45)); border-color: rgba(255, 255, 255, .95);
-  box-shadow: inset 0 1px 0 #fff, 0 6px 16px -6px rgba(76, 64, 140, .22);
+/* стекло на стекле: фон уже размыт внешней панелью — вложенным элементам свой backdrop не нужен (и в Chromium он
+   видит только внешнюю панель, отчего сереет) */
+html[data-theme^="glass"] :is(.card, .msg, .topbar, .side) :is(.doc-card, .btn, .pill, .chip, .suggest-chip, .account-chip, .card) {
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
 }
-[data-theme="glass"] .btn:hover { border-color: #fff; box-shadow: inset 0 1px 0 #fff, 0 0 0 3px var(--ring), 0 10px 22px -8px rgba(76, 64, 140, .3); }
-[data-theme="glass"] .btn.primary {
-  background: var(--accent-fill); border-color: rgba(255, 255, 255, .55); text-shadow: 0 1px 1px rgba(40, 20, 120, .25);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), inset 0 -8px 16px rgba(80, 40, 180, .18), 0 10px 24px -8px rgba(111, 99, 255, .6);
+[data-theme^="glass"] .btn:not(.primary):not(.ghost), [data-theme^="glass"] .pill, [data-theme^="glass"] .chip,
+[data-theme^="glass"] .suggest-chip, [data-theme^="glass"] .account-chip { --shadow: 0 10px 22px -12px rgba(50, 40, 120, .35); }
+[data-theme="glassdark"] :is(.btn:not(.primary):not(.ghost), .pill, .chip, .suggest-chip, .account-chip) { --shadow: 0 10px 24px -12px rgba(0, 0, 0, .8); }
+[data-theme^="glass"] .topbar { --shadow: 0 16px 40px -26px rgba(50, 40, 120, .45); border-radius: 0; }
+[data-theme^="glass"] .side { --shadow: none; border-radius: 0; --blur: 34px; }
+/* боковое меню плотнее: за ним проплывают яркие фигуры, а текст должен читаться */
+[data-theme="glass"] .side { background: linear-gradient(170deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .42)); }
+[data-theme="glassdark"] .side { background: linear-gradient(170deg, rgba(22, 24, 44, .72), rgba(10, 12, 26, .62)); }
+
+/* для кромки нужен позиционированный элемент — кроме тех, что уже absolute (выпадающий список) */
+[data-theme^="glass"] :is(.topbar, .side, .pill, .chip, .suggest-chip, .account-chip, .doc-card, .pause-btn) { position: relative; }
+/* френелевская кромка: ярче сверху-слева, у низа — отражённый свет; плюс блик от курсора */
+[data-theme^="glass"] :is(.card, .topbar, .side, .msg, .pill, .chip, .suggest-chip, .btn, .dd-list, .account-chip,
+  .pause-btn, .doc-card)::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3; padding: 1.3px;
+  background:
+    radial-gradient(360px circle at var(--lx, 30vw) var(--ly, 20vh), var(--g-light), transparent 45%) fixed,
+    linear-gradient(150deg, var(--g-rim) 0%, var(--g-rim-low) 30%, transparent 55%, var(--g-rim-low) 80%, var(--g-rim) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
 }
-[data-theme="glass"] .btn.ghost { background: rgba(255, 255, 255, .22); box-shadow: none; }
-[data-theme="glass"] .pill { background: rgba(255, 255, 255, .55); border-color: rgba(255, 255, 255, .95); box-shadow: inset 0 1px 0 #fff; }
-[data-theme="glass"] .msg.user { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 10px 24px -10px rgba(111, 99, 255, .55); }
-[data-theme="glass"] .msg.agent { border-color: rgba(255, 255, 255, .95); box-shadow: inset 0 1px 0 #fff, 0 8px 22px -12px rgba(76, 64, 140, .25);
-  backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%); }
-[data-theme="glass"] .orb {
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .85), inset -14px -18px 34px rgba(90, 60, 200, .22),
-              inset 10px 12px 26px rgba(255, 255, 255, .55), 0 26px 50px -14px rgba(111, 99, 255, .5),
-              0 0 calc(24px + var(--level) * 90px) var(--glow);
-  animation: glass-hue 18s linear infinite;
+[data-theme^="glass"] :is(.topbar, .side)::after { padding: 0 0 1.3px 0; }
+[data-theme^="glass"] .side::after { padding: 0 1.3px 0 0; }
+/* блик-«линза» на верхней части панели */
+[data-theme^="glass"] .card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
+  background: radial-gradient(120% 60% at 20% -10%, rgba(255, 255, 255, .5), transparent 55%),
+              radial-gradient(80% 50% at 100% 110%, rgba(255, 255, 255, .16), transparent 60%);
+  opacity: .8;
 }
-[data-theme="glass"] .orb-ring { border: 1.5px solid rgba(255, 255, 255, .9); box-shadow: inset 0 0 18px rgba(255, 255, 255, .5), 0 8px 24px -10px rgba(76, 64, 140, .3); opacity: .9; }
-[data-theme="glass"] .orb-ring.r2 { border-color: rgba(255, 255, 255, .6); }
-:is(html[data-theme="glass"] body > .scene, .theme-card[data-theme="glass"] > .scene)::before {
-  inset: -10%; opacity: .55;
+[data-theme="glassdark"] .card::before { opacity: .35; }
+[data-theme^="glass"] .card > *, [data-theme^="glass"] .btn > *, [data-theme^="glass"] .msg > * { position: relative; z-index: 1; }
+
+/* кнопки */
+[data-theme^="glass"] .btn { position: relative; border-radius: 999px; transition: transform .25s cubic-bezier(.3, 1.5, .5, 1), box-shadow .25s, filter .25s; }
+[data-theme^="glass"] .btn:hover { transform: translateY(-1px) scale(1.02); filter: brightness(1.04); }
+[data-theme^="glass"] .btn:active { transform: scale(.96); }
+[data-theme^="glass"] .btn.primary {
+  background: radial-gradient(120% 90% at 30% 0%, rgba(255, 255, 255, .55), transparent 45%), var(--accent-fill);
+  border-color: transparent; text-shadow: 0 1px 2px rgba(30, 10, 90, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), inset 0 -10px 18px rgba(70, 30, 170, .28),
+              0 14px 30px -12px rgba(101, 87, 255, .75), 0 0 0 .5px rgba(60, 40, 160, .3);
+}
+[data-theme^="glass"] .btn.ghost { background: transparent; box-shadow: none; }
+[data-theme^="glass"] .icon-btn { border-radius: 50%; }
+
+/* поля ввода — «колодец» в стекле */
+[data-theme^="glass"] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, .dd-btn) {
+  background: var(--input); border: 1px solid transparent; border-radius: 16px;
+  box-shadow: inset 0 2px 5px var(--g-well), inset 0 -1px 0 var(--g-inner), 0 0 0 .5px var(--g-hair);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+[data-theme^="glass"] :is(input, textarea):focus, [data-theme^="glass"] .dd-btn:focus-visible {
+  box-shadow: inset 0 2px 5px var(--g-well), 0 0 0 3px var(--ring), 0 0 0 1px var(--accent);
+}
+
+/* сообщения */
+[data-theme^="glass"] .msg { position: relative; border-radius: 22px; }
+[data-theme^="glass"] .msg.user {
+  background: radial-gradient(120% 80% at 20% 0%, rgba(255, 255, 255, .42), transparent 50%), var(--user-bubble);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -10px 20px rgba(60, 20, 160, .22), 0 14px 30px -14px rgba(101, 87, 255, .7);
+  border-bottom-right-radius: 8px;
+}
+[data-theme^="glass"] .msg.agent { border-bottom-left-radius: 8px; --shadow: 0 14px 30px -18px rgba(50, 40, 120, .4); }
+[data-theme="glassdark"] .msg.agent { --shadow: 0 14px 30px -18px rgba(0, 0, 0, .8); }
+[data-theme^="glass"] .nav-item.active, [data-theme^="glass"] .nav-item[aria-current] {
+  background: linear-gradient(160deg, var(--g-top), var(--g-low)); box-shadow: inset 0 1px 0 var(--g-inner), 0 6px 16px -10px rgba(50, 40, 120, .4);
+}
+
+/* заголовки */
+[data-theme^="glass"] .brand-name span { color: transparent; background-size: 200% 100%; animation: sheen 10s linear infinite; }
+[data-theme="glassdark"] .voice-title, [data-theme="glassdark"] .page > h1 { text-shadow: 0 0 24px rgba(160, 140, 255, .35); }
+
+/* сфера — стеклянный шар: радужная сердцевина, френелевская кромка, блик и каустика */
+[data-theme^="glass"] .orb {
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(circle at 26% 34%, rgba(255, 170, 100, .85), rgba(255, 170, 100, 0) 40%),
+    radial-gradient(circle at 78% 30%, rgba(90, 200, 255, .85), rgba(90, 200, 255, 0) 42%),
+    radial-gradient(circle at 70% 78%, rgba(160, 115, 255, .85), rgba(160, 115, 255, 0) 44%),
+    radial-gradient(circle at 26% 76%, rgba(255, 95, 175, .8), rgba(255, 95, 175, 0) 40%),
+    radial-gradient(circle at 52% 52%, rgba(120, 240, 175, .7), rgba(120, 240, 175, 0) 34%),
+    radial-gradient(circle, #ffffff, #ece6ff 70%, #d6ccff);
+  background-size: 160% 160%; background-position: 0% 0%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7), inset -18px -24px 40px rgba(60, 30, 170, .28),
+              0 34px 60px -20px rgba(101, 87, 255, .6), 0 0 calc(20px + var(--level) * 100px) var(--glow);
+  animation: glass-swirl 16s ease-in-out infinite alternate;
+}
+[data-theme^="glass"] .orb::before, [data-theme^="glass"] .orb::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+}
+[data-theme^="glass"] .orb::before {           /* френель + главный блик */
+  background:
+    radial-gradient(ellipse 34% 20% at 34% 20%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0) 56%, rgba(255, 255, 255, .35) 74%, rgba(255, 255, 255, .85) 99%);
+}
+[data-theme^="glass"] .orb::after {            /* свет, прошедший сквозь шар и собравшийся внизу */
+  background: radial-gradient(ellipse 46% 22% at 56% 86%, rgba(255, 255, 255, .75), rgba(255, 255, 255, 0) 100%);
+  mix-blend-mode: screen;
+}
+[data-theme="glassdark"] .orb { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45), inset -18px -24px 40px rgba(20, 0, 80, .5),
+  0 30px 70px -18px rgba(123, 107, 255, .75), 0 0 calc(30px + var(--level) * 110px) var(--glow); }
+[data-theme^="glass"] .orb-ring {
+  border: none; opacity: 1;
+  background: linear-gradient(150deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, .05) 45%, rgba(255, 255, 255, .3));
+  -webkit-mask: radial-gradient(circle, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(circle, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+}
+[data-theme^="glass"] .orb-ring.r2 { opacity: .55; }
+
+/* фон: мягкие пятна света + объёмные стеклянные фигуры (static/glass.js) */
+:is(html[data-theme^="glass"] body > .scene, .theme-card[data-theme^="glass"] > .scene)::before {
+  inset: -10%; opacity: .5;
   background: radial-gradient(circle at 30% 40%, rgba(255, 170, 120, .35), transparent 30%),
               radial-gradient(circle at 70% 60%, rgba(140, 170, 255, .35), transparent 32%);
   filter: blur(30px); animation: drift 26s ease-in-out infinite alternate;
 }
-/* Парящие стеклянные фигуры (создаёт motion.js) */
-[data-theme="glass"] .particle.glass-shape {
-  --s: 1; --r: 0deg; --shade: rgba(111, 99, 255, .35);
-  border: 1.5px solid rgba(255, 255, 255, .8); border-radius: 30%;
-  box-shadow: inset 3px 4px 0 rgba(255, 255, 255, .55), inset -10px -14px 26px rgba(40, 20, 90, .12),
-              inset 8px 10px 24px rgba(255, 255, 255, .35), 0 30px 40px -18px var(--shade);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+[data-theme^="glass"] .particle.glass-shape {
+  --r: 0deg; --s: 1;
   transform: rotate(var(--r)) scale(var(--s)); animation: glass-float ease-in-out infinite alternate;
+  transition: translate .6s cubic-bezier(.2, .8, .2, 1);
+  filter: drop-shadow(0 26px 22px rgb(from var(--tone, #7b6cff) r g b / var(--g-shape-glow)))
+          drop-shadow(0 4px 6px rgba(40, 30, 90, .12));
 }
-[data-theme="glass"] .particle.glass-shape::after {
-  content: ''; position: absolute; inset: 8% 18% 55% 10%; border-radius: inherit;
-  background: linear-gradient(160deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0)); opacity: .75;
-}
-[data-theme="glass"] .glass-shape.gs-sun { border-radius: 50% 50% 50% 16%; background: linear-gradient(140deg, #ff6a3d 0%, #ff9d4a 45%, rgba(255, 214, 110, .85) 100%); --shade: rgba(255, 120, 60, .45); }
-[data-theme="glass"] .glass-shape.gs-note { border-radius: 26% 26% 26% 26%; background: linear-gradient(150deg, rgba(246, 170, 238, .95), #b46cf0 60%, #7b3fd8); --shade: rgba(160, 80, 230, .45); }
-[data-theme="glass"] .glass-shape.gs-word { border-radius: 24%; background: linear-gradient(170deg, rgba(126, 232, 255, .95), rgba(160, 150, 255, .9) 55%, #4a7dff); --shade: rgba(74, 125, 255, .45); }
-[data-theme="glass"] .glass-shape.gs-sheet { border-radius: 22% 34% 22% 22%; background: linear-gradient(135deg, #d9ff7a, #7fd65a 45%, #1f9a4b); --shade: rgba(40, 160, 80, .45); }
-[data-theme="glass"] .glass-shape.gs-ribbon { border-radius: 38% 12% 38% 12%; background: conic-gradient(from 200deg, #6fcfff, #b98cff, #ff78b6, #ffb46b, #86f0b4, #6fcfff); --shade: rgba(185, 140, 255, .45); }
-[data-theme="glass"] .glass-shape.gs-clear { border-radius: 28%; background: linear-gradient(150deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .12)); border-width: 2px; --shade: rgba(90, 120, 180, .28); }
-[data-theme="glass"] .glass-shape.gs-shield { border-radius: 18% 18% 50% 50%; background: linear-gradient(160deg, rgba(186, 226, 255, .9), #5a9dff 55%, #2c5fe0); --shade: rgba(60, 110, 230, .45); }
-[data-theme="glass"] .glass-shape.gs-mint { border-radius: 50%; background: linear-gradient(140deg, rgba(160, 255, 230, .95), #3cc6b0 60%, #169a8f); --shade: rgba(30, 170, 150, .42); }
+[data-theme^="glass"] .particle.glass-shape svg { width: 100%; height: 100%; display: block; overflow: visible; }
+html.lg-lite[data-theme^="glass"] .particle.glass-shape { filter: none; }
+.theme-card[data-theme^="glass"] > .scene::before { filter: blur(14px); }
 
 /* ===== Классика ===== */
 [data-theme="dark"] {
@@ -389,7 +494,6 @@
 .theme-card[data-theme="gzhel"] > .scene::after { width: 70px; }
 .theme-card[data-theme="slavic"] > .scene::before { width: 160px; right: -10px; bottom: -14px; }
 .theme-card[data-theme="slavic"] > .scene::after { width: 76px; }
-.theme-card[data-theme="glass"] > .scene::before { filter: blur(14px); }
 
 /* Пауза в стиле каждой темы. */
 [data-theme="aurora"] .pause-btn { border-radius: 999px; }
@@ -399,6 +503,4 @@
 [data-theme="ocean"] .pause-btn { border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%; }
 [data-theme="gzhel"] .pause-btn { border-radius: 999px; outline: 1px solid #c29a45; outline-offset: 2px; }
 [data-theme="slavic"] .pause-btn { border-radius: 6px; outline: 1px dashed #d2342a; outline-offset: 3px; text-transform: uppercase; letter-spacing: 1.5px; }
-[data-theme="glass"] .pause-btn { border-radius: 999px; background: linear-gradient(180deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, .45));
-  border: 1px solid #fff; box-shadow: inset 0 1px 0 #fff, 0 8px 20px -8px rgba(111, 99, 255, .45); }
 [data-theme="luxe"] .pause-btn { border-radius: 4px; outline: 1px solid var(--accent); outline-offset: 3px; text-transform: uppercase; letter-spacing: 2px; }

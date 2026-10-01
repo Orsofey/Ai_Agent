@@ -40,21 +40,29 @@
         e.style.animationDelay = `${-random(0, rise)}s, ${-random(0, wobble)}s, ${-random(0, 2)}s`;
         scene.appendChild(e);
       }
-    } else if (theme === 'glass') {
-      // Стеклянные фигуры по краям окна (как 3D-иконки из стекла), в середине — не мешают читать.
-      const kinds = ['sun', 'note', 'word', 'sheet', 'ribbon', 'clear', 'shield', 'mint'];
+    } else if (theme.startsWith('glass')) {
+      // Объёмные стеклянные фигуры (SVG из glass.js) по краям окна; data-depth — сила параллакса за курсором.
+      const kinds = [
+        ['disc', ['#ff6a3d', '#ff9d4a', '#ffd66e']], ['squircle', ['#f6aaee', '#b46cf0', '#7b3fd8']],
+        ['layers', ['#7ee8ff', '#a096ff', '#4a7dff']], ['ring', ['#d9ff7a', '#7fd65a', '#1f9a4b']],
+        ['arch', ['#ffb46b', '#ff78b6', '#b98cff']], ['drop', ['#ffffff', '#e8ecff', '#c9d2ff']],
+        ['shield', ['#bae2ff', '#5a9dff', '#2c5fe0']], ['pill', ['#a0ffe6', '#3cc6b0', '#169a8f']],
+      ];
       const spots = compact
-        ? [[70, 8, 46], [82, 58, 38], [4, 70, 30]]
-        : [[4, 14, 150], [84, 10, 130], [88, 56, 170], [3, 62, 120], [42, 80, 110], [58, 4, 90], [24, 40, 80], [70, 76, 96]];
+        ? [[68, 6, 50], [80, 56, 44], [2, 66, 36]]
+        : [[3, 12, 160], [83, 8, 140], [87, 55, 180], [2, 60, 130], [41, 79, 120], [57, 3, 96], [23, 38, 84], [69, 75, 104]];
       spots.forEach(([x, y, size], i) => {
+        const [kind, colors] = kinds[i % kinds.length];
         const g = document.createElement('i');
-        g.className = `particle glass-shape gs-${kinds[i % kinds.length]}`;
+        g.className = `particle glass-shape gs-${kind}`;
         g.style.left = x + '%';
         g.style.top = y + '%';
-        g.style.width = g.style.height = (compact ? size : size * random(.85, 1.15)) + 'px';
-        g.style.setProperty('--r', random(-24, 24).toFixed(1) + 'deg');
-        g.style.setProperty('--s', '1');
-        const float = random(7, 13);
+        g.style.width = g.style.height = (compact ? size : size * random(.88, 1.12)) + 'px';
+        g.style.setProperty('--r', random(-22, 22).toFixed(1) + 'deg');
+        g.style.setProperty('--tone', colors[1]);
+        g.dataset.depth = (size / 120).toFixed(2);
+        if (window.LiquidGlass) g.innerHTML = LiquidGlass.shape(kind, colors);
+        const float = random(8, 14);
         g.style.animationDuration = float + 's';
         g.style.animationDelay = -random(0, float) + 's';
         scene.appendChild(g);

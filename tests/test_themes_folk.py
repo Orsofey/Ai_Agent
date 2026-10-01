@@ -26,16 +26,27 @@ class FolkThemeTests(unittest.TestCase):
             root = ET.parse(ROOT / 'static/ornaments' / name).getroot()
             self.assertTrue(root.tag.endswith('svg'), name)
 
-    def test_glass_theme(self):
-        self.assertIn('glass', THEMES)
-        self.assertIn('glass', dict(SCHEMA_THEMES))
-        self.assertIn("id: 'glass'", (ROOT / 'static/core.js').read_text(encoding='utf-8'))
-        self.assertIn("'glass': Palette('glass'", (ROOT / 'android_client/lib/theme.dart').read_text(encoding='utf-8'))
+    def test_glass_themes(self):
+        core = (ROOT / 'static/core.js').read_text(encoding='utf-8')
+        dart = (ROOT / 'android_client/lib/theme.dart').read_text(encoding='utf-8')
         css = (ROOT / 'static/themes.css').read_text(encoding='utf-8')
+        for theme in ('glass', 'glassdark'):
+            self.assertIn(theme, THEMES)
+            self.assertIn(theme, dict(SCHEMA_THEMES))
+            self.assertIn(f"id: '{theme}'", core)
+            self.assertIn(f"'{theme}': Palette('{theme}'", dart)
+            self.assertIn(f'[data-theme="{theme}"]', css)
+        # жидкое стекло: скрипт подключён в обоих окнах раньше motion.js, фигуры фона есть в glass.js
+        glass = (ROOT / 'static/glass.js').read_text(encoding='utf-8')
+        for page in ('index.html', 'settings.html'):
+            html = (ROOT / 'templates' / page).read_text(encoding='utf-8')
+            self.assertLess(html.index('/static/glass.js'), html.index('/static/motion.js'))
         motion = (ROOT / 'static/motion.js').read_text(encoding='utf-8')
-        self.assertIn("theme === 'glass'", motion)
-        for kind in re.findall(r"'(\w+)'", re.search(r'const kinds = \[(.*?)\]', motion)[1]):
-            self.assertIn(f'.glass-shape.gs-{kind}', css)
+        self.assertIn("theme.startsWith('glass')", motion)
+        for kind in re.findall(r"\['(\w+)', \['#", motion):
+            self.assertIn(f'    {kind}: a =>', glass)
+        self.assertIn('feDisplacementMap', glass)
+        self.assertIn('var(--lg-filter', css)
         self.assertIn('@keyframes glass-float', (ROOT / 'static/motion.css').read_text(encoding='utf-8'))
 
     def test_particles(self):
