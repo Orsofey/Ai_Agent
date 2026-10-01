@@ -46,6 +46,8 @@
 
   // ---- темы ----
   Agent.THEMES = [
+    { id: 'glass', name: 'Стекло', note: 'Жидкое стекло: преломление, радужная кромка, блик за курсором' },
+    { id: 'glassdark', name: 'Стекло: ночь', note: 'Тёмное стекло над светящимися фигурами' },
     { id: 'aurora', name: 'Аврора', note: 'Северное сияние над ночным небом' },
     { id: 'cyberpunk', name: 'Киберпанк', note: 'Неон, синтвейв-солнце и бегущая сетка' },
     { id: 'sakura', name: 'Сакура', note: 'Весенний сад и падающие лепестки' },
@@ -53,8 +55,6 @@
     { id: 'luxe', name: 'Люкс', note: 'Ар-деко: чёрный мрамор и золото' },
     { id: 'gzhel', name: 'Гжель', note: 'Белый фарфор, кобальтовые розы и золотая кромка' },
     { id: 'slavic', name: 'Славянская', note: 'Хохлома на чёрном лаке, киноварь и вышивка-оберег' },
-    { id: 'glass', name: 'Стекло', note: 'Жидкое стекло: преломление, радужная кромка, блик за курсором' },
-    { id: 'glassdark', name: 'Стекло: ночь', note: 'Тёмное стекло над светящимися фигурами' },
     { id: 'dark', name: 'Тёмная', note: 'Классическая спокойная тема' },
     { id: 'light', name: 'Светлая', note: 'Классическая светлая тема' },
   ];
@@ -105,6 +105,21 @@
     };
     open();
     return () => source && source.close();
+  };
+
+  // ---- расширение просит подключиться (установлено из магазина) ----
+  Agent.askExtension = browser => {
+    if (document.querySelector('.ext-ask')) return;
+    const box = document.createElement('div');
+    box.className = 'ext-ask card';
+    box.innerHTML = '<b></b><p>Разрешить ему открывать сайты и управлять вкладками по вашим командам?</p>' +
+      '<div><button class="btn primary">Разрешить</button> <button class="btn ghost">Отклонить</button></div>';
+    box.querySelector('b').textContent = `${browser} хочет подключиться к ассистенту`;
+    const answer = allow => { Agent.post('ext/pair-answer', { browser, allow }).catch(() => {}); box.remove(); };
+    const [yes, no] = box.querySelectorAll('button');
+    yes.onclick = () => answer(true);
+    no.onclick = () => answer(false);
+    document.body.appendChild(box);
   };
 
   // ---- мелочи ----

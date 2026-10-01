@@ -71,7 +71,7 @@ const palettes = <String, Palette>{
       border: Color(0xFFDDE3EC), chip: Color(0xFFEEF2F8), bad: Color(0xFFDC2626), glows: [], dark: false),
 };
 
-Palette paletteOf(String? id) => palettes[id] ?? palettes['aurora']!;
+Palette paletteOf(String? id) => palettes[id] ?? palettes['glass']!;
 
 ThemeData themeFor(Palette p) {
   final scheme = ColorScheme(

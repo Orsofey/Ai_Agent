@@ -197,6 +197,12 @@
       case 'account':
         loadAccountChip();
         break;
+      case 'ext_pair':
+        Agent.askExtension(e.browser);
+        break;
+      case 'network':
+        if ($('net-pill')) $('net-pill').hidden = !!e.online;
+        break;
       case 'support':
         if (window.AgentExtras) AgentExtras.openSupport();
         break;
@@ -323,7 +329,10 @@
       await loadHistory();
       await pollStatus();
       loadAccountChip();
-      if (!eventsStarted) { eventsStarted = true; Agent.connectEvents(onEvent); setInterval(pollStatus, 5000); }
+      if (!eventsStarted) {
+        eventsStarted = true; Agent.connectEvents(onEvent); setInterval(pollStatus, 5000);
+        Agent.api('network').then(d => { if ($('net-pill')) $('net-pill').hidden = d.online; }).catch(() => {});
+      }
       const ai = await Agent.api('ai/status').catch(() => ({}));
       if (ai.provider === 'local' && ai.local && (!ai.local.model_installed || !ai.local.runtime_installed) && !Agent.store.get('agent_llm_hint')) {
         Agent.store.set('agent_llm_hint', '1');

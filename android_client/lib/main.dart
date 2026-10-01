@@ -22,7 +22,7 @@ class Appearance extends ChangeNotifier {
   Appearance._();
   static final instance = Appearance._();
 
-  Palette palette = paletteOf('aurora');
+  Palette palette = paletteOf('glass');
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();

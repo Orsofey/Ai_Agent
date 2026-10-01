@@ -164,7 +164,7 @@ class SubscriptionTests(unittest.TestCase):
         self.license.refresh()
         self.assertFalse(self.license.is_premium())
         # Платные значения не стираются, но не действуют до продления.
-        self.assertEqual(self.store.settings('device:phone1')['theme'], 'aurora')
+        self.assertEqual(self.store.settings('device:phone1')['theme'], 'glass')
         self.assertEqual(self.store.settings('device:phone1', raw=True)['theme'], 'luxe')
         with self.assertRaises(PremiumRequired):
             self.store.save_settings('device:phone1', {'theme': 'sakura'})

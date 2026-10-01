@@ -106,6 +106,17 @@
     } catch (e) { Agent.toast(e.message, 5000); }
   }
 
+  async function checkSupport() {
+    const list = $('support-steps');
+    list.replaceChildren(Object.assign(document.createElement('li'), { textContent: 'Проверяю…' }));
+    try {
+      const data = await Agent.post('support/check');
+      list.replaceChildren(...data.steps.map(s => Object.assign(document.createElement('li'),
+        { className: s.ok ? 'ok' : 'bad', textContent: (s.ok ? '✓ ' : '✕ ') + s.text })));
+      if (data.ok) list.append(Object.assign(document.createElement('li'), { className: 'ok', textContent: 'Всё в порядке — предложения доходят.' }));
+    } catch (e) { list.replaceChildren(Object.assign(document.createElement('li'), { className: 'bad', textContent: e.message })); }
+  }
+
   // ---------- мгновенный поиск ----------
   let timer = null, seq = 0;
   async function search(query) {
@@ -146,6 +157,7 @@
     if ($('support-send')) $('support-send').addEventListener('click', sendSupport);
     if ($('support-tg')) $('support-tg').addEventListener('click', telegram);
     if ($('support-close')) $('support-close').addEventListener('click', closeSupport);
+    if ($('support-check')) $('support-check').addEventListener('click', checkSupport);
     if ($('support')) $('support').addEventListener('click', e => { if (e.target.id === 'support') closeSupport(); });
     const input = $('file-search');
     if (input) {

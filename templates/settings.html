@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ru" data-theme="aurora">
+<html lang="ru" data-theme="glass">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Настройки — Local AI Agent</title>
 <script>
-  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'aurora';
+  try { document.documentElement.dataset.theme = localStorage.getItem('agent_theme') || 'glass';
         document.documentElement.dataset.animations = localStorage.getItem('agent_animations') || 'on'; } catch (e) {}
 </script>
 <link rel="icon" href="/static/icon-192.png">
@@ -43,6 +43,8 @@
     <section class="page active" id="page-general">
       <h1>Общие</h1><p class="lead">Как зовут ассистента и как он запускается.</p>
       <div class="card group">
+        <div class="row"><div class="label"><b>Подключение к сети</b><small id="net-hint">Выключите — и агент перестанет выходить в интернет: всё будет работать только на этом компьютере и в домашней сети. Голосом: «Андрей, отключись от сети» / «подключись к сети».</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" id="net-online"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Имя ассистента</b><small>Обращайтесь по имени: «Андрей, открой калькулятор».</small></div>
           <div class="control"><input data-setting="wake_word" maxlength="40" placeholder="Андрей"></div></div>
         <div class="row"><div class="label"><b>Другие варианты имени</b><small>Через запятую: как вас может «услышать» распознавание (например: Андрюша, Andrew).</small></div>
@@ -213,12 +215,10 @@
           <div class="control"><select data-setting="browser_mode"><option value="user">В моём браузере (рекомендуется)</option><option value="agent">В отдельном браузере агента</option></select></div></div>
         <div class="row stack"><div class="label"><b>Расширение «Андрей» для браузера</b>
             <small>С ним ассистент работает в вашем открытом браузере: переключается на уже открытые вкладки, открывает ссылки там же, управляет плеерами YouTube и музыки. Chrome, Edge, Яндекс Браузер, Opera, Brave.</small></div>
-          <div class="control"><span class="pill" id="ext-pill"><span class="dot"></span><span id="ext-status">Проверяю…</span></span><button class="btn" id="ext-folder">Установить расширение…</button></div>
+          <div class="control"><span class="pill" id="ext-pill"><span class="dot"></span><span id="ext-status">Проверяю…</span></span><button class="btn primary" id="ext-folder">Подключить браузер</button></div>
           <ol class="examples steps" id="ext-steps">
-            <li>Нажмите «Установить расширение…» — откроется папка расширения.</li>
-            <li>В браузере откройте <code>chrome://extensions</code> (в Яндекс Браузере — <code>browser://extensions</code>), включите «Режим разработчика».</li>
-            <li>«Загрузить распакованное расширение» → выберите эту папку.</li>
-            <li>Нажмите значок «Андрей» на панели браузера → вставьте код подключения из раздела «Телефон» → «Подключить».</li>
+            <li>Нажмите «Подключить браузер» — откроется страница расширений вашего браузера и окно с папкой «Андрей».</li>
+            <li>На странице включите «Режим разработчика» и перетащите папку в окно браузера. Код вводить не нужно — расширение подключится само.</li>
           </ol></div>
         <div class="row stack"><div class="label"><b>Интеграции с приложениями</b>
             <small>Ассистент читает данные других приложений и выполняет в них действия: JSON-описание (адрес API или файл экспорта + голосовые фразы) или Python-плагин. Пример кладётся в папку автоматически.</small></div>
@@ -362,15 +362,16 @@
     <section class="page" id="page-smarthome">
       <h1>Умный дом</h1><p class="lead">Телевизор, роутер и лампочки голосом. Пароли и токены хранятся только на этом ПК.</p>
       <div class="card group">
-        <h2 class="section-title">Телевизор</h2>
-        <div class="row"><div class="label"><b>Тип</b></div>
-          <div class="control"><select id="sh-tv-type"><option value="">Не подключён</option><option value="lg">LG (webOS)</option><option value="samsung">Samsung (Tizen)</option><option value="android">Android TV / Google TV (Xiaomi, Sber, TCL, Haier…)</option><option value="yandex">Телевизор в «Доме с Алисой»</option></select></div></div>
-        <div class="row"><div class="label"><b>Адрес в сети</b><small>IP телевизора, например 192.168.1.40</small></div>
-          <div class="control"><input id="sh-tv-ip" placeholder="192.168.1.40"><button class="btn ghost" id="sh-tv-find">Найти в сети</button></div></div>
-        <div class="row"><div class="label"><b>MAC-адрес</b><small>Чтобы включать телевизор голосом (Wake-on-LAN). Есть в настройках сети ТВ.</small></div>
-          <div class="control"><input id="sh-tv-mac" placeholder="AA:BB:CC:DD:EE:FF"></div></div>
-        <div class="row stack"><div class="control"><button class="btn primary" id="sh-tv-save">Сохранить и подключить</button><button class="btn ghost" id="sh-adb" hidden>Скачать ADB</button><span class="hint" id="sh-tv-hint">Первое подключение нужно разрешить на экране телевизора. Android TV: «Настройки → Для разработчиков → Отладка по сети».</span></div></div>
+        <h2 class="section-title">Телевизоры</h2>
+        <p class="hint">Нажмите «Найти телевизоры» — программа сама найдёт все телевизоры в вашей Wi-Fi: Xiaomi Mi TV, Android TV / Google TV, LG, Samsung. Коды вводить не нужно (LG и Samsung один раз попросят «Разрешить» на экране). У каждого телевизора свой номер: «Андрей, включи телевизор 2», «переключи канал на телевизоре 1», «включи Дюну на телевизоре 2», «выключи все телевизоры».</p>
+        <div class="row stack"><div class="control">
+          <button class="btn primary" id="sh-tv-find">Найти телевизоры</button>
+          <button class="btn ghost" id="sh-tv-add">Добавить вручную</button>
+          <button class="btn ghost" id="sh-adb" hidden>Скачать ADB</button>
+          <span class="hint" id="sh-tv-hint"></span></div></div>
         <div id="sh-tv-found" class="found-list"></div>
+        <div id="sh-tvs" class="tv-list"></div>
+        <div class="row stack" id="sh-tv-save-row" hidden><div class="control"><button class="btn primary" id="sh-tv-save">Сохранить</button></div></div>
       </div>
       <div class="card group">
         <h2 class="section-title">Освещение</h2>
