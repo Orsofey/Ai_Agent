@@ -128,6 +128,7 @@ def parse_command(command, settings=None):
 class LocalComputerAgent:
     def __init__(self, browser, brain=None, desktop_commands=None, integrations=None):
         self.browser = browser
+        self.network = None    # src/network.Network: «отключись от сети» / «подключись к сети»
         self.brain = brain
         self.desktop_commands = desktop_commands
         self.integrations = integrations
@@ -196,6 +197,20 @@ class LocalComputerAgent:
         if not text:
             return f'Слушаю, {address}.' if address else 'Слушаю.'
 
+        if self.network is not None:
+            reply = self.network.handle(text)
+            if reply is not None:
+                return reply
+            settings = self.network.settings(settings)
+        try:
+            return self._process(text, settings, owner, on_text, address)
+        except ConnectionRefusedError as exc:
+            from .network import MESSAGE, Offline
+            if isinstance(exc, Offline):
+                return MESSAGE
+            raise
+
+    def _process(self, text, settings, owner, on_text, address):
         toggled = self._chat_toggle(text, owner, address)
         if toggled is not None:
             return toggled

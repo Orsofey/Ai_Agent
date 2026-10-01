@@ -91,3 +91,88 @@ class SupportTests(Temp):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ---------------- автономный режим ----------------
+class NetworkTests(Temp):
+    def setUp(self):
+        super().setUp()
+        from src import network
+        self.network = network
+        self.addCleanup(lambda: network._state.update(online=True))
+
+    def test_local_addresses(self):
+        local = self.network.is_local
+        for host in ('127.0.0.1', 'localhost', '192.168.1.40', '10.0.0.5', '172.20.1.1', 'tv.local', 'NAS', '::1',
+                     'fe80::1', '239.255.255.250', None):
+            self.assertTrue(local(host), host)
+        for host in ('8.8.8.8', 'api.telegram.org', 'ya.ru', '2a00:1450::1', '172.32.0.1'):
+            self.assertFalse(local(host), host)
+        self.assertTrue(self.network.is_web_url('https://youtube.com/watch?v=1'))
+        self.assertFalse(self.network.is_web_url('http://192.168.1.1/'))
+
+    def test_guard_blocks_internet_but_not_home_network(self):
+        import socket
+        import webbrowser
+        net = self.network.Network(self.store)
+        net.set(False)
+        with self.assertRaises(socket.gaierror):
+            socket.getaddrinfo('example.com', 443)
+        sock = socket.socket()
+        with self.assertRaises(self.network.Offline):
+            sock.connect(('93.184.216.34', 443))
+        sock.close()
+        self.assertFalse(webbrowser.open('https://ya.ru'))
+        self.assertTrue(socket.getaddrinfo('127.0.0.1', 80))        # свой компьютер — можно
+        server = socket.socket(); server.bind(('127.0.0.1', 0)); server.listen(1)
+        client = socket.socket(); client.connect(server.getsockname())  # локальное соединение работает
+        client.close(); server.close()
+        net.set(True)
+        self.assertTrue(socket.getaddrinfo('127.0.0.1', 80))
+
+    def test_voice_and_persistence(self):
+        net = self.network.Network(self.store)
+        self.assertIsNone(net.handle('отключи интернет у планшета'))     # это роутер, не агент
+        self.assertIn('Отключился от сети', net.handle('Отключись от сети'))
+        self.assertFalse(net.online)
+        self.assertEqual(self.store.meta('network'), 'off')
+        self.assertIn('уже работаю без сети', net.handle('перейди в офлайн режим'))
+        self.assertFalse(self.network.Network(self.store).online)      # после перезапуска — тоже без сети
+        self.assertIn('без сети', net.handle('ты в сети?'))
+        self.assertIn('Подключился', net.handle('Андрей подключись к сети'.split(' ', 1)[1]))
+        self.assertTrue(net.online)
+
+    def test_settings_forced_local_and_browser(self):
+        net = self.network.Network(self.store)
+        net.set(False)
+        settings = net.settings({'llm_web_search': True, 'llm_provider': 'openai',
+                                 'openai_base_url': 'https://api.groq.com/openai/v1'})
+        self.assertEqual((settings['llm_web_search'], settings['llm_provider']), (False, 'local'))
+        local = net.settings({'llm_provider': 'openai', 'openai_base_url': 'http://127.0.0.1:11434/v1'})
+        self.assertEqual(local['llm_provider'], 'openai')                # Ollama на этом ПК — можно
+        browser = Mock()
+        wrapped = self.network.OfflineBrowser(browser)
+        self.assertIn('без сети', wrapped.call('open', 'https://youtube.com'))
+        wrapped.call('tabs')
+        browser.call.assert_called_once_with('tabs')
+
+    def test_agent_and_api(self):
+        from app import create_app
+        from src import connectors
+        app = create_app(self.store, Mock(status=Mock(return_value={})), Mock(),
+                         license=Mock(is_premium=lambda: True))
+        client = app.test_client()
+        headers = {'X-Agent-Token': self.store.meta('pairing_token')}
+        self.assertTrue(client.get('/api/network', headers=headers).get_json()['online'])
+        self.assertFalse(client.post('/api/network', json={'online': False}, headers=headers).get_json()['online'])
+        hub = connectors.Connectors(self.store, http=Mock())
+        hub.get('todoist').save({'access_token': 't'})
+        self.assertIn('без сети', hub.handle('Что в Todoist на сегодня?'))
+        client.post('/api/network', json={'online': True}, headers=headers)
+
+    def test_agent_voice_command(self):
+        from src.agent import LocalComputerAgent
+        agent = LocalComputerAgent(Mock(), brain=None)
+        agent.network = self.network.Network(self.store)
+        self.assertIn('Отключился', agent.process_command('Андрей, отключись от сети', {'wake_word': 'Андрей'}))
+        self.assertIn('Подключился', agent.process_command('Андрей, подключись к сети', {'wake_word': 'Андрей'}))

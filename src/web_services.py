@@ -118,6 +118,9 @@ def find_installed(name):
 
 def system_open(url):
     """Открыть ссылку в браузере по умолчанию (Windows, macOS). На других системах — False."""
+    from .network import is_web_url, online
+    if not online() and is_web_url(url):
+        return False   # автономный режим: сайты не открываем
     if sys.platform == 'darwin':
         import subprocess
         return subprocess.run(['open', url], timeout=10).returncode == 0

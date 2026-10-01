@@ -43,6 +43,8 @@
     <section class="page active" id="page-general">
       <h1>Общие</h1><p class="lead">Как зовут ассистента и как он запускается.</p>
       <div class="card group">
+        <div class="row"><div class="label"><b>Подключение к сети</b><small id="net-hint">Выключите — и агент перестанет выходить в интернет: всё будет работать только на этом компьютере и в домашней сети. Голосом: «Андрей, отключись от сети» / «подключись к сети».</small></div>
+          <div class="control"><label class="switch"><input type="checkbox" id="net-online"><span></span></label></div></div>
         <div class="row"><div class="label"><b>Имя ассистента</b><small>Обращайтесь по имени: «Андрей, открой калькулятор».</small></div>
           <div class="control"><input data-setting="wake_word" maxlength="40" placeholder="Андрей"></div></div>
         <div class="row"><div class="label"><b>Другие варианты имени</b><small>Через запятую: как вас может «услышать» распознавание (например: Андрюша, Andrew).</small></div>

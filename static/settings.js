@@ -544,6 +544,7 @@
 
   // ---------- живые события ----------
   function onEvent(e) {
+    if (e.type === 'network' && window.AgentNetwork) window.AgentNetwork(e.online);
     if (e.type === 'download') {
       const badge = $('badge-' + e.item);
       if (badge) {

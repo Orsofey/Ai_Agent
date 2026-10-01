@@ -339,6 +339,9 @@ class Imap:
         return cls.HOSTS.get(domain) or 'imap.' + domain
 
     def __enter__(self):
+        from .network import MESSAGE, is_local, online
+        if not online() and not is_local(self.host):
+            raise ConnectorError(MESSAGE)
         try:
             self.conn = self.factory(self.host, 993, timeout=TIMEOUT)
             if self.oauth:

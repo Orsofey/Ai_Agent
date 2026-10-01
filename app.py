@@ -103,6 +103,9 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
     root = Path(__file__).resolve().parent
     store = store or Store()
     events = events or EventBus()
+    # Автономный режим ставится первым — до проверки лицензии и любых запросов в интернет.
+    from src.network import Network, OfflineBrowser
+    network = Network(store, events)
     speech = recognizer or SpeechService(store.root, store.settings('device:desktop'))
     agent = agent or build_agent(store, events)
     local_tts = LocalTTSService(store.root)
@@ -116,7 +119,10 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
                       SEND_FILE_MAX_AGE_DEFAULT=0)
     app.extensions.update(store=store, speech=speech, agent=agent, local_tts=local_tts, events=events,
                           service=service, player=player, voice=voice, ui=None, on_settings=[],
-                          license=license)
+                          license=license, network=network)
+    agent.network = network
+    if getattr(agent, 'browser', None) is not None and not isinstance(agent.browser, OfflineBrowser):
+        agent.browser = OfflineBrowser(agent.browser)
     with store.connect() as db:
         db.execute('CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY, owner TEXT, result TEXT)')
 
@@ -306,6 +312,15 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         if owner() == 'device:desktop' or is_desktop():
             settings_changed(value)
         return jsonify(success=True, settings=value, secrets=store.secrets_status())
+
+    @app.get('/api/network')
+    def network_get():
+        return jsonify(success=True, **network.status())
+
+    @app.post('/api/network')
+    def network_set():
+        data = request.get_json(silent=True) or {}
+        return jsonify(success=True, **network.set(bool(data.get('online', True)), 'settings'))
 
     @app.get('/api/secrets')
     def get_secrets():

@@ -143,6 +143,9 @@ class Connector:
         return {'Authorization': f'{self.auth_scheme} {self.token()}'}
 
     def request(self, method, url, raw=False, **kwargs):
+        from .network import MESSAGE, is_web_url, online
+        if not online() and is_web_url(url):
+            raise ConnectorError(MESSAGE)
         headers = dict(kwargs.pop('headers', {}), **self.auth_headers())
         kwargs.setdefault('timeout', TIMEOUT)
         try:

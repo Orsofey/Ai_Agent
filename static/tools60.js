@@ -7,6 +7,19 @@
     .forEach(b => b.addEventListener('click', fn));
   const safe = fn => async (...args) => { try { await fn(...args); } catch (e) { Agent.toast(e.message, 5000); } };
 
+  // ---------- подключение к сети (автономный режим) ----------
+  if ($('net-online')) {
+    const paint = online => {
+      $('net-online').checked = online;
+      hint('net-hint', online
+        ? 'Включено. Выключите — и агент перестанет выходить в интернет: всё будет работать только на этом компьютере и в домашней сети. Голосом: «Андрей, отключись от сети».'
+        : 'Выключено: интернет недоступен агенту — облачные нейросети, поиск, интеграции и сервер аккаунтов не работают. Локальная нейросеть, голос, файлы и устройства дома — работают. Включить: ползунок или «Андрей, подключись к сети».');
+    };
+    Agent.api('network').then(d => paint(d.online)).catch(() => {});
+    $('net-online').onchange = safe(async () => paint((await Agent.post('network', { online: $('net-online').checked })).online));
+    window.AgentNetwork = paint;   // settings.js передаёт сюда событие «network» (голосом переключили)
+  }
+
   // ---------- файлы ----------
   async function loadIndex() {
     const { status } = await Agent.api('files/status');
