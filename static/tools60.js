@@ -79,7 +79,7 @@
   const save = (section, data) => Agent.post('smarthome/save', { section, data });
   // ---------- телевизоры (несколько, у каждого номер) ----------
   let tvs = [];
-  const TV_TYPES = [['xiaomi', 'Xiaomi Mi TV'], ['android', 'Android TV / Google TV'], ['lg', 'LG (webOS)'],
+  const TV_TYPES = [['auto', 'Определить автоматически'], ['xiaomi', 'Xiaomi Mi TV (PatchWall)'], ['android', 'Android TV / Google TV'], ['lg', 'LG (webOS)'],
     ['samsung', 'Samsung (Tizen)'], ['yandex', 'Телевизор в «Доме с Алисой»']];
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
   function nextNumber() { let n = 1; while (tvs.some(t => +t.number === n)) n++; return n; }
@@ -88,7 +88,7 @@
     if (!box) return;
     box.replaceChildren(...tvs.map((tv, i) => {
       const type = el('select', {}, ...TV_TYPES.map(([v, t]) => el('option', { value: v, textContent: t })));
-      type.value = tv.type || 'android';
+      type.value = tv.type || 'auto';
       const field = (key, ph, cls = '') => {
         const input = el('input', { value: tv[key] || '', placeholder: ph, className: cls });
         input.oninput = () => { tv[key] = key === 'number' ? (parseInt(input.value, 10) || '') : input.value.trim(); };
@@ -98,7 +98,8 @@
       const adb = el('label', { className: 'tv-adb', title: 'Необязательно: даёт выключение, каналы и любые приложения на Android TV' },
         el('input', { type: 'checkbox', checked: !!tv.adb, onchange: e => { tv.adb = e.target.checked; $('sh-adb').hidden = !tvs.some(t => t.adb); } }),
         ' Отладка по сети');
-      adb.hidden = tv.type !== 'android';
+      adb.hidden = true;     // отладку программа находит сама
+      const os = el('small', { className: 'tv-os', textContent: tv.os ? 'ОС: ' + tv.os : (tv.ip ? 'ОС определится при проверке' : '') });
       const test = el('button', { className: 'btn ghost', textContent: 'Проверить' });
       test.onclick = safe(async () => {
         await saveTvs();
@@ -110,7 +111,7 @@
       return el('div', { className: 'tv-row card' },
         el('div', { className: 'tv-num' }, '№', field('number', '1', 'tv-number')),
         field('name', 'Название (Гостиная)'), type, field('ip', 'IP-адрес'), field('mac', 'MAC (для включения)'),
-        adb, el('div', { className: 'tv-actions' }, test, remove));
+        adb, os, el('div', { className: 'tv-actions' }, test, remove));
     }));
     $('sh-tv-save-row').hidden = !tvs.length;
     $('sh-adb').hidden = !tvs.some(t => t.adb);
@@ -121,7 +122,7 @@
     paintTvs();
   }
   if ($('sh-tv-find')) {
-    $('sh-tv-add').onclick = () => { tvs.push({ number: nextNumber(), name: '', type: 'android', ip: '', mac: '' }); paintTvs(); };
+    $('sh-tv-add').onclick = () => { tvs.push({ number: nextNumber(), name: '', type: 'auto', ip: '', mac: '' }); paintTvs(); };
     $('sh-tv-save').onclick = safe(async () => { await saveTvs(); hint('sh-tv-hint', 'Сохранено.'); });
     $('sh-tv-find').onclick = safe(async () => {
       $('sh-tv-find').disabled = true;
@@ -130,10 +131,10 @@
         const { found } = await Agent.post('smarthome/discover', { what: 'tv' });
         const fresh = found.filter(f => !tvs.some(t => t.ip === f.ip));
         $('sh-tv-found').replaceChildren(...fresh.map(f => {
-          const b = el('button', { className: 'btn', textContent: `+ ${f.name} · ${f.ip}` });
+          const b = el('button', { className: 'btn', textContent: `+ ${f.name} · ${f.os || f.type} · ${f.ip}` });
           b.onclick = safe(async () => {
-            tvs.push({ number: nextNumber(), name: f.name, type: f.type, ip: f.ip, mac: f.mac || '', cast: !!f.cast,
-              adb: (f.ports || []).includes(5555) });
+            tvs.push({ number: nextNumber(), name: f.name, type: f.type, os: f.os || '', ip: f.ip, mac: f.mac || '',
+              cast: !!f.cast, adb: !!f.adb, detected: true });
             b.remove();
             await saveTvs();
             const n = tvs[tvs.length - 1].number;

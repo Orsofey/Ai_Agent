@@ -540,6 +540,7 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 13px; pa
 .tv-row { display: grid; grid-template-columns: 64px minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px; align-items: center; padding: 10px 12px; }
 .tv-row .tv-adb { grid-column: 2 / 4; }
+.tv-row .tv-os { grid-column: 2 / 4; color: var(--muted); }
 .tv-row .tv-actions { grid-column: 4 / -1; justify-content: flex-end; }
 .tv-row input, .tv-row select { min-width: 0; width: 100%; }
 .tv-row .tv-adb input { width: auto; flex: none; }
