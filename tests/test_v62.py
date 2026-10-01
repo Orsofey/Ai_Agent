@@ -284,7 +284,7 @@ class TvDeviceTests(unittest.TestCase):
         with patch.object(tvmod, 'youtube_video', return_value='abc123'):
             self.assertIn('Дюну', device.run('search', ('Дюну', 'youtube')))
         self.assertEqual(session.calls[-1][2]['data'], 'v=abc123')
-        self.assertIn('Отладкой по сети', device.run('channel', 5))       # честно: каналы — только с ADB
+        self.assertIn('Отладку по USB', device.run('channel', 5))       # честно: каналы — только с ADB
 
     def test_cast_protocol_roundtrip(self):
         import struct
@@ -364,6 +364,7 @@ class SmartHomeTvTests(Temp):
             def pair(self):
                 return 'ок'
         with patch.object(SmartHome, 'device', lambda self, config: Device(config)), \
+                patch.object(SmartHome, 'detect', lambda self, config: config), \
                 patch('src.smarthome.wake_on_lan') as wol:
             self.assertEqual(home.handle('Переключи канал на телевизоре 2'), 'Спальня: ок')
             self.assertEqual(ran[-1], (2, 'channel_step', 1))
@@ -431,3 +432,79 @@ class DefaultThemeTests(Temp):
         self.assertEqual(self.store.settings('device:old')['theme'], 'glass')       # прежний «по умолчанию»
         self.store.save_settings('device:old', {'theme': 'aurora'})                  # выбрал «Аврору» сам — остаётся
         self.assertEqual(self.store.settings('device:old')['theme'], 'aurora')
+
+
+class TvFixesTests(Temp):
+    """Ошибки с реальных телевизоров: таймаут Cast, MiTV определялся как Android, непонятное «выключить нельзя»."""
+
+    def test_xiaomi_detected_even_when_found_by_chromecast(self):
+        from src import tv as tvmod
+        session = Session([('6095/request', Reply({'status': 0, 'data': {'devicename': 'MiTV-MOOQ1'}})),
+                           ('eureka_info', Reply({'name': 'MiTV-MOOQ1', 'device_info': {'manufacturer': 'Xiaomi'}}))])
+        with patch.object(tvmod, 'port_open', side_effect=lambda ip, port, timeout=0.4: port in (8009, 8008, 6095)):
+            found = tvmod.identify('192.168.1.50', session, {'cast': True, 'name': 'MiTV-MOOQ1'})
+        self.assertEqual((found['type'], found['os']), ('xiaomi', 'Xiaomi PatchWall (Mi TV)'))
+        with patch.object(tvmod, 'port_open', side_effect=lambda ip, port, timeout=0.4: port in (8009, 5555)):
+            other = tvmod.identify('192.168.1.60', Session([]), {'cast': True, 'name': 'R3'})
+        self.assertEqual((other['type'], other['adb']), ('android', True))
+
+    def test_android_power_off_explains_and_auto_adb(self):
+        from src import tv as tvmod
+        device = tvmod.CastTV({'ip': '192.168.1.60', 'name': 'R3'}, Session([]), cast_factory=FakeCast,
+                              adb_factory=lambda: Mock(run=lambda action, value: 'Выключаю телевизор.'))
+        with patch.object(tvmod, 'port_open', return_value=False):
+            reply = device.run('power', False)
+        self.assertIn('Чтобы выключать «R3» голосом', reply)
+        self.assertIn('«Отладку по USB»', reply)
+        self.assertNotIn('пульту', reply)
+        with patch.object(tvmod, 'port_open', return_value=True):        # отладку включили — ADB подхватится сам
+            self.assertEqual(device.run('power', False), 'Выключаю телевизор.')
+
+    def test_timeouts_become_clear_message(self):
+        from src.smarthome import SmartHome
+        home = SmartHome(self.store, session=Mock())
+        home.save_tvs([{'number': 1, 'name': 'MiTV-MOOQ1', 'type': 'android', 'ip': '192.168.1.50', 'detected': True}])
+
+        class Broken:
+            def __init__(self, ip):
+                pass
+
+            def __enter__(self):
+                raise TimeoutError('The read operation timed out')
+
+            def __exit__(self, *a):
+                pass
+        from src import tv as tvmod
+        with patch.object(tvmod, 'Cast', Broken), patch.object(tvmod, 'port_open', return_value=False):
+            reply = home.handle('громкость на телевизоре 20')
+        self.assertNotIn('read operation', reply)
+        self.assertIn('не отвечает', reply)
+
+    def test_cast_connect_sends_sender_info(self):
+        import struct
+        from src.tv import Cast, parse_cast
+        sent = []
+
+        class Sock:
+            def sendall(self, data):
+                sent.append(parse_cast(data[4:4 + struct.unpack('>I', data[:4])[0]]))
+
+            def close(self):
+                pass
+        with Cast('1.2.3.4', connector=lambda ip, port: Sock()):
+            pass
+        first = json.loads(sent[0]['payload'])
+        self.assertEqual(first['type'], 'CONNECT')
+        self.assertIn('senderInfo', first)
+
+    def test_old_tv_redetected_once(self):
+        from src.smarthome import SmartHome
+        from src import tv as tvmod
+        home = SmartHome(self.store, session=Mock())
+        home.save_tvs([{'number': 1, 'name': 'MiTV', 'type': 'android', 'ip': '192.168.1.50'}])
+        found = {'type': 'xiaomi', 'os': 'Xiaomi PatchWall (Mi TV)', 'adb': False, 'cast': True}
+        with patch.object(tvmod, 'identify', return_value=found), patch.object(tvmod, 'arp_table', return_value={}), \
+                patch.object(tvmod.XiaomiTV, 'key', lambda self, code, times=1: None):
+            self.assertEqual(home.handle('выключи телевизор'), 'Выключаю телевизор.')
+        saved = home.tvs()[0]
+        self.assertEqual((saved['type'], saved['detected']), ('xiaomi', True))

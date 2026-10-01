@@ -290,6 +290,11 @@ def upnp_description(location, session):
     return {'name': pick('friendlyName'), 'maker': pick('manufacturer'), 'model': pick('modelName')}
 
 
+OS_NAMES = {'xiaomi': 'Xiaomi PatchWall (Mi TV)', 'android': 'Android TV / Google TV', 'lg': 'LG webOS',
+            'samsung': 'Samsung Tizen', 'yandex': '«Дом с Алисой»'}
+PROBE_PORTS = (6095, 8009, 8008, 5555, 6466, 3000, 3001, 8001, 8002)
+
+
 def classify(item):
     """Тип: xiaomi | android | lg | samsung | unknown."""
     text = f"{item.get('maker', '')} {item.get('model', '')} {item.get('name', '')} {item.get('server', '')}".casefold()
@@ -300,14 +305,48 @@ def classify(item):
         return 'lg'
     if re.search(r'samsung|tizen', text) or ports & {8001, 8002}:
         return 'samsung'
-    if item.get('cast') or ports & {8009, 6466, 5555} or re.search(r'android|google|xiaomi|mitv|sony|philips|tcl|haier|'
-                                                                    r'hisense|sber|kivi|bravia|nvidia|chromecast', text):
+    if item.get('cast') or ports & {8009, 8008, 6466, 5555} or re.search(r'android|google|xiaomi|mitv|sony|philips|tcl|haier|'
+                                                                          r'hisense|sber|kivi|bravia|nvidia|chromecast', text):
         return 'android'
     return 'unknown'
 
 
+def identify(ip, session, hint=None, timeout=1.2):
+    """Определить телевизор по адресу: ОС, название, производитель, какие способы управления доступны.
+    Используется и при поиске, и когда пользователь вписал IP вручную («Определить автоматически»)."""
+    item = dict(hint or {}, ip=ip)
+    item.setdefault('name', '')
+    item.setdefault('model', '')
+    item.setdefault('maker', '')
+    known = set(item.get('ports') or [])
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(PROBE_PORTS)) as pool:
+        opened = {p for p, ok in zip(PROBE_PORTS, pool.map(lambda port: port_open(ip, port, timeout), PROBE_PORTS)) if ok}
+    item['ports'] = sorted(known | opened)
+    item['cast'] = bool(item.get('cast')) or bool(opened & {8009, 8008})
+    if item['cast'] or 8008 in opened:
+        info = eureka(ip, session)
+        for key in ('name', 'maker', 'model'):
+            item[key] = item[key] or info.get(key, '')
+    if 6095 in item['ports'] or re.search(r'xiaomi|mitv|mi tv|redmi', f"{item['name']} {item['model']} {item['maker']}", re.I):
+        alive = xiaomi_alive(ip, session)
+        if alive is not None:
+            item['ports'] = sorted(set(item['ports']) | {6095})
+            item['maker'] = item['maker'] or 'Xiaomi'
+            item['name'] = item['name'] or alive['name']
+            item['model'] = item['model'] or alive['model']
+        elif 6095 in item['ports']:
+            item['ports'] = [p for p in item['ports'] if p != 6095]   # порт открыт, но это не сервис Xiaomi
+    item['type'] = classify(item)
+    item['os'] = OS_NAMES.get(item['type'], '')
+    item['adb'] = 5555 in item['ports']
+    if not item['name']:
+        item['name'] = {'xiaomi': 'Xiaomi Mi TV', 'android': 'Android TV', 'lg': 'LG', 'samsung': 'Samsung'}.get(
+            item['type'], 'Устройство') + f' ({ip})'
+    return item
+
+
 def discover(session, scan=True, timeout=2.5):
-    """Все телевизоры в домашней сети: [{'ip', 'name', 'type', 'maker', 'model', 'mac', 'cast', 'ports'}]."""
+    """Все телевизоры в домашней сети: [{'ip', 'name', 'type', 'os', 'maker', 'model', 'mac', 'cast', 'adb', 'ports'}]."""
     interfaces = local_ipv4s()
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
         mdns_job = pool.submit(mdns_search, interfaces, timeout)
@@ -315,37 +354,22 @@ def discover(session, scan=True, timeout=2.5):
         scan_job = pool.submit(port_scan, interfaces) if scan and interfaces else None
         mdns, ssdp = mdns_job.result(), ssdp_job.result()
         ports = scan_job.result() if scan_job else {}
-    items = {}
+    hints = {}
     for ip, info in mdns.items():
-        items[ip] = {'ip': ip, 'name': info['name'], 'model': info['model'], 'maker': '', 'cast': True,
-                     'ports': ports.get(ip, [])}
+        hints[ip] = {'name': info['name'], 'model': info['model'], 'maker': '', 'cast': True, 'ports': ports.get(ip, [])}
     for ip, info in ssdp.items():
-        item = items.setdefault(ip, {'ip': ip, 'name': '', 'model': '', 'maker': '', 'cast': False, 'ports': ports.get(ip, [])})
-        item['server'] = info.get('server', '')
-        if info.get('location') and not item['name']:
-            item.update({k: v for k, v in upnp_description(info['location'], session).items() if v})
+        hint = hints.setdefault(ip, {'name': '', 'model': '', 'maker': '', 'cast': False, 'ports': ports.get(ip, [])})
+        hint['server'] = info.get('server', '')
+        if info.get('location') and not hint['name']:
+            hint.update({k: v for k, v in upnp_description(info['location'], session).items() if v})
     for ip, open_ports in ports.items():
-        item = items.setdefault(ip, {'ip': ip, 'name': '', 'model': '', 'maker': '', 'cast': 8009 in open_ports,
-                                     'ports': open_ports})
-        item['ports'] = sorted(set(item['ports']) | set(open_ports))
-        item['cast'] = item['cast'] or 8009 in open_ports
-    for item in items.values():
-        if 6095 in item['ports'] or (not item['ports'] and re.search(r'xiaomi|mitv', item.get('name', '') + item.get('model', ''), re.I)):
-            alive = xiaomi_alive(item['ip'], session)
-            if alive is not None:
-                item['ports'] = sorted(set(item['ports']) | {6095})
-                item['maker'] = item['maker'] or 'Xiaomi'
-                item['name'] = item['name'] or alive['name']
-                item['model'] = item['model'] or alive['model']
-        if item['cast'] and not item['name']:
-            item.update({k: v for k, v in eureka(item['ip'], session).items() if v})
-        item['type'] = classify(item)
-        if not item['name']:
-            item['name'] = {'xiaomi': 'Xiaomi Mi TV', 'android': 'Android TV', 'lg': 'LG', 'samsung': 'Samsung'}.get(
-                item['type'], 'Устройство') + f" ({item['ip']})"
+        hint = hints.setdefault(ip, {'name': '', 'model': '', 'maker': '', 'cast': False, 'ports': []})
+        hint['ports'] = sorted(set(hint['ports']) | set(open_ports))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        items = list(pool.map(lambda pair: identify(pair[0], session, pair[1]), hints.items()))
     macs = arp_table()            # после опроса ARP-таблица заполнена адресами телевизоров
     result = []
-    for item in items.values():
+    for item in items:
         if item['type'] == 'unknown':
             continue
         item['mac'] = macs.get(item['ip'], '')
@@ -414,7 +438,11 @@ class Cast:
     CONNECTION = 'urn:x-cast:com.google.cast.tp.connection'
     HEARTBEAT = 'urn:x-cast:com.google.cast.tp.heartbeat'
 
-    def __init__(self, ip, port=8009, timeout=6, connector=None):
+    SENDER_INFO = {'sdkType': 2, 'version': '15.605.1.3', 'browserVersion': '44.0.2403.30', 'platform': 4,
+                   'systemVersion': 'Windows NT 10.0', 'connectionType': 1}
+    YOUTUBE_NS = 'urn:x-cast:com.google.youtube.mdx'
+
+    def __init__(self, ip, port=8009, timeout=8, connector=None):
         self.ip, self.port, self.timeout = ip, port, timeout
         self.connector = connector
         self.sock = None
@@ -427,9 +455,15 @@ class Cast:
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE          # у телевизора самоподписанный сертификат
-            raw = socket.create_connection((self.ip, self.port), timeout=self.timeout)
-            self.sock = context.wrap_socket(raw)
-        self._send(self.CONNECTION, {'type': 'CONNECT'})
+            try:
+                raw = socket.create_connection((self.ip, self.port), timeout=4)
+                self.sock = context.wrap_socket(raw)
+            except OSError:
+                raise RuntimeError('Телевизор не отвечает по сети — он включён и в той же Wi-Fi, что и компьютер?')
+            self.sock.settimeout(self.timeout)
+        # Современные Android TV ждут при подключении сведения об отправителе — без них молча не отвечают.
+        self._send(self.CONNECTION, {'type': 'CONNECT', 'origin': {}, 'userAgent': 'Andrey',
+                                     'senderInfo': self.SENDER_INFO})
         return self
 
     def __exit__(self, *exc):
@@ -455,13 +489,16 @@ class Cast:
             data += chunk
         return data
 
-    def request(self, payload):
+    def request(self, payload, wait=None):
         self.request_id += 1
         payload = dict(payload, requestId=self.request_id)
         self._send(self.RECEIVER, payload)
-        deadline = time.monotonic() + self.timeout
+        deadline = time.monotonic() + (wait or self.timeout)
         while time.monotonic() < deadline:
-            message = self._read()
+            try:
+                message = self._read()
+            except (socket.timeout, TimeoutError):
+                break
             try:
                 data = json.loads(message['payload'] or '{}')
             except ValueError:
@@ -485,8 +522,34 @@ class Cast:
     def mute(self, muted):
         return self.request({'type': 'SET_VOLUME', 'volume': {'muted': bool(muted)}})
 
+    def app(self, app_id):
+        return next((a for a in self.status().get('applications') or [] if a.get('appId') == app_id), None)
+
     def launch(self, app_id):
-        return self.request({'type': 'LAUNCH', 'appId': app_id})
+        """Запуск приложения: телевизору бывает нужно 10–20 секунд — если ответ не пришёл, проверяем, запустилось ли."""
+        try:
+            return self.request({'type': 'LAUNCH', 'appId': app_id}, wait=20)
+        except TimeoutError:
+            if self.app(app_id):
+                return {}
+            raise
+
+    def youtube(self, video_id):
+        """Видео YouTube: запустить приложение YouTube и передать ему ролик (протокол MDX)."""
+        self.launch(YOUTUBE_APP)
+        found = None
+        for _ in range(10):
+            found = self.app(YOUTUBE_APP)
+            if found and found.get('transportId'):
+                break
+            time.sleep(1)
+        if not found or not found.get('transportId'):
+            return False
+        transport = found['transportId']
+        self._send(self.CONNECTION, {'type': 'CONNECT', 'origin': {}}, destination=transport)
+        self._send(self.YOUTUBE_NS, {'type': 'flingVideo', 'data': {'currentTime': 0, 'videoId': video_id}},
+                   destination=transport)
+        return True
 
     def stop(self):
         for app in self.status().get('applications') or []:
@@ -619,38 +682,65 @@ class XiaomiTV:
 
 
 # ---------------- Android TV / Google TV через Cast ----------------
-class CastTV:
-    """Android TV / Google TV со встроенным Chromecast — без «Отладки по сети» и без кодов.
-    Если ADB настроен и разрешён (adb), выключение, каналы и любые приложения идут через него."""
+DEBUG_HOWTO = ('один раз включите на телевизоре «Отладку по USB»: Настройки → Настройки устройства → Об устройстве → '
+               '7 раз нажмите «Сборка» → назад → «Для разработчиков» → «Отладка по USB». Потом повторите команду и нажмите '
+               'на экране телевизора «Разрешить» (отметьте «Всегда разрешать с этого компьютера»). Кодов вводить не нужно.')
+NETWORK_ERRORS = (OSError, TimeoutError, ssl.SSLError, ConnectionError)
 
-    def __init__(self, config, session, adb=None, cast_factory=Cast):
+
+class CastTV:
+    """Android TV / Google TV (в т.ч. Xiaomi на Android TV). Без кодов: громкость, звук, YouTube — через Chromecast.
+    Если на телевизоре включена «Отладка по USB» (порт 5555 открыт) — программа сама подключает ADB (на экране ТВ один
+    раз «Разрешить») и тогда работают выключение, каналы, кнопки и любые приложения."""
+
+    def __init__(self, config, session, adb=None, cast_factory=Cast, adb_factory=None):
         self.config = config
         self.session = session
         self.adb = adb
         self.cast_factory = cast_factory
+        self.adb_factory = adb_factory
+
+    @property
+    def name(self):
+        return self.config.get('name') or 'Телевизор'
 
     def pair(self):
-        with self.cast_factory(self.config['ip']) as cast:
+        with self._cast() as cast:
             cast.status()
         return 'Телевизор подключён — коды не нужны.'
 
-    def _adb_run(self, action, value):
-        if self.adb is None:
-            return None
+    def _cast(self):
+        return self.cast_factory(self.config['ip'])
+
+    def _with_cast(self, action):
         try:
-            return self.adb.run(action, value)
+            with self._cast() as cast:
+                return action(cast)
         except RuntimeError:
-            return None
+            raise
+        except NETWORK_ERRORS:
+            raise RuntimeError(f'«{self.name}» не отвечает. Телевизор включён и подключён к той же Wi-Fi, что и компьютер?')
+
+    def _adb(self):
+        """ADB, если он есть или если на телевизоре уже включили «Отладку по USB»."""
+        if self.adb is None and self.adb_factory is not None and port_open(self.config['ip'], 5555, 1.0):
+            self.adb = self.adb_factory()
+        return self.adb
+
+    def _adb_run(self, action, value):
+        adb = self._adb()
+        return adb.run(action, value) if adb is not None else None
+
+    def _needs_debug(self, what):
+        return f'Чтобы {what} «{self.name}» голосом, {DEBUG_HOWTO}'
 
     def run(self, action, value):
         if action == 'power':
             if value:
-                return None            # Wake-on-LAN
-            return self._adb_run(action, value) or (
-                'Выключить этот телевизор без кабеля управления нельзя: скажите «выключи телевизор» пульту или включите '
-                'на ТВ «Отладку по сети» один раз (Настройки → Умный дом → подсказка).')
+                return self._adb_run(action, value)    # плюс Wake-on-LAN (в SmartHome)
+            return self._adb_run(action, value) or self._needs_debug('выключать')
         if action in ('volume', 'volume_step', 'mute'):
-            with self.cast_factory(self.config['ip']) as cast:
+            def volume(cast):
                 if action == 'volume':
                     cast.set_volume(value / 100)
                     return f'Громкость телевизора {value}.'
@@ -659,38 +749,55 @@ class CastTV:
                     return 'Громче.' if value > 0 else 'Тише.'
                 cast.mute(bool(value))
                 return 'Выключил звук.' if value else 'Включил звук.'
+            try:
+                return self._with_cast(volume)
+            except RuntimeError:
+                done = self._adb_run(action, value)
+                if done:
+                    return done
+                raise
         if action == 'search':
             query, app = value
             if app == 'youtube':
                 video = youtube_video(query)
-                if video and dial_youtube(self.config['ip'], self.session, video):
+                if not video:
+                    return f'Не нашёл «{query}» на YouTube. Проверьте интернет.'
+                adb = self._adb()
+                if adb is not None:
+                    adb.adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d',
+                            f'https://www.youtube.com/watch?v={video}')
                     return f'Включаю «{query}» на YouTube на телевизоре.'
+                if dial_youtube(self.config['ip'], self.session, video):
+                    return f'Включаю «{query}» на YouTube на телевизоре.'
+                if self._with_cast(lambda cast: cast.youtube(video)):
+                    return f'Включаю «{query}» на YouTube на телевизоре.'
+                return f'«{self.name}» не открыл YouTube. Попробуйте ещё раз через пару секунд.'
             done = self._adb_run(action, value)
             if done:
                 return done
-            if app in CAST_APPS:
-                with self.cast_factory(self.config['ip']) as cast:
-                    cast.launch(CAST_APPS[app])
-                return f'Открыл {app.title()} на телевизоре.'
-            return f'Чтобы включать фильмы в этом приложении, включите на ТВ «Отладку по сети». YouTube работает и так.'
+            return self._needs_debug(f'включать фильмы в приложении на')
         if action == 'app':
+            done = self._adb_run(action, value)
+            if done:
+                return done
             if value in CAST_APPS:
-                with self.cast_factory(self.config['ip']) as cast:
-                    cast.launch(CAST_APPS[value])
+                self._with_cast(lambda cast: cast.launch(CAST_APPS[value]))
                 return 'Открываю на телевизоре.'
-            return self._adb_run(action, value) or 'Это приложение на этом телевизоре открывается только с «Отладкой по сети».'
+            return self._needs_debug('открывать это приложение на')
         if action in ('pause', 'play'):
             done = self._adb_run(action, value)
             if done:
                 return done
             if action == 'pause':
-                with self.cast_factory(self.config['ip']) as cast:
-                    cast.stop()
+                self._with_cast(lambda cast: cast.stop())
                 return 'Остановил.'
-            return 'Продолжить можно пультом или с «Отладкой по сети».'
-        return self._adb_run(action, value) or (
-            'Эта команда для Android TV работает только с включённой «Отладкой по сети» (один раз в настройках ТВ). '
-            'Громкость, звук и YouTube — работают и так.')
+            return self._needs_debug('ставить на паузу и продолжать на')
+        done = self._adb_run(action, value)
+        if done:
+            return done
+        what = {'channel': 'переключать каналы на', 'channel_step': 'переключать каналы на', 'key': 'нажимать кнопки на',
+                'picture': 'менять режим изображения на'}.get(action, 'так управлять')
+        return self._needs_debug(what)
 
 
 # ---------------- какой телевизор имелся в виду ----------------

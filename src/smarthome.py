@@ -580,15 +580,27 @@ class AndroidTV:
 
     def adb(self, *args, timeout=15):
         adb = self.adb_path()
+        if not adb and self.root:
+            try:
+                adb = str(download_adb(self.root))      # один раз, ≈10 МБ, официальные инструменты Android
+            except Exception:
+                adb = None
         if not adb:
-            raise RuntimeError('Нужен ADB: Настройки → «Умный дом» → «Скачать ADB» (инструменты Android, бесплатно).')
+            raise RuntimeError('Не получилось скачать инструменты Android (ADB) — проверьте интернет и повторите.')
         target = f"{self.config['ip']}:{self.config.get('port', 5555)}"
         flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-        subprocess.run([adb, 'connect', target], capture_output=True, timeout=timeout, creationflags=flags)
+        connect = subprocess.run([adb, 'connect', target], capture_output=True, text=True, timeout=timeout,
+                                 creationflags=flags)
+        if re.search(r'refused|failed|unable|cannot', connect.stdout + connect.stderr, re.I):
+            from .tv import DEBUG_HOWTO
+            raise RuntimeError('На телевизоре выключена отладка: ' + DEBUG_HOWTO)
         result = subprocess.run([adb, '-s', target, *args], capture_output=True, text=True, timeout=timeout,
                                 creationflags=flags)
-        if result.returncode != 0 or 'unauthorized' in (result.stderr + result.stdout):
-            raise RuntimeError('Телевизор не разрешил подключение: подтвердите «Разрешить отладку» на экране ТВ.')
+        if 'unauthorized' in (result.stderr + result.stdout):
+            raise RuntimeError('На экране телевизора нажмите «Разрешить» (и отметьте «Всегда разрешать с этого '
+                               'компьютера»), затем повторите команду.')
+        if result.returncode != 0:
+            raise RuntimeError('Телевизор не выполнил команду: ' + (result.stderr or result.stdout).strip()[:120])
         return result.stdout
 
     def key(self, *codes):
@@ -642,6 +654,12 @@ class AndroidTV:
             url = SEARCH_LINKS.get(app, SEARCH_LINKS['youtube']).format(q=quote(query))
             self.adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url)
             return f'Ищу «{query}» на телевизоре.'
+        if action == 'key':
+            codes = {'ok': 'KEYCODE_DPAD_CENTER', 'назад': 'KEYCODE_BACK', 'домой': 'KEYCODE_HOME', 'вверх': 'KEYCODE_DPAD_UP',
+                     'вниз': 'KEYCODE_DPAD_DOWN', 'влево': 'KEYCODE_DPAD_LEFT', 'вправо': 'KEYCODE_DPAD_RIGHT',
+                     'меню': 'KEYCODE_MENU'}
+            self.key(codes.get(value, 'KEYCODE_DPAD_CENTER'))
+            return 'Готово.'
         if action == 'picture':
             return 'Режим изображения на Android TV переключается в настройках телевизора.'
         return None
@@ -1010,6 +1028,12 @@ class SmartHome:
             config['tvs'] = sorted(result, key=lambda t: t['number'])
             config.pop('tv', None)
             self.store.set_meta('smarthome', json.dumps(config, ensure_ascii=False))
+        for tv in config['tvs']:          # «Определить автоматически»: ОС узнаём по сети сами
+            if tv.get('ip') and tv.get('type') in (None, '', 'auto'):
+                try:
+                    self.detect(tv)
+                except Exception:
+                    log.info('TV detection failed', exc_info=True)
         return self.public()
 
     def update_tv(self, number, data):
@@ -1036,10 +1060,8 @@ class SmartHome:
         if kind == 'xiaomi' and config.get('ip'):
             return XiaomiTV(config, self.session)
         if kind == 'android' and config.get('ip'):
-            adb = AndroidTV(config, save, self.store.root) if config.get('adb') else None
-            if config.get('cast', True):
-                return CastTV(config, self.session, adb)
-            return adb or AndroidTV(config, save, self.store.root)
+            make_adb = lambda: AndroidTV(config, save, self.store.root)  # noqa: E731
+            return CastTV(config, self.session, make_adb() if config.get('adb') else None, adb_factory=make_adb)
         if kind == 'yandex':
             return _YandexTV(self, config)
         return None
@@ -1132,7 +1154,37 @@ class SmartHome:
             replies.append(label + reply)
         return ' '.join(replies)
 
+    def detect(self, config):
+        """Определить ОС телевизора по сети (один раз; повторно — по кнопке «Проверить»)."""
+        from .tv import identify
+        if not config.get('ip') or config.get('type') == 'yandex':
+            return config
+        found = identify(config['ip'], self.session)
+        if found['type'] == 'unknown':
+            return config
+        update = {'type': found['type'], 'os': found['os'], 'adb': found['adb'], 'cast': found['cast'], 'detected': True}
+        if not config.get('mac'):
+            from .tv import arp_table
+            update['mac'] = arp_table().get(config['ip'], '')
+        self.update_tv(config['number'], update)
+        return dict(config, **update)
+
     def _tv_one(self, config, action, value):
+        if not config.get('detected'):
+            try:
+                config = self.detect(config)
+            except Exception:
+                log.info('TV detection failed', exc_info=True)
+        try:
+            return self._tv_run(config, action, value)
+        except RuntimeError as exc:
+            return str(exc)
+        except Exception as exc:
+            log.info('TV command failed: %s', exc)
+            return (f"«{config.get('name') or 'Телевизор'}» не отвечает. Телевизор включён и подключён к той же Wi-Fi, "
+                    'что и компьютер?')
+
+    def _tv_run(self, config, action, value):
         tv = self.device(config)
         if action == 'power' and value:
             done = None
@@ -1332,17 +1384,33 @@ class SmartHome:
 
     def pair(self, what, number=None):
         if what == 'tv':
-            tv = self.tv(number)
+            config = next((t for t in self.tvs() if number is None or t['number'] == number), None)
+            if config is None:
+                raise ValueError('Сначала добавьте телевизор.')
+            if config.get('ip'):
+                config = self.detect(config)
+            tv = self.device(config)
             if tv is None or not hasattr(tv, 'pair'):
-                raise ValueError('Сначала выберите тип телевизора и адрес.')
-            message = tv.pair()
-            adb = getattr(tv, 'adb', None)
-            if adb is not None:          # «Отладка по сети» включена — один раз «Разрешить» на экране ТВ
-                try:
-                    adb.pair()
-                    message += ' Расширенное управление (ADB) тоже работает.'
-                except RuntimeError as exc:
-                    message += f' ADB: {exc}'
+                raise ValueError('Не получилось определить телевизор по этому адресу. Он включён и в той же Wi-Fi?')
+            head = f"Определил: {config['os']}. " if config.get('os') else ''
+            try:
+                message = head + tv.pair()
+            except RuntimeError as exc:
+                return head + str(exc)
+            except Exception:
+                return head + 'Телевизор не ответил. Он включён и подключён к той же Wi-Fi, что и компьютер?'
+            if config.get('type') == 'android':
+                adb = tv._adb() if hasattr(tv, '_adb') else None
+                if adb is None:
+                    from .tv import DEBUG_HOWTO
+                    message += (' Уже работают: включение, громкость, звук и YouTube. Чтобы ещё выключать, переключать '
+                                'каналы и открывать любые приложения, ' + DEBUG_HOWTO)
+                else:
+                    try:
+                        adb.pair()
+                        message += ' Полное управление тоже работает.'
+                    except RuntimeError as exc:
+                        message += ' ' + str(exc)
             return message
         if what == 'hue':
             bridge = (self.config().get('lights') or {}).get('hue_bridge')
