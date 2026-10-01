@@ -56,6 +56,11 @@ const palettes = <String, Palette>{
       muted: Color(0xFF686D82), accent: Color(0xFF6A5CFF), accent2: Color(0xFFE061D4), onAccent: Color(0xFFFFFFFF),
       border: Color(0xD9FFFFFF), chip: Color(0x80FFFFFF), bad: Color(0xFFE0445E),
       glows: [Color(0x8CFFC496), Color(0x73D6AAFF), Color(0x8096D6FF)], dark: false),
+  'glassdark': Palette('glassdark', 'Стекло: ночь',
+      bg: Color(0xFF06070F), surface: Color(0x14FFFFFF), surfaceStrong: Color(0xFF141626), text: Color(0xFFF3F4FF),
+      muted: Color(0xFF9EA5C6), accent: Color(0xFF9A8CFF), accent2: Color(0xFFE35AD6), onAccent: Color(0xFFFFFFFF),
+      border: Color(0x29FFFFFF), chip: Color(0x12FFFFFF), bad: Color(0xFFFF5C7A),
+      glows: [Color(0x61FF6E3C), Color(0x6B9650FF), Color(0x6628A0FF)]),
   'dark': Palette('dark', 'Тёмная',
       bg: Color(0xFF0F141C), surface: Color(0xFF161D28), surfaceStrong: Color(0xFF1B2330), text: Color(0xFFE9EEF6),
       muted: Color(0xFF98A4B6), accent: Color(0xFF5AA8FF), accent2: Color(0xFF7EE0C3), onAccent: Color(0xFF06121F),
@@ -127,7 +132,7 @@ class Scene extends StatelessWidget {
           if (glows.length > 1) _glow(glows[1], const Alignment(1.2, -0.2), 1.2),
           if (glows.length > 2) _glow(glows[2], const Alignment(-0.4, 1.3), 1.3),
         ],
-        if (palette.id == 'glass') ...glassShapes(),
+        if (palette.id.startsWith('glass')) ...glassShapes(),
         if (OrnamentStyle.of(palette.id) case final style?) ...[
           // Букет в правом нижнем углу и малый — в левом верхнем, как на ПК.
           Positioned(right: -12, bottom: 40, width: 260, height: 260,
@@ -231,7 +236,7 @@ class Orb extends StatelessWidget {
         child: CustomPaint(painter: OrbPainter(style)),
       );
     }
-    if (palette.id == 'glass') {
+    if (palette.id.startsWith('glass')) {
       // Радужная стеклянная сфера с бликом.
       return AnimatedContainer(
         duration: const Duration(milliseconds: 400),
