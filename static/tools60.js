@@ -109,7 +109,7 @@
       remove.onclick = () => { tvs.splice(i, 1); paintTvs(); };
       return el('div', { className: 'tv-row card' },
         el('div', { className: 'tv-num' }, '№', field('number', '1', 'tv-number')),
-        field('name', 'Название: Гостиная'), type, field('ip', 'IP: 192.168.1.40'), field('mac', 'MAC (для включения)'),
+        field('name', 'Название (Гостиная)'), type, field('ip', 'IP-адрес'), field('mac', 'MAC (для включения)'),
         adb, el('div', { className: 'tv-actions' }, test, remove));
     }));
     $('sh-tv-save-row').hidden = !tvs.length;

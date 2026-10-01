@@ -420,3 +420,14 @@ class BrowserSetupTests(Temp):
         pairs.answer('Opera', False)
         threading.Timer(0.2, lambda: pairs.answer('Opera', False)).start()
         self.assertEqual(client.post('/api/ext/pair-request', json={'browser': 'Opera'}, headers=ext).status_code, 403)
+
+
+class DefaultThemeTests(Temp):
+    def test_glass_default_and_one_time_migration(self):
+        self.assertEqual(self.store.settings('device:desktop')['theme'], 'glass')
+        with self.store.connect() as db:
+            db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', ('device:old', json.dumps({'theme': 'aurora'})))
+        self.store.premium = lambda: True
+        self.assertEqual(self.store.settings('device:old')['theme'], 'glass')       # прежний «по умолчанию»
+        self.store.save_settings('device:old', {'theme': 'aurora'})                  # выбрал «Аврору» сам — остаётся
+        self.assertEqual(self.store.settings('device:old')['theme'], 'aurora')

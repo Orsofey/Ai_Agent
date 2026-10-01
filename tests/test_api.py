@@ -29,7 +29,7 @@ class APIv5Tests(unittest.TestCase):
     def test_defaults(self):
         settings = self.client.get('/api/settings', headers=self.headers).json['settings']
         self.assertEqual(settings['wake_word'], 'Андрей')
-        self.assertEqual(settings['theme'], 'aurora')
+        self.assertEqual(settings['theme'], 'glass')
         self.assertEqual(settings['llm_provider'], 'local')
 
     def test_old_claude_setting_falls_back_to_local(self):

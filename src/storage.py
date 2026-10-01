@@ -24,7 +24,7 @@ THEMES = ('aurora', 'cyberpunk', 'sakura', 'ocean', 'luxe', 'gzhel', 'slavic', '
 
 DEFAULTS = {
     # Внешний вид
-    'theme': 'aurora', 'animations': True, 'show_hud': True,
+    'theme': 'glass', 'animations': True, 'show_hud': True,
     # Голос: ввод
     'voice_language': 'auto', 'stt_engine': 'auto', 'microphone': '',
     'microphone_label': '', 'native_microphone': '', 'auto_send': True,
@@ -164,6 +164,9 @@ class Store:
         # Старое имя по умолчанию из прошлых версий заменяем на новое.
         if value['wake_word'] == 'Орсофей' and 'wake_word_migrated' not in stored:
             value['wake_word'] = DEFAULTS['wake_word']
+        # 6.2: основное оформление — «Стекло»; прежняя тема по умолчанию «Аврора» один раз меняется на него.
+        if value['theme'] == 'aurora' and 'theme_glass_migrated' not in stored:
+            value['theme'] = DEFAULTS['theme']
         if not raw and not self.is_premium():
             value.update({key: DEFAULTS[key] for key in PREMIUM_KEYS})
         return value
@@ -198,7 +201,7 @@ class Store:
                 value[key] = item
             if not value['wake_word']:
                 raise ValueError('Имя агента не может быть пустым')
-            stored = dict(value, wake_word_migrated=True)
+            stored = dict(value, wake_word_migrated=True, theme_glass_migrated=True)
             with self.connect() as db:
                 db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (owner, json.dumps(stored, ensure_ascii=False)))
             return self.settings(owner)

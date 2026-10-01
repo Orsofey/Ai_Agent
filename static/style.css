@@ -537,14 +537,17 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 13px; pa
 .diag-steps li.bad { color: var(--bad); }
 /* Телевизоры: список с номерами */
 .tv-list { display: grid; gap: 10px; margin-top: 10px; }
-.tv-row { display: grid; grid-template-columns: 70px minmax(120px, 1.2fr) minmax(150px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) auto auto;
+.tv-row { display: grid; grid-template-columns: 64px minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px; align-items: center; padding: 10px 12px; }
+.tv-row .tv-adb { grid-column: 2 / 4; }
+.tv-row .tv-actions { grid-column: 4 / -1; justify-content: flex-end; }
 .tv-row input, .tv-row select { min-width: 0; width: 100%; }
+.tv-row .tv-adb input { width: auto; flex: none; }
 .tv-num { display: flex; align-items: center; gap: 4px; font-weight: 700; color: var(--muted); }
 .tv-number { width: 44px !important; text-align: center; font-weight: 700; }
 .tv-adb { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .tv-actions { display: flex; gap: 6px; }
-@media (max-width: 1100px) { .tv-row { grid-template-columns: 70px 1fr 1fr; } }
+@media (max-width: 900px) { .tv-row { grid-template-columns: 64px 1fr 1fr; } .tv-row .tv-adb, .tv-row .tv-actions { grid-column: 1 / -1; } }
 
 .ext-ask { position: fixed; right: 20px; bottom: 20px; z-index: 90; max-width: 360px; padding: 16px 18px; display: grid; gap: 8px; }
 .ext-ask p { margin: 0; color: var(--muted); font-size: 13.5px; }
