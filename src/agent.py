@@ -466,7 +466,8 @@ class LocalComputerAgent:
             if music_request[0] == 'player':
                 result = self.browser.call('player')
                 if not result or result.startswith(('Не нашёл', 'Браузер')):
-                    result = self._media_key()
+                    # «Запусти плеер» → «Запускаю плеер.»; «продолжи музыку» → «Продолжаю воспроизведение.»
+                    result = self._media_key('player' if 'плеер' in text.casefold() else 'play')
                 return result, 'action'
             return self.browser.call('music', music_request[1], music_request[2]), 'action'
 
