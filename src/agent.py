@@ -18,7 +18,7 @@ HELP = '''Я понимаю команды и отвечаю на вопросы
 Диктовка: «Начни диктовку» … «Стоп диктовка».
 Окна и звук: «Сверни окно», «Разверни окно», «Закрой окно», «Покажи рабочий стол», «Громче», «Тише», «Следующий трек», «Сделай скриншот».
 Приложения: «Открой калькулятор», «Запусти Telegram», «Закрой Chrome».
-Видео и сайты: «Включи видео котики», «Пауза видео», «Открой YouTube», «Найди рецепт борща».
+Видео и сайты: «Включи видео котики», «Пауза», «Останови фильм», «Поставь на паузу», «Продолжи», «Открой YouTube», «Найди рецепт борща».
 Вопросы: «Какой курс доллара?», «100 евро в рублях», «Погода завтра в Казани», «Сколько будет 15% от 2000?», «Сколько белка нужно в день?», «Куда вложить 100 тысяч?».'''
 
 
@@ -72,6 +72,25 @@ def strip_wake(text, settings):
     return re.sub(r'^(?:эй\s+|ну\s+|слушай\s+)?' + re.escape(wake) + r'(?![\w])[\s,.:;!?—-]*', '', text, flags=re.I)
 
 
+# Всё, что можно «поставить на паузу»: видео, фильм, музыка, плеер, воспроизведение…
+# «всё/все» сюда не входят: «останови все» — это команда «стоп всему», а не пауза плеера.
+MEDIA_WORDS = (r'(?:видео|фильм\w*|кино|ролик\w*|сериал\w*|мульт\w*|клип\w*|музык\w*|песн\w*|трек\w*|плеер\w*|'
+               r'воспроизведени\w*|аудио)')
+# «Останови фильм», «поставь на паузу», «пауза видео», «приостанови воспроизведение», «стоп фильм»…
+PAUSE_RE = re.compile(
+    r'^(?:пауза(?:\s+' + MEDIA_WORDS + r')?'
+    r'|(?:останови|приостанови|остановить|приостановить|стоп|затормози)\s+(?:' + MEDIA_WORDS + r'|это)(?:\s+на\s+паузу)?'
+    r'|(?:поставь|поставить)\s+' + MEDIA_WORDS + r'\s+на\s+паузу'
+    r'|(?:поставь|поставить)\s+на\s+паузу(?:\s+' + MEDIA_WORDS + r')?'
+    r'|(?:выключи|выключить|отключи)\s+' + MEDIA_WORDS + r''
+    r')$', re.I)
+# «Продолжи фильм», «возобнови воспроизведение», «сними с паузы», «сними видео с паузы»…
+PLAY_RE = re.compile(
+    r'^(?:(?:продолжи|возобнови|продолжить|возобновить)(?:\s+' + MEDIA_WORDS + r')?'
+    r'|(?:сними|снять)\s+(?:' + MEDIA_WORDS + r'\s+)?с\s+паузы'
+    r')$', re.I)
+
+
 def parse_command(command, settings=None):
     settings = settings or {}
     text = re.sub(r'\s+', ' ', str(command)).strip().rstrip('.,!?…')
@@ -80,9 +99,10 @@ def parse_command(command, settings=None):
     lower = text.casefold()
     if lower in ('помощь', 'help', 'справка', 'что ты умеешь делать', 'список команд'):
         return 'help', ''
-    if lower in ('пауза', 'пауза видео', 'останови видео', 'приостанови видео', 'поставь на паузу', 'поставь видео на паузу'):
+    # Пауза/продолжение — раньше всех: любые формулировки про плеер, фильм, видео, музыку.
+    if PAUSE_RE.match(text):
         return 'pause', ''
-    if lower in ('продолжи', 'продолжи видео', 'возобнови видео', 'сними с паузы'):
+    if PLAY_RE.match(text):
         return 'play', ''
     if lower in ('закрой вкладку', 'закрыть вкладку', 'закрой текущую вкладку', 'закрой видео'):
         return 'close_tab', ''
@@ -340,14 +360,18 @@ class LocalComputerAgent:
                 return None
         return request
 
-    def _media_key(self):
-        """Клавиша «Play/Pause» — работает с любым плеером: Spotify, Яндекс Музыка, браузер."""
+    def _media_key(self, action='play'):
+        """Клавиша «Play/Pause» — работает с любым плеером: Spotify, Яндекс Музыка, браузер, VLC."""
         if self.desktop_commands is None:
             return 'Не нашёл плеер. Откройте музыкальный сервис и повторите.'
         try:
             self.desktop_commands.desktop.hotkey('media_play_pause')
         except Exception:
             return 'Не нашёл плеер. Откройте музыкальный сервис и повторите.'
+        if action == 'pause':
+            return 'Пауза.'
+        if action == 'play':
+            return 'Продолжаю воспроизведение.'
         return 'Запускаю плеер.'
 
     def _switch_to_open_site(self, text):
@@ -391,7 +415,8 @@ class LocalComputerAgent:
         return desktop_parse(text) is not None or youtube_command(text) is not None or music.parse(text) is not None \
             or (site is not None and sites.find(site[1], threshold=0.9) is not None) \
             or display.parse(text) is not None or scenarios.parse(text) is not None \
-            or (self.tracker is not None and tracker_parse(text) is not None)
+            or (self.tracker is not None and tracker_parse(text) is not None) \
+            or bool(PAUSE_RE.match(text)) or bool(PLAY_RE.match(text))
 
     def _route(self, text, settings, owner, on_text):
         """Выполнить команду. Вернуть (текст, вид): action — действие, info — ответ."""
@@ -507,7 +532,13 @@ class LocalComputerAgent:
                 return 'Укажите название или ссылку на видео.', 'action'
             return self.browser.call('video', value, source), 'action'
         if action in ('pause', 'play'):
-            return self.browser.call('media', action), 'action'
+            # Сначала — плеер на вкладке браузера; если его нет, ставим на паузу любой
+            # запущенный плеер системной медиаклавишей (VLC, Spotify, «Кино и ТВ»…).
+            result = self.browser.call('media', action)
+            if not isinstance(result, str) or result.startswith(('Не нашёл', 'Браузер')) \
+                    or 'нет управляемых вкладок' in result.casefold():
+                result = self._media_key(action)
+            return result, 'action'
         if action in ('close_tab', 'close_browser', 'tabs'):
             return self.browser.call(action), 'action'
 

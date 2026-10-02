@@ -2,7 +2,7 @@
 
 Работает в фоне, даже когда окно агента свёрнуто и пользователь в Word или
 Telegram. Схема задержки после конца фразы:
-  пауза silence_ms (по умолчанию 0,6 с) + распознавание (~0,1–0,4 с) + команда.
+  пауза silence_ms (по умолчанию 0,45 с) + распознавание (~0,1–0,4 с) + команда.
 """
 import logging
 import queue
@@ -18,8 +18,13 @@ log = logging.getLogger(__name__)
 ARM_SECONDS = 8.0       # после «Андрей» без команды ждём команду столько секунд
 ONCE_SECONDS = 8.0      # после горячей клавиши / кнопки микрофона
 STALE_SECONDS = 20.0    # фразы старше не выполняем
+SILENCE_DEFAULT = 450   # мс тишины, после которых фраза считается законченной (меньше — быстрее реакция)
 ENROLL_SAMPLES = 3
 ENROLL_PHRASE = re.compile(r'^(?:запомни|выучи|запиши|узнай)\s+(?:мой\s+)?голос')
+
+# Частые короткие ответы, которые имеет смысл синтезировать заранее: прозвучат без задержки.
+FAST_REPLIES = ('Пауза.', 'Продолжаю воспроизведение.', 'Вкладка закрыта.', 'Компьютер заблокирован.',
+                'Диктовка выключена.', 'Напоминания выключены.', 'Напоминания включены.')
 
 
 def _is_stop(command):
@@ -103,14 +108,22 @@ class VoiceAssistant:
             self.start()
 
     def prewarm(self, settings=None):
-        """Заранее озвучить «Секунду, сэр» и «Хорошо, сэр» текущим голосом."""
+        """Заранее озвучить «Секунду, сэр», частые короткие ответы и их варианты-дворецкого."""
         if not self.player or not hasattr(self.player, 'prewarm'):
             return
         from ..dialog import ack_phrases, address_of, filler_phrases, stop_reply
         settings = settings or self.settings()
         address = address_of(settings)
-        self.player.prewarm(ack_phrases(address) + filler_phrases(address) +
-                            [stop_reply('one', address), stop_reply('all', address)], settings)
+        phrases = ack_phrases(address) + filler_phrases(address) + \
+            [stop_reply('one', address), stop_reply('all', address)]
+        for reply in FAST_REPLIES:
+            if address:
+                body = reply.rstrip('.')
+                phrases += [f'Сделано, {address}. {reply}', f'Выполнено, {address}. {reply}',
+                            f'{body}, {address}.']
+            else:
+                phrases.append(reply)
+        self.player.prewarm(phrases, settings)
 
     def reset(self):
         """Кнопка «Пауза»: забыть ожидание продолжения и вернуться к прослушиванию имени."""
@@ -157,14 +170,15 @@ class VoiceAssistant:
             vad = StreamingVad(self.speech.vad_dir())
             self.vad_engine = vad.engine
             settings = self.settings()
-            segmenter = Segmenter(vad, threshold=self._threshold(settings), silence_ms=settings.get('silence_ms', 600))
+            segmenter = Segmenter(vad, threshold=self._threshold(settings),
+                                  silence_ms=settings.get('silence_ms', SILENCE_DEFAULT))
             self._set_state('idle')
             last_config = time.monotonic()
             for frame in microphone.frames(self.stop_event):
                 now = time.monotonic()
                 if now - last_config > 1.0:
                     settings = self.settings()
-                    segmenter.configure(self._threshold(settings), settings.get('silence_ms', 600))
+                    segmenter.configure(self._threshold(settings), settings.get('silence_ms', SILENCE_DEFAULT))
                     last_config = now
                     if vad.engine == 'energy' and self.speech.vad_dir():
                         vad = StreamingVad(self.speech.vad_dir())  # модель VAD только что скачали

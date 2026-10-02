@@ -2,7 +2,8 @@
 
 Синтез и воспроизведение идут в двух потоках: пока звучит первое предложение,
 синтезируется второе. Ответ ИИ начинает звучать после первой фразы, а не
-после всего текста.
+после всего текста. Короткие ответы кэшируются: повторные («Пауза, сэр.»)
+звучат мгновенно, без синтеза.
 """
 import logging
 import subprocess
@@ -17,6 +18,8 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 URL_RE = re.compile(r'https?://\S+')
+CACHEABLE = 120        # ответы короче стольких символов запоминаются и повторно звучат без синтеза
+CACHE_LIMIT = 300      # максимум фраз в кэше
 
 
 def readable(text, limit=1500):
@@ -99,6 +102,18 @@ class TTSPlayer:
         voice = self.tts.pick_voice(text, settings.get('tts_voice', 'irina'), settings.get('tts_voice_en', 'amy'))
         return text, voice, settings.get('tts_rate', 100), settings.get('voice_preset', 'classic')
 
+    def _cache_get(self, text, settings):
+        return self.ack_cache.get(self._ack_key(text, settings))
+
+    def _cache_put(self, text, settings, result):
+        if result is None or len(text) > CACHEABLE:
+            return
+        if len(self.ack_cache) >= CACHE_LIMIT:
+            # Кэш ограничен: выкидываем самые старые фразы (dict помнит порядок добавления).
+            for key in list(self.ack_cache)[:CACHE_LIMIT // 2]:
+                self.ack_cache.pop(key, None)
+        self.ack_cache[self._ack_key(text, settings)] = result
+
     def prewarm(self, texts, settings):
         """Заранее синтезировать короткие фразы («Секунду, сэр»), чтобы они звучали сразу."""
         def work():
@@ -118,7 +133,7 @@ class TTSPlayer:
         """Сказать короткую фразу немедленно; следующий ответ её не обрывает."""
         if not settings.get('tts_enabled', True) or not self.available:
             return
-        cached = self.ack_cache.get(self._ack_key(text, settings))
+        cached = self._cache_get(text, settings)
         if cached is None:
             key = self._ack_key(text, settings)
             try:
@@ -171,6 +186,11 @@ class TTSPlayer:
             token, text, settings = self.synth_queue.get()
             if token != self.token:
                 continue
+            cached = self._cache_get(text, settings)
+            if cached is not None:
+                # Уже синтезировали такую фразу — звучит сразу, без повторной работы модели.
+                self.play_queue.put((token, cached[0], cached[1], None))
+                continue
             voice = self.tts.pick_voice(text, settings.get('tts_voice', 'irina'), settings.get('tts_voice_en', 'amy'))
             rate = settings.get('tts_rate', 100) / 100.0
             try:
@@ -183,6 +203,7 @@ class TTSPlayer:
             if result is None:
                 self.play_queue.put((token, None, None, (text, rate)))
             else:
+                self._cache_put(text, settings, result)
                 self.play_queue.put((token, result[0], result[1], None))
 
     def _play_loop(self):
