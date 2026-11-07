@@ -21,3 +21,7 @@ android_client/.flutter-plugins-dependencies
 android_client/android/app/
 android_client/android/local.properties
 android_client/test/goldens/
+voice_work/
+
+# Ключ подписи расширения .crx (scripts/pack_extension.py) — не публиковать
+keys/
