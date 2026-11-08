@@ -28,7 +28,6 @@ from src.storage import PremiumRequired, Store, SECRET_NAMES
 
 log = logging.getLogger(__name__)
 
-VOICE_IDS = ('irina', 'denis', 'amy')
 # Пример интеграции: переименуйте в tracker.json и замените адреса на API своего приложения.
 EXAMPLE_INTEGRATION = {
     'name': 'Трекер',
@@ -839,31 +838,8 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         opened = is_desktop() and system_open(str(folder))
         return jsonify(success=True, opened=bool(opened), path=str(folder))
 
-    @app.post('/api/ai/synthesize_local')
-    def synthesize_local():
-        data = request.get_json(silent=True) or {}
-        text = str(data.get('text', '')).strip()
-        if not 1 <= len(text) <= 2000:
-            return jsonify(success=False, error='Text 1-2000 chars')
-        voice_id = str(data.get('voice', 'irina'))
-        if voice_id not in VOICE_IDS:
-            voice_id = 'irina'
-        try:
-            audio_path = local_tts.synthesize(text, voice_id, preset=store.settings(owner()).get('voice_preset', 'classic'))
-        except Exception as exc:
-            return jsonify(success=False, error=str(exc))
-        if not audio_path:
-            return jsonify(success=False, error='Fallback to system')
-        return jsonify(success=True, audio_url='/tts_audio/' + Path(audio_path).name)
-
-    @app.get('/tts_audio/<filename>')
-    def serve_tts_audio(filename):
-        if not re.fullmatch(r'[0-9a-f]{20}\.wav', filename):
-            return 'Not found', 404
-        audio_file = Path(local_tts.cache) / filename
-        if not audio_file.exists():
-            return 'Not found', 404
-        return send_file(str(audio_file), mimetype='audio/wav')
+    from src.tts_api import register_tts_routes
+    register_tts_routes(app, local_tts, store, owner)
 
     # ---------------- окна ----------------
     @app.post('/api/ui/open-settings')
@@ -1781,20 +1757,6 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         settings_changed(value)
         return jsonify(success=True, values=value)
 
-    @app.post('/api/tts/phone')
-    def tts_phone():
-        """Ответ голосом ассистента (Джарвис, Пятница, дикторы) для воспроизведения на телефоне."""
-        import base64
-        text = str((request.get_json() or {}).get('text', '')).strip()
-        if not 1 <= len(text) <= 2000:
-            raise ValueError('Нужен текст до 2000 символов')
-        settings = store.settings('device:desktop')
-        path = local_tts.synthesize(text, settings.get('tts_voice', 'irina'), settings.get('tts_rate', 110) / 100.0,
-                                    preset=settings.get('voice_preset', 'classic'))
-        if not path:
-            return jsonify(success=False, message='Голоса на ПК ещё не установлены'), 503
-        return jsonify(success=True, mime='audio/wav', audio=base64.b64encode(Path(path).read_bytes()).decode())
-
     # ---------------- все команды ----------------
     @app.get('/api/commands')
     def commands_catalog():
@@ -2162,3 +2124,4 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         raise ValueError('Неизвестное действие')
 
     return app
+

@@ -4,11 +4,20 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH)
+import runpy
+source_check = runpy.run_path(str(root / 'scripts' / 'check_source.py'))['check'](root)
+if source_check:
+    missing = '\n'.join(f"{item['file']}:{item['line']}: {item['missing']}" for item in source_check)
+    raise RuntimeError('Incomplete application source; restore these files before packaging:\n' + missing)
 import re
 VERSION = re.search(r"^VERSION = '([\d.]+)'", (root / 'app.py').read_text(encoding='utf-8'), re.M).group(1)
 datas = [(str(root / 'static'), 'static'), (str(root / 'templates'), 'templates'),
          (str(root / 'browser_extension'), 'browser_extension')]
 binaries = []
+for folder in ('voice_packs', 'voices'):
+    voices = root / 'models' / folder
+    if voices.is_dir():
+        datas.append((str(voices), 'models/' + folder))
 MAC = sys.platform == 'darwin'
 if MAC:
     hiddenimports = ['webview.platforms.cocoa', 'waitress', 'sqlite3', 'PIL.Image', 'Quartz', 'AppKit',
@@ -57,3 +66,4 @@ if MAC:
                      'NSMicrophoneUsageDescription': 'Андрей слушает голосовые команды. Речь распознаётся на этом Mac и никуда не отправляется.',
                      'NSAppleEventsUsageDescription': 'Андрей открывает, переключает и закрывает приложения по вашей команде.',
                  })
+
