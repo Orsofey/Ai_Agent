@@ -100,7 +100,9 @@ class TTSPlayer:
     # ---- мгновенные подтверждения ----
     def _ack_key(self, text, settings):
         voice = self.tts.pick_voice(text, settings.get('tts_voice', 'irina'), settings.get('tts_voice_en', 'amy'))
-        return text, voice, settings.get('tts_rate', 100), settings.get('voice_preset', 'classic')
+        preset = settings.get('voice_preset', 'classic')
+        identity = self.tts.cache_identity(text, voice, preset) if hasattr(self.tts, 'cache_identity') else ''
+        return text, voice, settings.get('tts_rate', 100), preset, identity
 
     def _cache_get(self, text, settings):
         return self.ack_cache.get(self._ack_key(text, settings))
@@ -317,3 +319,4 @@ class SentenceSpeaker:
         else:
             self._say(full_text)
         self.buffer = ''
+

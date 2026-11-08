@@ -118,6 +118,8 @@ def import_files(root, files):
     onnx.save(str(folder / f'{stem}.onnx'))
     data.setdefault('title', stem.replace('_', ' '))
     (folder / f'{stem}.onnx.json').write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+    from .local_tts_service import clear_voice_cache
+    clear_voice_cache()
     return {'id': 'custom:' + stem, 'title': data['title']}
 
 
@@ -131,4 +133,8 @@ def remove(root, voice_id):
         if path.exists():
             path.unlink()
             removed = True
+    if removed:
+        from .local_tts_service import clear_voice_cache
+        clear_voice_cache()
     return removed
+
