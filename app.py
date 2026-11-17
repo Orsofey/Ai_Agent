@@ -1233,7 +1233,11 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
         if action == 'discover':
             return jsonify(success=True, found=smarthome.discover(what))
         if action == 'pair':
-            return jsonify(success=True, message=smarthome.pair(what, number), config=smarthome.public())
+            return jsonify(success=True, message=smarthome.pair(what, number), config=smarthome.public(),
+                           waiting_code=smarthome.waiting_code())
+        if action == 'tvcode':
+            return jsonify(success=True, message=smarthome.submit_code(str(data.get('code', ''))),
+                           config=smarthome.public(), waiting_code=smarthome.waiting_code())
         if action == 'test':
             return jsonify(success=True, message=smarthome.test(what, number))
         if action == 'adb':

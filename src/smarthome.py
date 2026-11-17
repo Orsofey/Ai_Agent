@@ -942,6 +942,7 @@ class SmartHome:
         self._session = session
         self.clock = clock
         self.pending = {}
+        self.pairing = None       # пульт Android TV ждёт код с экрана: {'number', 'session', 'action', 'value', 'at'}
         self.documents = None     # Documents: снимки с камер — карточкой в чат
         self.lock = threading.Lock()
 
@@ -1060,8 +1061,11 @@ class SmartHome:
         if kind == 'xiaomi' and config.get('ip'):
             return XiaomiTV(config, self.session)
         if kind == 'android' and config.get('ip'):
+            from .atv_remote import Remote
             make_adb = lambda: AndroidTV(config, save, self.store.root)  # noqa: E731
-            return CastTV(config, self.session, make_adb() if config.get('adb') else None, adb_factory=make_adb)
+            make_remote = lambda: Remote(config['ip'], self.store.root)  # noqa: E731
+            return CastTV(config, self.session, make_adb() if config.get('adb') else None, adb_factory=make_adb,
+                          remote_factory=make_remote)
         if kind == 'yandex':
             return _YandexTV(self, config)
         return None
@@ -1092,9 +1096,64 @@ class SmartHome:
     # ---- голос ----
     def awaiting(self, owner):
         item = self.pending.get(owner)
-        return bool(item and item[1] > self.clock())
+        return bool(item and item[1] > self.clock()) or self.waiting_code() is not None
+
+    # ---- пульт Android TV: код с экрана (один раз на телевизор) ----
+    PAIR_SECONDS = 180
+
+    def waiting_code(self):
+        item = self.pairing
+        if item and self.clock() - item['at'] < self.PAIR_SECONDS:
+            return item['number']
+        return None
+
+    def start_pairing(self, config, action=None, value=None):
+        from .atv_remote import Pairing, RemoteError
+        if self.pairing:
+            self.pairing['session'].cancel()
+        session = Pairing(config['ip'], self.store.root)
+        try:
+            session.start()
+        except RemoteError as exc:
+            self.pairing = None
+            return str(exc)
+        self.pairing = {'number': config['number'], 'session': session, 'action': action, 'value': value,
+                        'at': self.clock()}
+        name = config.get('name') or 'телевизора'
+        return (f'На экране «{name}» появился код из 6 символов. Скажите: «Андрей, код …» (например, «код 4F7A2C») '
+                'или введите его в настройках. Это нужно один раз — дальше всё управление без кодов.')
+
+    def submit_code(self, code):
+        from .atv_remote import RemoteError, normalize_code
+        item = self.pairing
+        if not item or self.clock() - item['at'] >= self.PAIR_SECONDS:
+            self.pairing = None
+            return 'Код уже не ждут. Скажите команду телевизору ещё раз — он покажет новый код.'
+        if not normalize_code(code):
+            return 'Не расслышал код. Скажите 6 символов с экрана телевизора, например: «код 4F7A2C».'
+        try:
+            item['session'].finish(code)
+        except RemoteError as exc:
+            if 'не подошёл' in str(exc):
+                config = next((t for t in self.tvs() if t['number'] == item['number']), None)
+                if config is not None:
+                    return str(exc) + ' ' + self.start_pairing(config, item['action'], item['value'])
+            self.pairing = None
+            return str(exc)
+        self.pairing = None
+        self.update_tv(item['number'], {'paired': True, 'remote': True})
+        config = next((t for t in self.tvs() if t['number'] == item['number']), None)
+        reply = f"Готово — «{config.get('name') or 'телевизор'}» подключён, коды больше не понадобятся."
+        if item['action'] and config is not None:
+            reply += ' ' + self._tv_one(config, item['action'], item['value'])
+        return reply
 
     def handle(self, text, owner='default'):
+        if self.waiting_code() is not None:
+            from .atv_remote import parse_code
+            code = parse_code(text)
+            if code or re.match(r'^\s*(?:код|пин)', str(text), re.I):
+                return self.submit_code(code or '')
         lower = re.sub(r'[.!?,]+', '', str(text).casefold()).strip()
         pending = self.pending.get(owner)
         if pending and pending[1] > self.clock():
@@ -1162,7 +1221,8 @@ class SmartHome:
         found = identify(config['ip'], self.session)
         if found['type'] == 'unknown':
             return config
-        update = {'type': found['type'], 'os': found['os'], 'adb': found['adb'], 'cast': found['cast'], 'detected': True}
+        update = {'type': found['type'], 'os': found['os'], 'adb': found['adb'], 'cast': found['cast'], 'detected': True,
+                  'remote': 6466 in found.get('ports', [])}
         if not config.get('mac'):
             from .tv import arp_table
             update['mac'] = arp_table().get(config['ip'], '')
@@ -1185,6 +1245,13 @@ class SmartHome:
                     'что и компьютер?')
 
     def _tv_run(self, config, action, value):
+        from .tv import NeedsPairing
+        try:
+            return self._tv_device_run(config, action, value)
+        except NeedsPairing:
+            return self.start_pairing(config, action, value)
+
+    def _tv_device_run(self, config, action, value):
         tv = self.device(config)
         if action == 'power' and value:
             done = None
@@ -1399,6 +1466,10 @@ class SmartHome:
                 return head + str(exc)
             except Exception:
                 return head + 'Телевизор не ответил. Он включён и подключён к той же Wi-Fi, что и компьютер?'
+            if config.get('type') == 'android' and hasattr(tv, 'has_remote') and tv.has_remote():
+                if config.get('paired'):
+                    return message + ' Пульт подключён: всё управление без кодов.'
+                return message + ' ' + self.start_pairing(config)
             if config.get('type') == 'android':
                 adb = tv._adb() if hasattr(tv, '_adb') else None
                 if adb is None:

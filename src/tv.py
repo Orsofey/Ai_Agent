@@ -688,17 +688,102 @@ DEBUG_HOWTO = ('один раз включите на телевизоре «О�
 NETWORK_ERRORS = (OSError, TimeoutError, ssl.SSLError, ConnectionError)
 
 
-class CastTV:
-    """Android TV / Google TV (в т.ч. Xiaomi на Android TV). Без кодов: громкость, звук, YouTube — через Chromecast.
-    Если на телевизоре включена «Отладка по USB» (порт 5555 открыт) — программа сама подключает ADB (на экране ТВ один
-    раз «Разрешить») и тогда работают выключение, каналы, кнопки и любые приложения."""
+class NeedsPairing(RuntimeError):
+    """Команде нужен пульт Android TV, а телевизор ещё не подтвердил этот ПК (код с экрана, один раз)."""
 
-    def __init__(self, config, session, adb=None, cast_factory=Cast, adb_factory=None):
+
+# Приложения на Android TV: пакет для запуска пультом (market://launch?id=…)
+ATV_PACKAGES = {'youtube': 'com.google.android.youtube.tv', 'kinopoisk': 'ru.kinopoisk.tv', 'ivi': 'ru.ivi.client',
+                'okko': 'ru.more.play', 'wink': 'ru.rt.video.app.tv', 'premier': 'gpm.tnt_premier',
+                'start': 'ru.start.androidmobile', 'rutube': 'ru.rutube.app', 'vk': 'com.vk.tv',
+                'netflix': 'com.netflix.ninja'}
+REMOTE_KEYS = {'ok': 'ok', 'ок': 'ok', 'назад': 'back', 'домой': 'home', 'вверх': 'up', 'вниз': 'down', 'влево': 'left',
+               'вправо': 'right', 'меню': 'menu'}
+
+
+class CastTV:
+    """Android TV / Google TV (в т.ч. Xiaomi на Android TV).
+    Без кодов: громкость, звук и YouTube — через Chromecast. Всё остальное (выключение, каналы, кнопки, приложения) —
+    пультом Android TV: один раз телевизор показывает код, его говорят голосом («Андрей, код …») — и всё.
+    Если на телевизоре уже включена «Отладка по USB», те же команды идут и через ADB."""
+
+    def __init__(self, config, session, adb=None, cast_factory=Cast, adb_factory=None, remote_factory=None):
         self.config = config
         self.session = session
         self.adb = adb
         self.cast_factory = cast_factory
         self.adb_factory = adb_factory
+        self.remote_factory = remote_factory
+
+    def has_remote(self):
+        """Есть ли на телевизоре служба пульта Android TV (порт 6466)."""
+        if self.remote_factory is None:
+            return False
+        if self.config.get('remote') is None:
+            self.config['remote'] = port_open(self.config['ip'], 6466, 1.0)
+        return bool(self.config['remote'])
+
+    def _remote_run(self, action, value, required=True):
+        """Команда пультом. Не сопряжён — NeedsPairing (SmartHome попросит код); пульта нет — None."""
+        if not self.has_remote():
+            return None
+        if not self.config.get('paired'):
+            if required:
+                raise NeedsPairing(self.name)
+            return None
+        from .atv_remote import NotPaired
+        try:
+            with self.remote_factory() as remote:
+                return self._remote_do(remote, action, value)
+        except NotPaired:
+            self.config['paired'] = False
+            raise NeedsPairing(self.name)
+
+    def _remote_do(self, remote, action, value):
+        if action == 'power':
+            changed = remote.power(bool(value))
+            if not changed:
+                return 'Телевизор и так включён.' if value else 'Телевизор и так выключен.'
+            return 'Включаю телевизор.' if value else 'Выключаю телевизор.'
+        if action == 'volume_step':
+            remote.key('volume_up' if value > 0 else 'volume_down', 2)
+            return 'Громче.' if value > 0 else 'Тише.'
+        if action == 'mute':
+            remote.key('mute')
+            return 'Звук переключён.'
+        if action == 'channel':
+            for digit in str(value):
+                remote.key(digit)
+            return f'Включаю {value} канал.'
+        if action == 'channel_step':
+            remote.key('channel_up' if value > 0 else 'channel_down')
+            return 'Следующий канал.' if value > 0 else 'Предыдущий канал.'
+        if action in ('pause', 'play'):
+            remote.key(action)
+            return 'Пауза.' if action == 'pause' else 'Продолжаю.'
+        if action == 'key':
+            remote.key(REMOTE_KEYS.get(value, 'ok'))
+            return 'Готово.'
+        if action == 'app':
+            package = ATV_PACKAGES.get(value)
+            if not package:
+                return None
+            remote.link(f'market://launch?id={package}')
+            return 'Открываю на телевизоре.'
+        if action == 'search':
+            query, app = value
+            if app == 'youtube':
+                video = youtube_video(query)
+                if not video:
+                    return f'Не нашёл «{query}» на YouTube. Проверьте интернет.'
+                remote.link(f'https://www.youtube.com/watch?v={video}')
+                return f'Включаю «{query}» на YouTube на телевизоре.'
+            package = ATV_PACKAGES.get(app)
+            if package:
+                remote.link(f'market://launch?id={package}')
+                return f'Открыл приложение на телевизоре — «{query}» найдите в его поиске.'
+            return None
+        return None
 
     @property
     def name(self):
@@ -734,11 +819,24 @@ class CastTV:
     def _needs_debug(self, what):
         return f'Чтобы {what} «{self.name}» голосом, {DEBUG_HOWTO}'
 
+    def _full(self, action, value, what):
+        """Команда, которой нужен пульт: сопряжённый пульт → ADB (если уже разрешён) → попросить код с экрана."""
+        done = self._remote_run(action, value, required=False)
+        if done:
+            return done
+        if self.adb is not None or (self.adb_factory is not None and not self.has_remote()):
+            done = self._adb_run(action, value)
+            if done:
+                return done
+        if self.has_remote():
+            raise NeedsPairing(self.name)
+        return self._needs_debug(what)
+
     def run(self, action, value):
         if action == 'power':
             if value:
-                return self._adb_run(action, value)    # плюс Wake-on-LAN (в SmartHome)
-            return self._adb_run(action, value) or self._needs_debug('выключать')
+                return self._remote_run(action, value, required=False) or self._adb_run(action, value)  # + Wake-on-LAN
+            return self._full(action, value, 'выключать')
         if action in ('volume', 'volume_step', 'mute'):
             def volume(cast):
                 if action == 'volume':
@@ -752,13 +850,18 @@ class CastTV:
             try:
                 return self._with_cast(volume)
             except RuntimeError:
-                done = self._adb_run(action, value)
+                if action == 'volume':
+                    raise
+                done = self._remote_run(action, value, required=False) or self._adb_run(action, value)
                 if done:
                     return done
                 raise
         if action == 'search':
             query, app = value
             if app == 'youtube':
+                done = self._remote_run(action, value, required=False)
+                if done:
+                    return done
                 video = youtube_video(query)
                 if not video:
                     return f'Не нашёл «{query}» на YouTube. Проверьте интернет.'
@@ -771,33 +874,27 @@ class CastTV:
                     return f'Включаю «{query}» на YouTube на телевизоре.'
                 if self._with_cast(lambda cast: cast.youtube(video)):
                     return f'Включаю «{query}» на YouTube на телевизоре.'
+                if self.has_remote():
+                    raise NeedsPairing(self.name)
                 return f'«{self.name}» не открыл YouTube. Попробуйте ещё раз через пару секунд.'
-            done = self._adb_run(action, value)
-            if done:
-                return done
-            return self._needs_debug(f'включать фильмы в приложении на')
+            return self._full(action, value, 'включать фильмы в приложениях на')
         if action == 'app':
-            done = self._adb_run(action, value)
+            done = self._remote_run(action, value, required=False)
             if done:
                 return done
-            if value in CAST_APPS:
+            if value in CAST_APPS and not self.config.get('paired'):
                 self._with_cast(lambda cast: cast.launch(CAST_APPS[value]))
                 return 'Открываю на телевизоре.'
-            return self._needs_debug('открывать это приложение на')
-        if action in ('pause', 'play'):
-            done = self._adb_run(action, value)
-            if done:
-                return done
-            if action == 'pause':
-                self._with_cast(lambda cast: cast.stop())
-                return 'Остановил.'
-            return self._needs_debug('ставить на паузу и продолжать на')
-        done = self._adb_run(action, value)
-        if done:
-            return done
+            return self._full(action, value, 'открывать это приложение на')
+        if action == 'pause' and not self.config.get('paired') and not self.has_remote() and self.adb is None:
+            self._with_cast(lambda cast: cast.stop())
+            return 'Остановил.'
         what = {'channel': 'переключать каналы на', 'channel_step': 'переключать каналы на', 'key': 'нажимать кнопки на',
+                'pause': 'ставить на паузу', 'play': 'продолжать воспроизведение на',
                 'picture': 'менять режим изображения на'}.get(action, 'так управлять')
-        return self._needs_debug(what)
+        if action == 'picture':
+            return 'Режим изображения на Android TV переключается в настройках телевизора.'
+        return self._full(action, value, what)
 
 
 # ---------------- какой телевизор имелся в виду ----------------
