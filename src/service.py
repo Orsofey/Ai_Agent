@@ -8,7 +8,7 @@ from .tts_player import SentenceSpeaker
 log = logging.getLogger(__name__)
 
 
-FILLER_AFTER = 3.5  # секунд до «Думаю, сэр», если ответ ещё не зазвучал
+FILLER_AFTER = 2.5  # секунд до «Думаю, сэр», если ответ ещё не зазвучал
 
 
 class Busy(RuntimeError):

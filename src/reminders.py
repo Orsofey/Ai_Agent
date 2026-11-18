@@ -3,6 +3,7 @@
 
 Все напоминания озвучиваются и видны в окне ассистента; редактируются в Настройки → «Напоминания».
 Встроенные «отдохнуть от ПК» и «размяться» не звучат, если вы и так отошли от компьютера.
+Два встроенных напоминания никогда не звучат подряд: между ними минимум PC_GAP секунд.
 """
 import json
 import logging
@@ -20,6 +21,7 @@ log = logging.getLogger(__name__)
 
 CHECK_EVERY = 15          # секунд между проверками
 IDLE_BREAK = 5 * 60       # отошли от ПК на 5 минут — это уже перерыв, отсчёт «отдохнуть от ПК» начинается заново
+PC_GAP = 3 * 60           # «пора размяться» и «пора отдохнуть» — не чаще, чем одно за 3 минуты, и не подряд
 WEEKDAYS = [('понедельник', 0), ('вторник', 1), ('сред', 2), ('четверг', 3), ('пятниц', 4), ('суббот', 5),
             ('воскресен', 6)]
 DAY_NAMES = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
@@ -320,6 +322,7 @@ class Reminders:
         self.pending = {}      # owner → текст напоминания без времени (ждём «когда?»)
         self.interview = {}    # owner → {'step': n, 'answers': {}}
         self.last_fired = None
+        self.last_pc_fired = 0.0  # когда последний раз звучало встроенное «размяться/отдохнуть» (для PC_GAP)
         self.thread = None
         self.items = self._load()
 
@@ -424,6 +427,13 @@ class Reminders:
                         item['next'] = next_time(item, datetime.fromtimestamp(now), after=now)
                         changed = True
                         continue
+                    # «Размяться» и «отдохнуть» не должны звучать друг за другом:
+                    # если недавно уже прозвучало одно из них, второе откладываем на остаток паузы.
+                    gap = PC_GAP - (now - self.last_pc_fired)
+                    if gap > 0:
+                        item['next'] = now + gap
+                        changed = True
+                        continue
                 late = now - item['next']
                 if item['kind'] != 'once' and late > 30 * 60:
                     item['next'] = next_time(item, datetime.fromtimestamp(now), after=now)  # ПК спал — не догоняем
@@ -432,6 +442,8 @@ class Reminders:
                 text = self.say_text(item, settings)
                 fired.append(text)
                 self.last_fired = item
+                if item.get('pc'):
+                    self.last_pc_fired = now
                 if item['kind'] == 'once':
                     self.items.remove(item)
                 else:

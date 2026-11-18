@@ -10,6 +10,7 @@ from src.storage import Store
 from src.agent import parse_command, LocalComputerAgent
 from src.app_control import targets, normalize
 from src.browser_control import BrowserController
+from src.reminders import Reminders, PC_GAP
 from src.speech import SpeechService, SpeechError, decode
 
 
@@ -51,6 +52,66 @@ class RoutingTests(unittest.TestCase):
         browser.call.assert_called_once_with('video','AC/DC','youtube')
     def test_unknown(self):
         self.assertEqual(parse_command('случайный шум')[0],'unknown')
+
+
+class MediaPauseTests(unittest.TestCase):
+    """«Андрей, останови фильм» и любые похожие формулировки — это пауза запущенного плеера."""
+    def test_pause_phrases(self):
+        for phrase in ['Андрей, останови фильм', 'останови видео', 'останови фильм', 'останови сериал',
+                       'останови музыку', 'останови это', 'поставь на паузу', 'поставь видео на паузу',
+                       'поставь фильм на паузу', 'пауза', 'пауза видео', 'пауза фильм', 'приостанови видео',
+                       'приостанови воспроизведение', 'стоп видео', 'стоп фильм', 'остановить фильм',
+                       'выключи фильм', 'отключи видео', 'останови плеер', 'останови кино']:
+            self.assertEqual(parse_command(phrase)[0], 'pause', phrase)
+    def test_play_phrases(self):
+        for phrase in ['продолжи', 'продолжи видео', 'продолжи фильм', 'возобнови видео', 'сними с паузы',
+                       'сними видео с паузы', 'возобнови воспроизведение']:
+            self.assertEqual(parse_command(phrase)[0], 'play', phrase)
+    def test_stop_all_not_media_pause(self):
+        # «Останови все» — это остановка всех команд агента, а не пауза плеера.
+        self.assertNotEqual(parse_command('останови все')[0], 'pause')
+        self.assertNotEqual(parse_command('останови всё')[0], 'pause')
+        self.assertNotEqual(parse_command('стоп все')[0], 'pause')
+    def test_pause_goes_to_browser(self):
+        browser=Mock()
+        browser.call.return_value='Пауза установлена.'
+        agent=LocalComputerAgent(browser)
+        agent.process_command('Андрей, останови фильм', {'butler': False})
+        browser.call.assert_called_once_with('media','pause')
+    def test_pause_falls_back_to_media_key(self):
+        # Плеер не в браузере (VLC, Spotify) — системная медиаклавиша Play/Pause.
+        browser=Mock()
+        browser.call.return_value='Не нашёл плеер на открытых вкладках.'
+        desktop=Mock()
+        commands=Mock();commands.handle.return_value=None;commands.desktop=desktop
+        agent=LocalComputerAgent(browser, desktop_commands=commands)
+        agent.process_command('Андрей, останови фильм', {'butler': False})
+        desktop.hotkey.assert_called_once_with('media_play_pause')
+
+
+class ReminderGapTests(unittest.TestCase):
+    """«Пора размяться» и «пора отдохнуть» не звучат друг за другом: минимум PC_GAP между ними."""
+    def _reminders(self, now):
+        temp=tempfile.TemporaryDirectory()
+        store=Store(temp.name)
+        reminders=Reminders(store, clock=lambda: now[0], idle=lambda: 0.0)
+        return temp, reminders
+    def test_builtin_reminders_spaced(self):
+        now=[1_000_000.0]
+        temp,reminders=self._reminders(now)
+        try:
+            with reminders.lock:
+                for item in reminders.items:
+                    if item.get('pc'):
+                        item['next']=now[0]-1  # оба «созрели» одновременно
+            fired=reminders.tick()
+            self.assertEqual(len(fired),1)          # прозвучало только одно
+            self.assertEqual(reminders.tick(),[])   # второе отложено, а не озвучено следом
+            now[0]+=PC_GAP+1
+            fired=reminders.tick()
+            self.assertEqual(len(fired),1)          # второе прозвучало после паузы
+        finally:
+            temp.cleanup()
 
 
 class APITests(unittest.TestCase):

@@ -13,6 +13,7 @@ import hashlib
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 from .paths import app_base
 
@@ -20,6 +21,7 @@ log = logging.getLogger(__name__)
 
 _lock = threading.RLock()
 _piper_voices = {}
+MAX_LOADED_VOICES = 3
 
 # trial: лицензия датасета не проверена для коммерческого использования — голос для проверки;
 # перед продажей прочитайте карточку голоса (MODEL_CARD рядом с моделью) или уберите его.
@@ -63,19 +65,12 @@ def _download(url, destination):
     destination = Path(destination)
     if destination.exists() and destination.stat().st_size > 0:
         return True
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    tmp = destination.with_suffix(destination.suffix + '.part')
     try:
-        import urllib.request
-        urllib.request.urlretrieve(url, tmp)
-        os.replace(tmp, destination)
+        from .model_downloader import http_download
+        http_download(url, destination)
         return True
     except Exception as exc:
         log.warning('Download failed %s: %s', url, exc)
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
         return False
 
 
@@ -157,19 +152,34 @@ def get_piper_voice(name, root):
     if name not in PIPER_VOICES and not str(name).startswith('custom:'):
         return None
     with _lock:
-        if name in _piper_voices:
-            return _piper_voices[name]
         onnx, config = _custom_files(name, root) if name.startswith('custom:') else voice_files(name, root)
         if not onnx:
             return None
         try:
+            key = (str(onnx.resolve()), onnx.stat().st_mtime_ns, onnx.stat().st_size,
+                   str(config.resolve()), config.stat().st_mtime_ns, config.stat().st_size)
+            if key in _piper_voices:
+                voice = _piper_voices.pop(key)
+                _piper_voices[key] = voice
+                return voice
             from piper import PiperVoice
             voice = PiperVoice.load(str(onnx), config_path=str(config))
         except Exception as exc:
             log.warning('Piper unavailable: %s', exc)
             return None
-        _piper_voices[name] = voice
+        # Replaced models must not remain alive indefinitely.
+        for old in list(_piper_voices):
+            if old[0] == key[0]:
+                del _piper_voices[old]
+        _piper_voices[key] = voice
+        while len(_piper_voices) > MAX_LOADED_VOICES:
+            _piper_voices.pop(next(iter(_piper_voices)))
         return voice
+
+
+def clear_voice_cache():
+    with _lock:
+        _piper_voices.clear()
 
 
 def _piper_pcm(voice, text, length_scale):
@@ -199,6 +209,47 @@ class LocalTTSService:
         self.root = Path(root)
         self.cache = self.root / 'tts_cache'
         self.cache.mkdir(parents=True, exist_ok=True)
+        self._cleanup_lock = threading.Lock()
+        self._last_cleanup = float('-inf')
+
+    def cache_identity(self, text, voice='irina', preset='classic'):
+        """Include model/recording revisions in both RAM and disk cache keys."""
+        from . import voice_fx, voice_samples
+        selected = preset if str(preset).startswith('custom:') else \
+            self._character_voice(preset) or voice_fx.preset(preset)['voice'] or voice
+        files = _custom_files(selected, self.root) if str(selected).startswith('custom:') else \
+            voice_files(selected, self.root) if selected in PIPER_VOICES else (None, None)
+        identity = ['tts-v2', str(self.root.resolve()), voice_samples.fingerprint(text, preset, self.root)]
+        # These are the two fallback models used when the selected model is unavailable.
+        fallback_files = voice_files('irina', self.root) + voice_files('denis', self.root)
+        for path in (*files, *fallback_files):
+            try:
+                stat = path.stat() if path else None
+                identity.append(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}' if stat else '')
+            except OSError:
+                identity.append('')
+        return '|'.join(identity)
+
+    def _character_voice(self, preset):
+        if preset in ('jarvis', 'friday'):
+            key = 'custom:' + preset
+            if _custom_files(key, self.root)[0] is not None:
+                return key
+        return None
+
+    def cleanup_cache(self, keep=None, force=False):
+        from .tts_cache import prune
+        if not self._cleanup_lock.acquire(blocking=False):
+            return
+        try:
+            now = time.monotonic()
+            if force or now - self._last_cleanup >= 60:
+                prune(self.cache, keep=keep)
+                self._last_cleanup = now
+        except OSError as exc:
+            log.debug('TTS cache cleanup failed: %s', exc)
+        finally:
+            self._cleanup_lock.release()
 
     def available_voices(self):
         voices = []
@@ -214,9 +265,15 @@ class LocalTTSService:
         for key in voice_fx.MAIN:
             style = voice_fx.PRESETS[key]
             base = style['voice'] or 'irina'
-            voices.append({'id': key, 'title': style['title'], 'note': style['note'], 'voice': base,
+            from . import voice_samples
+            character = self._character_voice(key)
+            samples = voice_samples.available(self.root, key)
+            note = 'Своя модель: весь текст' if character else \
+                'Записи для готовых реплик; остальное — синтез' if samples else style['note']
+            voices.append({'id': key, 'title': style['title'], 'note': note, 'voice': character or base,
                            'group': style.get('group', 'assistant'),
-                           'installed': voice_files(base, self.root)[0] is not None})
+                           'recordings': samples, 'full_voice_model': bool(character),
+                           'installed': bool(character or samples or voice_files(base, self.root)[0] is not None)})
         voices += [{'id': v['id'], 'title': v['title'], 'note': 'Свой голос', 'group': 'custom', 'installed': True}
                    for v in custom_voices(self.root)]
         return voices
@@ -239,6 +296,13 @@ class LocalTTSService:
         text = str(text).strip()[:2000]
         if not text:
             return None
+        from . import voice_samples
+        recording = voice_samples.load(text, preset, self.root, rate)
+        if recording is not None:
+            return recording
+        character = self._character_voice(preset)
+        if character and detect_language(text) == 'ru':
+            voice, preset = character, 'classic'
         if str(preset).startswith('custom:') and get_piper_voice(preset, self.root) is not None \
                 and detect_language(text) == 'ru':
             voice, preset = preset, 'classic'  # свой голос звучит как есть, без обработки
@@ -263,23 +327,21 @@ class LocalTTSService:
 
     def synthesize(self, text, voice='irina', rate=1.0, preset='classic'):
         """WAV-файл для удалённых клиентов (телефон). Возвращает путь или None."""
-        import wave
+        from .tts_cache import request_lock, write_wav
         text = str(text).strip()[:2000]
         if not text:
             return None
-        key = hashlib.sha1(f'{voice}|{rate}|{preset}|{text}'.encode()).hexdigest()[:20]
+        identity = self.cache_identity(text, voice, preset)
+        key = hashlib.sha1(f'{identity}|{voice}|{rate}|{preset}|{text}'.encode()).hexdigest()[:20]
         path = self.cache / f'{key}.wav'
-        if path.exists():
-            return str(path)
-        result = self.synthesize_array(text, voice, rate, preset)
-        if result is None:
-            return None
-        audio, sample_rate = result
-        tmp = path.with_suffix('.tmp')
-        with wave.open(str(tmp), 'wb') as wav:
-            wav.setnchannels(1)
-            wav.setsampwidth(2)
-            wav.setframerate(sample_rate)
-            wav.writeframes(audio.tobytes())
-        os.replace(tmp, path)
+        with request_lock(path):
+            if path.exists():
+                path.touch()
+            else:
+                result = self.synthesize_array(text, voice, rate, preset)
+                if result is None:
+                    return None
+                write_wav(path, *result)
+        self.cleanup_cache(keep=path)
         return str(path)
+

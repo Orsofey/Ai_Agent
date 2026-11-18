@@ -42,7 +42,7 @@ def focus_existing():
 
 
 class DesktopUI:
-    """Главное окно + отдельное окно настроек (pywebview)."""
+    """Главное окно (pywebview); настройки открываются в нём же отдельной страницей."""
 
     def __init__(self, base_url, store):
         self.base_url = base_url
@@ -51,6 +51,7 @@ class DesktopUI:
         self.settings_window = None
         self.quitting = False
         self.lock = threading.Lock()
+        self.extra = []          # окошко диктовки: закрывается вместе с приложением
 
     def url(self, path=''):
         return f'{self.base_url}{path}#token={self.store.meta("pairing_token")}'
@@ -69,35 +70,27 @@ class DesktopUI:
             self.main.hide()
             return False
         self.quitting = True
-        if self.settings_window is not None:
-            try:
-                self.settings_window.destroy()
-            except Exception:
-                pass
+        for window in [self.settings_window] + self.extra:
+            if window is not None:
+                try:
+                    window.destroy()
+                except Exception:
+                    pass
         return True
 
     tray_available = False
 
     def open_settings(self, section=''):
-        import webview
+        """Настройки — страница в главном окне (из трея и голосом тоже), отдельного окна больше нет."""
         path = '/settings' + ('?section=' + section if section else '')
         with self.lock:
-            if self.settings_window is not None:
-                try:
-                    if section:
-                        self.settings_window.load_url(self.url(path))
-                    self.settings_window.show()
-                    self.settings_window.restore()
-                    return
-                except Exception:
-                    self.settings_window = None
-            window = webview.create_window('Настройки — ' + TITLE, self.url(path), width=1020, height=780,
-                                           min_size=(760, 560), background_color='#0b1020')
-            window.events.closed += self._settings_closed
-            self.settings_window = window
-
-    def _settings_closed(self):
-        self.settings_window = None
+            if self.main is None:
+                return
+            try:
+                self.main.load_url(self.url(path))
+            except Exception:
+                return
+        self.show_main()
 
     def show_main(self):
         if self.main is not None:
@@ -111,8 +104,8 @@ class DesktopUI:
             self.main.destroy()
 
 
-def start_tray(ui, voice, store):
-    """Иконка в области уведомлений: открыть, настройки, слушать, выход."""
+def start_tray(ui, voice, store, dictation=None):
+    """Иконка в области уведомлений: открыть, настройки, слушать, диктовка, выход."""
     if sys.platform == 'darwin':
         return None  # на Mac меню строки требует главного потока, который занят окном; есть иконка в Dock
     try:
@@ -131,11 +124,20 @@ def start_tray(ui, voice, store):
         settings = store.save_settings(OWNER, {'voice_enabled': value})
         voice.apply_settings(settings)
 
+    def dictating(_item):
+        return bool(store.settings(OWNER).get('dictation_enabled', True))
+
+    def toggle_dictation(_icon, _item):
+        settings = store.save_settings(OWNER, {'dictation_enabled': not dictating(None)})
+        if dictation is not None:
+            dictation.apply_settings(settings)
+
     menu = pystray.Menu(
         pystray.MenuItem('Открыть', lambda: ui.show_main(), default=True),
         pystray.MenuItem('Настройки', lambda: ui.open_settings()),
         pystray.MenuItem('Слушать команды', toggle_listening, checked=listening),
         pystray.MenuItem('Сказать команду (Ctrl+Alt+Пробел)', lambda: voice.listen_once()),
+        pystray.MenuItem('Диктовка по клавише', toggle_dictation, checked=dictating),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem('Выход', lambda icon: (icon.stop(), ui.quit())),
     )
@@ -149,7 +151,8 @@ def self_test():
     """Проверка собранного приложения: все модули грузятся (без окна, микрофона и моделей)."""
     import importlib
     names = ['app', 'waitress', 'webview', 'numpy', 'onnxruntime', 'onnx_asr', 'sounddevice', 'src.speech.voice_loop',
-             'src.local_tts_service', 'src.brain']
+             'src.dictation', 'src.dictation.insert', 'src.dictation.popup', 'src.coach', 'src.coach_popup',
+             'src.updates', 'src.approvals', 'src.user_facts', 'src.local_tts_service', 'src.brain']
     if sys.platform == 'darwin':
         names += ['Quartz', 'AppKit', 'src.macos', 'src.desktop.macapi']
     for name in names:
@@ -190,6 +193,7 @@ def main():
         from src.speech.voice_loop import VoiceAssistant
         from src.tts_player import TTSPlayer
         from src.desktop.hotkey import GlobalHotkey
+        from src.dictation import Dictation
 
         settings = store.settings(OWNER)
         events = EventBus()
@@ -206,6 +210,11 @@ def main():
                                gate=app.extensions['voice_gate'])
         voice_ref['voice'] = voice
         agent.desktop_commands.desktop.start()  # запоминание последнего активного окна
+        # Диктовка как в Aqua Voice: держите правый Alt, говорите — текст вставляется туда, где курсор.
+        dictation = Dictation(speech, events, lambda: store.settings(OWNER), store.root, voice=voice, player=player)
+        dictation.desktop = agent.desktop_commands.desktop
+        agent.dictation = dictation
+        app.extensions['dictation'] = dictation
 
         hotkey = {'current': None}
 
@@ -223,11 +232,19 @@ def main():
 
         bind_hotkey(settings)
         local_llm = agent.brain.local
-        app.extensions['on_settings'] += [voice.apply_settings, bind_hotkey, local_llm.apply_settings]
+        app.extensions['on_settings'] += [voice.apply_settings, bind_hotkey, local_llm.apply_settings,
+                                          dictation.apply_settings]
         # Подписка: продление и окончание проверяются в фоне, лицензия работает и офлайн.
         app.extensions['license'].start_background_refresh(app.extensions['account_changed'])
         if settings.get('llm_provider') == 'local':
-            agent.brain.warm(settings)  # нейросеть загружается заранее, системная подсказка уже посчитана
+            # Нейросеть загружается заранее, системная подсказка уже посчитана. При автозапуске Windows — через
+            # 40 секунд: 2–3 ГБ модели не должны тормозить вход в систему (первый же вопрос запустит её сразу).
+            if '--minimized' in sys.argv:
+                timer = threading.Timer(40.0, lambda: agent.brain.warm(store.settings(OWNER)))
+                timer.daemon = True
+                timer.start()
+            else:
+                agent.brain.warm(settings)
 
         if sys.platform == 'win32' and (store.meta('startup_initialized') is None or autostart.enabled()):
             autostart.configure(settings.get('autostart', True))
@@ -240,6 +257,7 @@ def main():
         threading.Thread(target=server.run, daemon=True, name='http-server').start()
         voice.start()
         voice.prewarm()  # «Секунду, сэр» звучит без задержки
+        dictation.apply_settings(settings)
 
         # Если модели не встроены в установщик и ещё не скачаны — докачиваем их сами при первом запуске.
         from src.model_downloader import missing_items, start_download
@@ -257,15 +275,40 @@ def main():
         webview.settings['ALLOW_DOWNLOADS'] = True
         ui = DesktopUI(f'http://127.0.0.1:{port}', store)
         app.extensions['ui'] = ui
-        tray = start_tray(ui, voice, store)
+        agent.desktop_commands.show_self = ui.show_main   # «Андрей, разверни себя»
+        tray = start_tray(ui, voice, store, dictation)
+
+        def quit_for_update():
+            # 7.2: установщик обновления запущен — закрываемся, чтобы он заменил файлы (и запустил новую версию).
+            if tray is not None:
+                try:
+                    tray.stop()
+                except Exception:
+                    pass
+            ui.quit()
+        app.extensions['updater'].on_quit = quit_for_update
         # При автозапуске Windows агент стартует в трее и сразу слушает.
         ui.create_main(hidden='--minimized' in sys.argv and ui.tray_available)
+        from src.dictation import popup as dictation_popup
+        dictation.popup = dictation_popup.create(webview, ui.url('/dictation'))
+        if dictation.popup is not None:
+            ui.extra.append(dictation.popup.window)
+            dictation.popup.previous_foreground = ctypes.windll.user32.GetForegroundWindow()
+        # 7.0: наставник — персонаж поверх всех окон в правом нижнем углу (на Mac — карточка в окне Андрея).
+        from src import coach_popup
+        coach = app.extensions['coach']
+        coach.popup = coach_popup.create(webview, ui.url('/coach'))
+        if coach.popup is not None:
+            ui.extra.append(coach.popup.window)
+            coach.popup.previous_foreground = ctypes.windll.user32.GetForegroundWindow()
         if sys.platform == 'darwin':
             from src.desktop.macapi import request_permissions
             request_permissions()  # «Универсальный доступ» для печати текста в другие приложения
         webview.start(gui='edgechromium' if sys.platform == 'win32' else None, debug=False,
                       private_mode=False, storage_path=str(store.root / 'webview_profile'))
         voice.stop()
+        dictation.stop()
+        app.extensions['coach'].stop()
         local_llm.stop()
         if hotkey['current']:
             hotkey['current'].stop()
