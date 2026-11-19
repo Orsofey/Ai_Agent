@@ -104,7 +104,7 @@
       test.onclick = safe(async () => {
         await saveTvs();
         hint('sh-tv-hint', 'Подключаюсь… если на экране телевизора появится запрос — нажмите «Разрешить».');
-        hint('sh-tv-hint', (await Agent.post('smarthome/pair', { what: 'tv', number: tv.number })).message);
+        showPairing(await Agent.post('smarthome/pair', { what: 'tv', number: tv.number }));
       });
       const remove = el('button', { className: 'btn ghost', textContent: 'Удалить' });
       remove.onclick = () => { tvs.splice(i, 1); paintTvs(); };
@@ -115,6 +115,12 @@
     }));
     $('sh-tv-save-row').hidden = !tvs.length;
     $('sh-adb').hidden = !tvs.some(t => t.adb);
+  }
+  function showPairing(r) {
+    hint('sh-tv-hint', r.message);
+    $('sh-tv-code-row').hidden = !r.waiting_code;
+    if (r.waiting_code) { $('sh-tv-code').value = ''; $('sh-tv-code').focus(); }
+    if (r.config && r.config.tvs) { tvs = r.config.tvs.map(t => ({ ...t })); paintTvs(); }
   }
   async function saveTvs() {
     const data = await Agent.post('smarthome/save', { section: 'tvs', data: tvs });
@@ -138,7 +144,8 @@
             b.remove();
             await saveTvs();
             const n = tvs[tvs.length - 1].number;
-            hint('sh-tv-hint', `Добавлен как телевизор ${n}. ` + (await Agent.post('smarthome/pair', { what: 'tv', number: n })).message);
+            const r = await Agent.post('smarthome/pair', { what: 'tv', number: n });
+            showPairing({ ...r, message: `Добавлен как телевизор ${n}. ` + r.message });
           });
           return b;
         }));
@@ -146,6 +153,10 @@
           : 'Не нашёл. Проверьте, что телевизор включён и подключён к той же Wi-Fi, что и компьютер, — или добавьте вручную.');
       } finally { $('sh-tv-find').disabled = false; }
     });
+    $('sh-tv-code-ok').onclick = safe(async () => {
+      showPairing(await Agent.post('smarthome/tvcode', { code: $('sh-tv-code').value.trim() }));
+    });
+    $('sh-tv-code').onkeydown = e => { if (e.key === 'Enter') $('sh-tv-code-ok').click(); };
     $('sh-adb').onclick = safe(async () => { hint('sh-tv-hint', 'Скачиваю ADB…'); hint('sh-tv-hint', (await Agent.post('smarthome/adb')).message); });
   }
   if ($('sh-hue-find')) {

@@ -21,11 +21,11 @@ for folder in ('voice_packs', 'voices'):
 MAC = sys.platform == 'darwin'
 if MAC:
     hiddenimports = ['webview.platforms.cocoa', 'waitress', 'sqlite3', 'PIL.Image', 'Quartz', 'AppKit',
-                     'ApplicationServices', 'segno', 'src.connectors_apps', 'imaplib', 'zoneinfo']
+                     'ApplicationServices', 'segno', 'src.connectors_apps', 'src.atv_remote', 'imaplib', 'zoneinfo']
 else:
     hiddenimports = ['webview.platforms.edgechromium', 'waitress', 'sqlite3', 'clr', 'winreg', 'segno',
                      'pystray._win32', 'PIL.Image', 'pyttsx3.drivers', 'pyttsx3.drivers.sapi5',
-                     'src.connectors_apps', 'imaplib', 'zoneinfo', 'tzdata',
+                     'src.connectors_apps', 'src.atv_remote', 'imaplib', 'zoneinfo', 'tzdata',
                      # 6.6: диктовка по клавише — модули грузятся по ходу работы
                      'src.dictation', 'src.dictation.insert', 'src.dictation.popup', 'src.dictation.keys',
                      'src.dictation.recorder', 'src.dictation.text',

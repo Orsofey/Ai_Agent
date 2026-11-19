@@ -508,3 +508,168 @@ class TvFixesTests(Temp):
             self.assertEqual(home.handle('выключи телевизор'), 'Выключаю телевизор.')
         saved = home.tvs()[0]
         self.assertEqual((saved['type'], saved['detected']), ('xiaomi', True))
+
+
+# ---------------- пульт Android TV без отладки ----------------
+def _cert(cn):
+    import datetime
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(1).not_valid_before(now).not_valid_after(now + datetime.timedelta(days=1))
+            .sign(key, hashes.SHA256()))
+    return cert.public_bytes(serialization.Encoding.DER)
+
+
+class FakeTvChannel:
+    """Телевизор по ту сторону: отвечает «200 OK» и записывает, что ему прислали."""
+    sent = []
+
+    def __init__(self, server_der, script=None):
+        self.server_der = server_der
+        self.script = list(script or [])
+
+    def __call__(self, ip, port, root):
+        FakeTvChannel.sent = []
+        return self
+
+    def peer_der(self):
+        return self.server_der
+
+    def send(self, payload):
+        from src.atv_remote import decode
+        FakeTvChannel.sent.append(decode(payload))
+
+    def recv(self):
+        from src.atv_remote import decode, f_int
+        if self.script:
+            return decode(self.script.pop(0))
+        return decode(f_int(1, 2) + f_int(2, 200))
+
+    def close(self):
+        pass
+
+
+class AtvRemoteTests(Temp):
+    def test_protobuf_and_spoken_code(self):
+        from src.atv_remote import decode, f_bytes, f_int, f_msg, first, parse_code
+        data = f_int(1, 2) + f_int(2, 200) + f_msg(10, f_bytes(1, 'atvremote'))
+        fields = decode(data)
+        self.assertEqual((first(fields, 1), first(fields, 2)), (2, 200))
+        self.assertEqual(first(decode(first(fields, 10)), 1), b'atvremote')
+        self.assertEqual(parse_code('код 4F7A2C'), '4F7A2C')
+        self.assertEqual(parse_code('Код 4f 7a 2c'), '4F7A2C')
+        self.assertEqual(parse_code('код четыре эф семь а два цэ'), '4F7A2C')
+        self.assertEqual(parse_code('пин-код: 1 2 3 4 5 6'), '123456')
+        self.assertIsNone(parse_code('код да винчи'))
+        self.assertIsNone(parse_code('включи телевизор'))
+
+    def test_pairing_secret_and_wrong_code(self):
+        import hashlib
+        from src import atv_remote
+        client, server = _cert('pc'), _cert('tv')
+        # код, который показал бы телевизор: первый байт — контрольный байт секрета
+        from cryptography import x509
+        nums = [x509.load_der_x509_certificate(c).public_key().public_numbers() for c in (client, server)]
+        digest = hashlib.sha256()
+        for part in (nums[0].n, nums[0].e, nums[1].n, nums[1].e):
+            digest.update(atv_remote._hex_bytes(part))
+        digest.update(bytes.fromhex('7A2C'))
+        code = f'{digest.digest()[0]:02X}7A2C'
+        self.assertEqual(atv_remote.pairing_secret(client, server, code), digest.digest())
+        wrong = f'{(digest.digest()[0] + 1) % 256:02X}7A2C'
+        with self.assertRaises(atv_remote.RemoteError):
+            atv_remote.pairing_secret(client, server, wrong)
+
+    def test_pairing_conversation(self):
+        from src import atv_remote
+        fake = FakeTvChannel(_cert('tv'))
+        session = atv_remote.Pairing('192.168.1.60', self.root, channel_factory=fake)
+        session.start()
+        self.assertEqual([sorted(k for k in m if k >= 10) for m in FakeTvChannel.sent], [[10], [20], [30]])
+        with patch.object(atv_remote, 'pairing_secret', return_value=b'S' * 32):
+            self.assertTrue(session.finish('4f7a2c'))
+        self.assertEqual(atv_remote.first(atv_remote.decode(atv_remote.first(FakeTvChannel.sent[-1], 40)), 1), b'S' * 32)
+        self.assertTrue((self.root / 'tv' / 'atv_client.pem').exists())   # сертификат этого ПК создан один раз
+
+    def test_remote_handshake_and_power(self):
+        from src import atv_remote
+        from src.atv_remote import f_int, f_msg
+        script = [f_msg(1, f_int(1, 1)), f_msg(2, f_int(1, 1)), f_msg(40, f_int(1, 1))]   # configure, active, экран вкл
+        fake = FakeTvChannel(b'', script)
+        with atv_remote.Remote('192.168.1.60', self.root, channel_factory=fake) as remote:
+            self.assertTrue(remote.screen_on)
+            self.assertTrue(remote.power(False))
+            remote.link('https://www.youtube.com/watch?v=abc')
+        kinds = [sorted(m) for m in FakeTvChannel.sent]
+        self.assertEqual(kinds[:2], [[1], [2]])                        # ответили на configure и set_active
+        key = atv_remote.decode(atv_remote.first(FakeTvChannel.sent[2], 10))
+        self.assertEqual((atv_remote.first(key, 1), atv_remote.first(key, 2)), (26, 3))   # POWER, короткое нажатие
+        self.assertEqual(atv_remote.first(atv_remote.decode(atv_remote.first(FakeTvChannel.sent[3], 90)), 1),
+                         b'https://www.youtube.com/watch?v=abc')
+
+    def test_voice_flow_code_then_command_runs(self):
+        from src import atv_remote, tv as tvmod
+        from src.smarthome import SmartHome
+        home = SmartHome(self.store, session=Mock())
+        home.save_tvs([{'number': 2, 'name': 'R3', 'type': 'android', 'ip': '192.168.1.60', 'detected': True,
+                        'remote': True}])
+        pressed = []
+
+        class FakeRemote:
+            screen_on = True
+
+            def __init__(self, ip, root):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def power(self, on):
+                pressed.append(('power', on))
+                return True
+
+            def key(self, name, times=1):
+                pressed.append((name, times))
+
+            def link(self, url):
+                pressed.append(('link', url))
+        finished = []
+        with patch.object(atv_remote, 'Remote', FakeRemote), \
+                patch.object(atv_remote.Pairing, 'start', lambda self: None), \
+                patch.object(atv_remote.Pairing, 'finish', lambda self, code: finished.append(code) or True), \
+                patch.object(tvmod, 'port_open', return_value=False):
+            reply = home.handle('выключи телевизор 2')
+            self.assertIn('Скажите: «Андрей, код', reply)
+            self.assertNotIn('Отладку', reply)
+            self.assertTrue(home.awaiting('device:desktop'))
+            reply = home.handle('код четыре эф семь а два цэ')
+            self.assertEqual(finished, ['4F7A2C'])
+            self.assertIn('подключён', reply)
+            self.assertIn('Выключаю телевизор', reply)                 # отложенная команда выполнилась сама
+            self.assertEqual(pressed, [('power', False)])
+            self.assertTrue(home.tvs()[0]['paired'])
+            self.assertEqual(home.handle('переключи канал на телевизоре 2'), 'R3: Следующий канал.' if len(home.tvs()) > 1
+                             else 'Следующий канал.')
+            self.assertEqual(pressed[-1], ('channel_up', 1))
+            home.handle('включи на телевизоре 5 канал')
+            self.assertEqual(pressed[-1], ('5', 1))
+
+    def test_api_tvcode_without_pairing(self):
+        from app import create_app
+        app = create_app(self.store, Mock(status=Mock(return_value={})), Mock(),
+                         license=Mock(is_premium=lambda: True))
+        client = app.test_client()
+        headers = {'X-Agent-Token': self.store.meta('pairing_token')}
+        result = client.post('/api/smarthome/tvcode', json={'code': '4F7A2C'}, headers=headers).get_json()
+        self.assertTrue(result['success'])
+        self.assertIn('новый код', result['message'])
+        self.assertIsNone(result['waiting_code'])

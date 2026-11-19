@@ -2031,12 +2031,14 @@ def create_app(store=None, recognizer=None, agent=None, *, events=None, player=N
             return jsonify(success=True, online={str(k): v for k, v in smarthome.tv_status().items()})
         if action == 'pair':
             message = smarthome.pair(what, number)
-            return jsonify(success=True, message=message, config=smarthome.public(),
-                           need_code=what == 'tv' and smarthome.waiting_code(number))
-        if action == 'code':      # код с экрана телевизора (пульт Google TV), один раз на телевизор
-            message = smarthome.submit_tv_code(str(data.get('code', ''))[:80], number)
-            return jsonify(success=True, message=message, config=smarthome.public(),
-                           need_code=smarthome.waiting_code(number))
+            waiting = smarthome.waiting_code()
+            return jsonify(success=True, message=message, config=smarthome.public(), waiting_code=waiting,
+                           need_code=what == 'tv' and waiting is not None)
+        if action in ('tvcode', 'code'):   # код с экрана телевизора (пульт Android TV), один раз на телевизор
+            message = smarthome.submit_code(str(data.get('code', ''))[:80])
+            waiting = smarthome.waiting_code()
+            return jsonify(success=True, message=message, config=smarthome.public(), waiting_code=waiting,
+                           need_code=waiting is not None)
         if action == 'test':
             return jsonify(success=True, message=smarthome.test(what, number))
         if action == 'adb':
